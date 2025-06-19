@@ -9,66 +9,11 @@ import {
   TrendingUp,
   Star,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-
-// Mock data
-const mockTasks = [
-  {
-    id: '1',
-    title: 'Design product catalog interface',
-    project: 'E-commerce Website Redesign',
-    description: 'Create modern, user-friendly interface for product browsing',
-    payout: 850,
-    deadline: new Date('2024-02-15'),
-    status: 'assigned',
-    weight: 8
-  },
-  {
-    id: '2',
-    title: 'Implement payment gateway',
-    project: 'E-commerce Website Redesign',
-    description: 'Integrate Stripe payment processing with security features',
-    payout: 1200,
-    deadline: new Date('2024-02-20'),
-    status: 'submitted',
-    weight: 9
-  },
-  {
-    id: '3',
-    title: 'Create responsive mobile views',
-    project: 'E-commerce Website Redesign',
-    description: 'Ensure all pages work perfectly on mobile devices',
-    payout: 750,
-    deadline: new Date('2024-02-10'),
-    status: 'approved',
-    weight: 7
-  }
-];
-
-const availableTasks = [
-  {
-    id: '4',
-    title: 'Database optimization',
-    project: 'Mobile App Development',
-    description: 'Optimize database queries for better performance',
-    payout: 900,
-    weight: 8,
-    skills: ['Node.js', 'PostgreSQL'],
-    client: 'TechCorp Inc.'
-  },
-  {
-    id: '5',
-    title: 'API documentation',
-    project: 'Mobile App Development',
-    description: 'Create comprehensive API documentation with examples',
-    payout: 650,
-    weight: 6,
-    skills: ['Technical Writing', 'API Design'],
-    client: 'TechCorp Inc.'
-  }
-];
+import { useTasks } from '../../hooks/useTasks';
 
 const stats = [
   { name: 'Active Tasks', value: '2', icon: Briefcase, color: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -79,6 +24,10 @@ const stats = [
 
 export function WorkerDashboard() {
   const { user } = useAuth();
+  const { tasks, isLoading, claimTask } = useTasks();
+
+  const myTasks = tasks.filter(task => task.assigneeId === user?.id);
+  const availableTasks = tasks.filter(task => task.status === 'open' && !task.assigneeId);
 
   const getTaskStatusColor = (status: string) => {
     switch (status) {
@@ -98,6 +47,10 @@ export function WorkerDashboard() {
       case 'rejected': return 'Needs Revision';
       default: return status;
     }
+  };
+
+  const handleClaimTask = async (taskId: string) => {
+    await claimTask(taskId);
   };
 
   return (
@@ -145,49 +98,68 @@ export function WorkerDashboard() {
           </div>
         </div>
 
-        <div className="divide-y divide-gray-200">
-          {mockTasks.map((task) => (
-            <div key={task.id} className="p-6 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <h3 className="text-lg font-medium text-gray-900">{task.title}</h3>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTaskStatusColor(task.status)}`}>
-                      {getTaskStatusLabel(task.status)}
-                    </span>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+          </div>
+        ) : myTasks.length === 0 ? (
+          <div className="text-center py-12">
+            <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No active tasks</h3>
+            <p className="text-gray-600 mb-4">Browse available tasks to get started</p>
+            <Link
+              to="/browse"
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Browse Tasks
+            </Link>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {myTasks.slice(0, 3).map((task) => (
+              <div key={task.id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <h3 className="text-lg font-medium text-gray-900">{task.title}</h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTaskStatusColor(task.status)}`}>
+                        {getTaskStatusLabel(task.status)}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 mt-1">{task.description}</p>
+                    
+                    <div className="flex items-center space-x-6 mt-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        ${task.payout}
+                      </div>
+                      {task.deadline && (
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Due {task.deadline.toLocaleDateString()}
+                        </div>
+                      )}
+                      <div className="flex items-center text-sm text-gray-500">
+                        <TrendingUp className="h-4 w-4 mr-1" />
+                        Weight: {task.weight}/10
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">{task.project}</p>
-                  <p className="text-gray-600 mt-1">{task.description}</p>
-                  
-                  <div className="flex items-center space-x-6 mt-4">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      ${task.payout}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Due {task.deadline.toLocaleDateString()}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      Weight: {task.weight}/10
-                    </div>
-                  </div>
-                </div>
 
-                <div className="ml-6">
-                  <Link
-                    to={`/tasks/${task.id}`}
-                    className="text-indigo-600 hover:text-indigo-700 font-medium text-sm flex items-center space-x-1"
-                  >
-                    <span>View Task</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
+                  <div className="ml-6">
+                    <Link
+                      to={`/tasks/${task.id}`}
+                      className="text-indigo-600 hover:text-indigo-700 font-medium text-sm flex items-center space-x-1"
+                    >
+                      <span>View Task</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Available Tasks */}
@@ -201,49 +173,51 @@ export function WorkerDashboard() {
           </div>
         </div>
 
-        <div className="divide-y divide-gray-200">
-          {availableTasks.map((task) => (
-            <div key={task.id} className="p-6 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <h3 className="text-lg font-medium text-gray-900">{task.title}</h3>
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                      Available
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">{task.project} • {task.client}</p>
-                  <p className="text-gray-600 mt-1">{task.description}</p>
-                  
-                  <div className="flex items-center space-x-6 mt-4">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      ${task.payout}
-                    </div>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      Weight: {task.weight}/10
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 mt-3">
-                    {task.skills.map((skill) => (
-                      <span key={skill} className="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded-full">
-                        {skill}
+        {availableTasks.length === 0 ? (
+          <div className="text-center py-12">
+            <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No available tasks</h3>
+            <p className="text-gray-600">Check back later for new opportunities</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200">
+            {availableTasks.slice(0, 2).map((task) => (
+              <div key={task.id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <h3 className="text-lg font-medium text-gray-900">{task.title}</h3>
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                        Available
                       </span>
-                    ))}
+                    </div>
+                    <p className="text-gray-600 mt-1">{task.description}</p>
+                    
+                    <div className="flex items-center space-x-6 mt-4">
+                      <div className="flex items-center text-sm text-gray-500">
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        ${task.payout}
+                      </div>
+                      <div className="flex items-center text-sm text-gray-500">
+                        <TrendingUp className="h-4 w-4 mr-1" />
+                        Weight: {task.weight}/10
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                <div className="ml-6">
-                  <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
-                    Apply Now
-                  </button>
+                  <div className="ml-6">
+                    <button 
+                      onClick={() => handleClaimTask(task.id)}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                    >
+                      Claim Task
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Quick Actions */}
