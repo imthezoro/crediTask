@@ -41,12 +41,18 @@ export function useTasks(projectId?: string) {
         query = query.or(`status.eq.open,assignee_id.eq.${user.id}`);
       } else {
         // For clients, show tasks from their projects
-        query = query.in('project_id', 
-          supabase
-            .from('projects')
-            .select('id')
-            .eq('client_id', user.id)
-        );
+        const { data: projectIds } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('client_id', user.id);
+        
+        if (projectIds && projectIds.length > 0) {
+          query = query.in('project_id', projectIds.map(p => p.id));
+        } else {
+          setTasks([]);
+          setIsLoading(false);
+          return;
+        }
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -63,6 +69,11 @@ export function useTasks(projectId?: string) {
         status: task.status,
         payout: task.payout,
         deadline: task.deadline ? new Date(task.deadline) : undefined,
+        pricing_type: task.pricing_type,
+        hourly_rate: task.hourly_rate,
+        estimated_hours: task.estimated_hours,
+        required_skills: task.required_skills || [],
+        auto_assign: task.auto_assign
       }));
 
       setTasks(formattedTasks);
@@ -100,12 +111,65 @@ export function useTasks(projectId?: string) {
     return updateTaskStatus(taskId, 'assigned', user.id);
   };
 
+  const applyToTask = async (taskId: string, proposal: any) => {
+    if (!user) return false;
+
+    try {
+      // Insert proposal
+      const { error: proposalError } = await supabase
+        .from('proposals')
+        .insert({
+          task_id: taskId,
+          worker_id: user.id,
+          cover_letter: proposal.cover_letter,
+          proposed_rate: proposal.proposed_rate,
+          estimated_hours: proposal.estimated_hours
+        });
+
+      if (proposalError) throw proposalError;
+
+      // Insert task application
+      const { error: applicationError } = await supabase
+        .from('task_applications')
+        .insert({
+          task_id: taskId,
+          worker_id: user.id
+        });
+
+      if (applicationError) throw applicationError;
+
+      // Create notification for client
+      const { data: taskData } = await supabase
+        .from('tasks')
+        .select('title, projects(client_id)')
+        .eq('id', taskId)
+        .single();
+
+      if (taskData?.projects?.client_id) {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: taskData.projects.client_id,
+            title: 'New Proposal Received',
+            message: `${user.name} submitted a proposal for "${taskData.title}"`,
+            type: 'info'
+          });
+      }
+
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to apply to task');
+      return false;
+    }
+  };
+
   return {
     tasks,
     isLoading,
     error,
     updateTaskStatus,
     claimTask,
+    applyToTask,
     refetch: fetchTasks,
   };
 }
