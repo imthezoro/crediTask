@@ -8,6 +8,7 @@ import { SignupForm } from './components/auth/SignupForm';
 import { ClientDashboard } from './components/dashboard/ClientDashboard';
 import { WorkerDashboard } from './components/dashboard/WorkerDashboard';
 import { ProjectsPage } from './components/projects/ProjectsPage';
+import { TaskManagementPage } from './components/projects/TaskManagementPage';
 import { BrowseTasksPage } from './components/tasks/BrowseTasksPage';
 import { MyTasksPage } from './components/tasks/MyTasksPage';
 import { EarningsPage } from './components/earnings/EarningsPage';
@@ -75,11 +76,22 @@ function AppContent() {
         />
         
         <Route
-          path="/projects/*"
+          path="/projects"
           element={
             <ProtectedRoute>
               <Layout>
                 <ProjectsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/projects/:projectId/tasks"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <TaskManagementPage />
               </Layout>
             </ProtectedRoute>
           }
@@ -181,10 +193,12 @@ function AppContent() {
       </Routes>
 
       {/* Onboarding Modal */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onClose={handleOnboardingComplete}
-      />
+      {showOnboarding && (
+        <OnboardingModal
+          isOpen={showOnboarding}
+          onClose={handleOnboardingComplete}
+        />
+      )}
     </>
   );
 }

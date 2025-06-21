@@ -49,6 +49,10 @@ export function Layout({ children }: LayoutProps) {
     navigate('/login');
   };
 
+  const handleLogoClick = () => {
+    navigate('/dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -56,12 +60,15 @@ export function Layout({ children }: LayoutProps) {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-center border-b border-gray-200">
-            <div className="flex items-center space-x-2">
+            <button 
+              onClick={handleLogoClick}
+              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            >
               <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
                 <Briefcase className="h-5 w-5 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900">FreelanceFlow</span>
-            </div>
+            </button>
           </div>
 
           {/* Navigation */}

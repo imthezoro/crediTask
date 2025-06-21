@@ -14,7 +14,8 @@ import {
   MoreVertical,
   Edit,
   Archive,
-  Eye
+  Eye,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useProjects } from '../../hooks/useProjects';
@@ -265,11 +266,11 @@ export function ProjectsPage() {
                 {/* Actions */}
                 <div className="flex space-x-2">
                   <Link
-                    to={`/projects/${project.id}`}
+                    to={`/projects/${project.id}/tasks`}
                     className="flex-1 bg-indigo-600 text-white text-center py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
                   >
-                    <Eye className="h-4 w-4" />
-                    <span>View Details</span>
+                    <Settings className="h-4 w-4" />
+                    <span>Manage Tasks</span>
                   </Link>
                   <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     <Edit className="h-4 w-4 text-gray-600" />

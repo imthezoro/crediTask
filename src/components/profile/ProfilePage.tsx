@@ -13,7 +13,9 @@ import {
   Globe,
   Award,
   TrendingUp,
-  Loader2
+  Loader2,
+  Save,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -26,7 +28,7 @@ interface UserStats {
 }
 
 export function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [stats, setStats] = useState<UserStats>({
     totalProjects: 0,
     completedTasks: 0,
@@ -36,9 +38,22 @@ export function ProfilePage() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    name: user?.name || '',
+    skills: user?.skills || [],
+    bio: ''
+  });
+  const [newSkill, setNewSkill] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
+      setEditData({
+        name: user.name || '',
+        skills: user.skills || [],
+        bio: ''
+      });
       fetchUserStats();
       fetchRecentActivity();
     }
@@ -131,6 +146,44 @@ export function ProfilePage() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      const success = await updateProfile({
+        name: editData.name,
+        skills: editData.skills
+      });
+
+      if (success) {
+        setIsEditing(false);
+        setError(null);
+      } else {
+        setError('Failed to update profile');
+      }
+    } catch (error) {
+      setError('An error occurred while updating profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const addSkill = () => {
+    if (newSkill.trim() && !editData.skills.includes(newSkill.trim())) {
+      setEditData({
+        ...editData,
+        skills: [...editData.skills, newSkill.trim()]
+      });
+      setNewSkill('');
+    }
+  };
+
+  const removeSkill = (skillToRemove: string) => {
+    setEditData({
+      ...editData,
+      skills: editData.skills.filter(skill => skill !== skillToRemove)
+    });
+  };
+
   const getTierColor = (tier: string) => {
     switch (tier) {
       case 'bronze': return 'text-amber-600 bg-amber-50 border-amber-200';
@@ -184,8 +237,8 @@ export function ProfilePage() {
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
-        <div className="px-6 pb-6">
-          <div className="flex items-end space-x-5 -mt-12">
+        <div className="px-6 pb-6 -mt-16 relative">
+          <div className="flex items-end space-x-5">
             <div className="relative">
               {user.avatar ? (
                 <img
@@ -203,38 +256,45 @@ export function ProfilePage() {
               </button>
             </div>
             
-            <div className="flex-1 min-w-0 pb-1">
-              <div className="flex items-center space-x-3">
-                <h1 className="text-2xl font-bold text-gray-900">{user.name || 'User'}</h1>
-                <span className="capitalize px-3 py-1 text-sm font-medium rounded-full bg-indigo-100 text-indigo-800">
-                  {user.role}
-                </span>
-                {user.role === 'worker' && (
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full border capitalize ${getTierColor(user.tier || 'bronze')}`}>
-                    {user.tier || 'Bronze'} Tier
-                  </span>
-                )}
-              </div>
-              <p className="text-gray-600 flex items-center mt-1">
-                <Mail className="h-4 w-4 mr-2" />
-                {user.email}
-              </p>
-              <div className="flex items-center space-x-4 mt-2">
-                <div className="flex items-center text-yellow-500">
-                  <Star className="h-4 w-4 mr-1 fill-current" />
-                  <span className="text-sm font-medium">{user.rating?.toFixed(1) || '0.0'}</span>
+            <div className="flex-1 min-w-0 pb-1 mt-16">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <h1 className="text-2xl font-bold text-gray-900">{user.name || 'User'}</h1>
+                    <span className="capitalize px-3 py-1 text-sm font-medium rounded-full bg-indigo-100 text-indigo-800">
+                      {user.role}
+                    </span>
+                    {user.role === 'worker' && (
+                      <span className={`px-3 py-1 text-sm font-medium rounded-full border capitalize ${getTierColor(user.tier || 'bronze')}`}>
+                        {user.tier || 'Bronze'} Tier
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-600 flex items-center">
+                    <Mail className="h-4 w-4 mr-2" />
+                    {user.email}
+                  </p>
+                  <div className="flex items-center space-x-4 mt-2">
+                    <div className="flex items-center text-yellow-500">
+                      <Star className="h-4 w-4 mr-1 fill-current" />
+                      <span className="text-sm font-medium">{user.rating?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div className="flex items-center text-gray-500">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      <span className="text-sm">Joined Dec 2024</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center text-gray-500">
-                  <Calendar className="h-4 w-4 mr-1" />
-                  <span className="text-sm">Joined Dec 2024</span>
-                </div>
+                
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Edit className="h-4 w-4" />
+                  <span>Edit Profile</span>
+                </button>
               </div>
             </div>
-            
-            <button className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Edit className="h-4 w-4" />
-              <span>Edit Profile</span>
-            </button>
           </div>
         </div>
       </div>
@@ -345,6 +405,101 @@ export function ProfilePage() {
           )}
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Edit Profile</h3>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editData.name}
+                    onChange={(e) => setEditData({...editData, name: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+
+                {user.role === 'worker' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Skills
+                    </label>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {editData.skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800"
+                        >
+                          {skill}
+                          <button
+                            onClick={() => removeSkill(skill)}
+                            className="ml-2 hover:text-indigo-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        value={newSkill}
+                        onChange={(e) => setNewSkill(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && addSkill()}
+                        placeholder="Add a skill"
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      <button
+                        onClick={addSkill}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,6 +22,8 @@ export function useTasks(projectId?: string) {
 
     try {
       setIsLoading(true);
+      console.log('useTasks: Fetching tasks for user:', user.id, 'role:', user.role);
+      
       let query = supabase
         .from('tasks')
         .select(`
@@ -39,8 +41,9 @@ export function useTasks(projectId?: string) {
       if (projectId) {
         query = query.eq('project_id', projectId);
       } else if (user.role === 'worker') {
-        // For workers, show available tasks or their assigned tasks
-        query = query.or(`status.eq.open,assignee_id.eq.${user.id}`);
+        // For workers, show all open tasks (not just their assigned ones)
+        // This allows them to see tasks they can apply to
+        query = query.eq('status', 'open');
       } else {
         // For clients, show tasks from their projects
         const { data: projectIds } = await supabase
@@ -51,6 +54,7 @@ export function useTasks(projectId?: string) {
         if (projectIds && projectIds.length > 0) {
           query = query.in('project_id', projectIds.map(p => p.id));
         } else {
+          console.log('useTasks: No projects found for client');
           setTasks([]);
           setIsLoading(false);
           return;
@@ -59,9 +63,14 @@ export function useTasks(projectId?: string) {
 
       const { data, error } = await query.order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('useTasks: Database error:', error);
+        throw error;
+      }
 
-      const formattedTasks: Task[] = data.map(task => ({
+      console.log('useTasks: Fetched tasks:', data?.length || 0);
+
+      const formattedTasks: Task[] = (data || []).map(task => ({
         id: task.id,
         projectId: task.project_id,
         title: task.title,
@@ -80,6 +89,7 @@ export function useTasks(projectId?: string) {
 
       setTasks(formattedTasks);
     } catch (err) {
+      console.error('useTasks: Error in fetchTasks:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
@@ -88,6 +98,8 @@ export function useTasks(projectId?: string) {
 
   const updateTaskStatus = async (taskId: string, status: Task['status'], assigneeId?: string) => {
     try {
+      console.log('useTasks: Updating task status:', taskId, status, assigneeId);
+      
       const updates: any = { status };
       if (assigneeId !== undefined) {
         updates.assignee_id = assigneeId;
@@ -98,11 +110,14 @@ export function useTasks(projectId?: string) {
         .update(updates)
         .eq('id', taskId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('useTasks: Error updating task:', error);
+        throw error;
+      }
 
       // Create notification for status change
       const task = tasks.find(t => t.id === taskId);
-      if (task && assigneeId) {
+      if (task && assigneeId && createNotification) {
         await createNotification(
           assigneeId,
           'Task Assigned',
@@ -114,6 +129,7 @@ export function useTasks(projectId?: string) {
       await fetchTasks(); // Refresh the list
       return true;
     } catch (err) {
+      console.error('useTasks: Error in updateTaskStatus:', err);
       setError(err instanceof Error ? err.message : 'Failed to update task');
       return false;
     }
@@ -121,6 +137,7 @@ export function useTasks(projectId?: string) {
 
   const claimTask = async (taskId: string) => {
     if (!user) return false;
+    console.log('useTasks: Claiming task:', taskId, 'for user:', user.id);
     return updateTaskStatus(taskId, 'assigned', user.id);
   };
 
@@ -128,6 +145,8 @@ export function useTasks(projectId?: string) {
     if (!user) return false;
 
     try {
+      console.log('useTasks: Applying to task:', taskId, 'by user:', user.id);
+      
       // Insert proposal
       const { error: proposalError } = await supabase
         .from('proposals')
@@ -139,7 +158,10 @@ export function useTasks(projectId?: string) {
           estimated_hours: proposal.estimated_hours
         });
 
-      if (proposalError) throw proposalError;
+      if (proposalError) {
+        console.error('useTasks: Error creating proposal:', proposalError);
+        throw proposalError;
+      }
 
       // Insert task application
       const { error: applicationError } = await supabase
@@ -149,7 +171,10 @@ export function useTasks(projectId?: string) {
           worker_id: user.id
         });
 
-      if (applicationError) throw applicationError;
+      if (applicationError) {
+        console.error('useTasks: Error creating application:', applicationError);
+        throw applicationError;
+      }
 
       // Create notification for client
       const { data: taskData } = await supabase
@@ -158,7 +183,7 @@ export function useTasks(projectId?: string) {
         .eq('id', taskId)
         .single();
 
-      if (taskData?.projects?.client_id) {
+      if (taskData?.projects?.client_id && createNotification) {
         await createNotification(
           taskData.projects.client_id,
           'New Proposal Received',
@@ -167,8 +192,10 @@ export function useTasks(projectId?: string) {
         );
       }
 
+      console.log('useTasks: Successfully applied to task');
       return true;
     } catch (err) {
+      console.error('useTasks: Error in applyToTask:', err);
       setError(err instanceof Error ? err.message : 'Failed to apply to task');
       return false;
     }
