@@ -10,7 +10,8 @@ import {
   Save,
   Eye,
   EyeOff,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -55,6 +56,7 @@ export function SettingsPage() {
   });
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [newSkill, setNewSkill] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -144,12 +146,13 @@ export function SettingsPage() {
     }
   };
 
-  const addSkill = (skill: string) => {
-    if (skill && !profileData.skills.includes(skill)) {
+  const addSkill = () => {
+    if (newSkill.trim() && !profileData.skills.includes(newSkill.trim())) {
       setProfileData({
         ...profileData,
-        skills: [...profileData.skills, skill]
+        skills: [...profileData.skills, newSkill.trim()]
       });
+      setNewSkill('');
     }
   };
 
@@ -160,12 +163,31 @@ export function SettingsPage() {
     });
   };
 
+  const handleSkillKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSkill();
+    }
+  };
+
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: Lock },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'billing', label: 'Billing', icon: CreditCard }
   ];
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900">Not logged in</h3>
+          <p className="text-gray-600">Please log in to access settings</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -261,23 +283,28 @@ export function SettingsPage() {
                           onClick={() => removeSkill(skill)}
                           className="ml-2 hover:text-indigo-600"
                         >
-                          ×
+                          <X className="h-3 w-3" />
                         </button>
                       </span>
                     ))}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Add a skill and press Enter"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addSkill(e.currentTarget.value);
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                  />
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newSkill}
+                      onChange={(e) => setNewSkill(e.target.value)}
+                      onKeyPress={handleSkillKeyPress}
+                      placeholder="Add a skill and press Enter"
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={addSkill}
+                      className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
               )}
 

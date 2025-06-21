@@ -12,7 +12,8 @@ import {
   Phone,
   Globe,
   Award,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -34,6 +35,7 @@ export function ProfilePage() {
   });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -48,15 +50,19 @@ export function ProfilePage() {
     try {
       if (user.role === 'client') {
         // Fetch client stats
-        const { data: projects } = await supabase
+        const { data: projects, error: projectsError } = await supabase
           .from('projects')
           .select('id, budget, status')
           .eq('client_id', user.id);
 
-        const { data: tasks } = await supabase
+        if (projectsError) throw projectsError;
+
+        const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
           .select('id, status, payout')
           .in('project_id', projects?.map(p => p.id) || []);
+
+        if (tasksError && projects?.length > 0) throw tasksError;
 
         setStats({
           totalProjects: projects?.length || 0,
@@ -66,10 +72,12 @@ export function ProfilePage() {
         });
       } else {
         // Fetch worker stats
-        const { data: tasks } = await supabase
+        const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
           .select('id, status, payout')
           .eq('assignee_id', user.id);
+
+        if (tasksError) throw tasksError;
 
         setStats({
           totalProjects: 0,
@@ -78,8 +86,9 @@ export function ProfilePage() {
           averageRating: user.rating || 0
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching user stats:', error);
+      setError('Failed to load user statistics');
     }
   };
 
@@ -88,26 +97,35 @@ export function ProfilePage() {
 
     try {
       if (user.role === 'client') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('projects')
           .select('id, title, status, created_at')
           .eq('client_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5);
 
+        if (error) throw error;
         setRecentActivity(data || []);
       } else {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('tasks')
-          .select('id, title, status, created_at, projects(title)')
+          .select(`
+            id, 
+            title, 
+            status, 
+            created_at,
+            projects!inner(title)
+          `)
           .eq('assignee_id', user.id)
           .order('created_at', { ascending: false })
           .limit(5);
 
+        if (error) throw error;
         setRecentActivity(data || []);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching recent activity:', error);
+      setError('Failed to load recent activity');
     } finally {
       setIsLoading(false);
     }
@@ -138,6 +156,7 @@ export function ProfilePage() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
+          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900">Not logged in</h3>
           <p className="text-gray-600">Please log in to view your profile</p>
         </div>
@@ -145,8 +164,23 @@ export function ProfilePage() {
     );
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
@@ -171,7 +205,7 @@ export function ProfilePage() {
             
             <div className="flex-1 min-w-0 pb-1">
               <div className="flex items-center space-x-3">
-                <h1 className="text-2xl font-bold text-gray-900">{user.name}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{user.name || 'User'}</h1>
                 <span className="capitalize px-3 py-1 text-sm font-medium rounded-full bg-indigo-100 text-indigo-800">
                   {user.role}
                 </span>
@@ -288,16 +322,7 @@ export function ProfilePage() {
         {/* Recent Activity */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                </div>
-              ))}
-            </div>
-          ) : recentActivity.length === 0 ? (
+          {recentActivity.length === 0 ? (
             <p className="text-gray-600 text-sm">No recent activity</p>
           ) : (
             <div className="space-y-3">
@@ -305,7 +330,7 @@ export function ProfilePage() {
                 <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
                   <div>
                     <p className="text-sm font-medium text-gray-900">
-                      {user.role === 'client' ? item.title : `${item.title} - ${item.projects?.title}`}
+                      {user.role === 'client' ? item.title : `${item.title} - ${item.projects?.title || 'Project'}`}
                     </p>
                     <p className="text-xs text-gray-500">
                       {new Date(item.created_at).toLocaleDateString()}

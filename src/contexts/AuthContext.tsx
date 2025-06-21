@@ -55,7 +55,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        // If user doesn't exist in our users table, create a basic profile
+        if (error.code === 'PGRST116') {
+          const { data: authUser } = await supabase.auth.getUser();
+          if (authUser.user) {
+            const { error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: authUser.user.id,
+                email: authUser.user.email || '',
+                name: authUser.user.user_metadata?.name || '',
+                role: 'worker', // Default role
+                rating: 0,
+                wallet_balance: 0,
+                skills: [],
+                tier: 'bronze',
+                onboarding_completed: false,
+              });
+            
+            if (!insertError) {
+              // Retry fetching the profile
+              await fetchUserProfile(userId);
+              return;
+            }
+          }
+        }
+        throw error;
+      }
 
       if (data) {
         setUser({
@@ -64,8 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: data.name || '',
           email: data.email,
           skills: data.skills || [],
-          rating: data.rating,
-          walletBalance: data.wallet_balance,
+          rating: data.rating || 0,
+          walletBalance: data.wallet_balance || 0,
           avatar: data.avatar_url || undefined,
           tier: data.tier || 'bronze',
           onboarding_completed: data.onboarding_completed || false,
@@ -147,13 +175,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return false;
 
     try {
+      const updateData: any = {};
+      
+      if (updates.name !== undefined) updateData.name = updates.name;
+      if (updates.skills !== undefined) updateData.skills = updates.skills;
+      if (updates.avatar !== undefined) updateData.avatar_url = updates.avatar;
+
       const { error } = await supabase
         .from('users')
-        .update({
-          name: updates.name,
-          skills: updates.skills,
-          avatar_url: updates.avatar,
-        })
+        .update(updateData)
         .eq('id', user.id);
 
       if (error) throw error;
