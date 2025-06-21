@@ -149,23 +149,37 @@ export function useNotifications() {
     try {
       console.log('useNotifications: Creating notification for user:', userId);
       
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: userId,
-          title,
-          message,
-          type
+      // If creating notification for current user, use direct insert
+      if (userId === user?.id) {
+        const { error } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            title,
+            message,
+            type
+          });
+
+        if (error) {
+          console.error('useNotifications: Error creating notification:', error);
+          return;
+        }
+
+        // Refresh notifications
+        await fetchNotifications();
+      } else {
+        // For other users, use the secure RPC function
+        const { error } = await supabase.rpc('create_notification_for_user', {
+          target_user_id: userId,
+          notification_title: title,
+          notification_message: message,
+          notification_type: type
         });
 
-      if (error) {
-        console.error('useNotifications: Error creating notification:', error);
-        return;
-      }
-
-      // Refresh notifications if it's for the current user
-      if (userId === user?.id) {
-        await fetchNotifications();
+        if (error) {
+          console.error('useNotifications: Error creating notification via RPC:', error);
+          return;
+        }
       }
     } catch (error) {
       console.error('useNotifications: Error in createNotification:', error);
