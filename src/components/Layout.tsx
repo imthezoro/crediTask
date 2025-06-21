@@ -11,10 +11,12 @@ import {
   Briefcase,
   Search,
   Wallet,
-  MessageSquare
+  MessageSquare,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { OnboardingModal } from './onboarding/OnboardingModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,6 +28,7 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const clientNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -44,13 +47,20 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = user?.role === 'client' ? clientNavItems : workerNavItems;
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    console.log('Layout: Logging out user...');
+    setShowUserMenu(false);
+    await logout();
     navigate('/login');
   };
 
   const handleLogoClick = () => {
     navigate('/dashboard');
+  };
+
+  const handleShowOnboarding = () => {
+    setShowUserMenu(false);
+    setShowOnboarding(true);
   };
 
   return (
@@ -102,6 +112,15 @@ export function Layout({ children }: LayoutProps) {
             <div className="flex-1" />
             
             <div className="flex items-center space-x-4">
+              {/* Help/Onboarding */}
+              <button
+                onClick={handleShowOnboarding}
+                className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                title="Getting Started Guide"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </button>
+
               {/* Notifications */}
               <Link
                 to="/notifications"
@@ -157,6 +176,13 @@ export function Layout({ children }: LayoutProps) {
                       Settings
                     </Link>
                     <button
+                      onClick={handleShowOnboarding}
+                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <HelpCircle className="mr-3 h-4 w-4" />
+                      Getting Started
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
@@ -175,6 +201,12 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
     </div>
   );
 }

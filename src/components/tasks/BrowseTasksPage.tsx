@@ -12,11 +12,13 @@ import {
   Heart,
   Send,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTasks } from '../../hooks/useTasks';
 import { TaskApplicationModal } from './TaskApplicationModal';
+import { TaskDetailsModal } from './TaskDetailsModal';
 
 export function BrowseTasksPage() {
   const { user } = useAuth();
@@ -24,6 +26,7 @@ export function BrowseTasksPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filters, setFilters] = useState({
     priceRange: 'all',
     duration: 'all',
@@ -69,6 +72,16 @@ export function BrowseTasksPage() {
       setShowApplicationModal(false);
       setSelectedTask(null);
     }
+  };
+
+  const handleViewDetails = (task: any) => {
+    setSelectedTask(task);
+    setShowDetailsModal(true);
+  };
+
+  const handleApplyFromDetails = () => {
+    setShowDetailsModal(false);
+    setShowApplicationModal(true);
   };
 
   if (isLoading) {
@@ -263,8 +276,12 @@ export function BrowseTasksPage() {
                   </div>
                   
                   <div className="flex space-x-2">
-                    <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium">
-                      View Details
+                    <button 
+                      onClick={() => handleViewDetails(task)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center space-x-1"
+                    >
+                      <Eye className="h-4 w-4" />
+                      <span>View Details</span>
                     </button>
                     <button
                       onClick={() => {
@@ -283,6 +300,17 @@ export function BrowseTasksPage() {
           ))}
         </div>
       )}
+
+      {/* Task Details Modal */}
+      <TaskDetailsModal
+        isOpen={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedTask(null);
+        }}
+        task={selectedTask}
+        onApply={handleApplyFromDetails}
+      />
 
       {/* Application Modal */}
       <TaskApplicationModal

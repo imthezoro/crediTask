@@ -43,9 +43,9 @@ function AppContent() {
       onboardingCompleted: user?.onboarding_completed 
     });
     
-    // Show onboarding for new users
+    // Show onboarding for new users who haven't completed it yet
     if (user && !user.onboarding_completed) {
-      console.log('AppContent: Showing onboarding modal');
+      console.log('AppContent: Showing onboarding modal for new user');
       setShowOnboarding(true);
     }
   }, [user]);
@@ -217,8 +217,8 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Onboarding Modal */}
-      {showOnboarding && (
+      {/* Onboarding Modal for first-time users */}
+      {showOnboarding && user && !user.onboarding_completed && (
         <OnboardingModal
           isOpen={showOnboarding}
           onClose={handleOnboardingComplete}
