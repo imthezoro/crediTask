@@ -1,127 +1,150 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { useNotifications } from './useNotifications';
+
+interface Project {
+  id: string;
+  title: string;
+  description: string;
+  budget: number;
+  status: 'open' | 'in_progress' | 'completed' | 'closed';
+  tags: string[];
+  client_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreateProjectData {
+  title: string;
+  description: string;
+  budget: number;
+  tags: string[];
+}
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const { createNotification } = useNotifications();
 
   useEffect(() => {
-    if (user) {
-      fetchProjects();
+    if (!user?.id) {
+      setProjects([]);
+      setLoading(false);
+      return;
     }
-  }, [user]);
+
+    fetchProjects();
+  }, [user?.id]);
 
   const fetchProjects = async () => {
-    if (!user) return;
-
     try {
-      setIsLoading(true);
-      
-      let query = supabase
-        .from('projects')
-        .select(`
-          *,
-          tasks (
-            id,
-            title,
-            status,
-            payout,
-            assignee_id
-          )
-        `);
+      if (!user?.id) return;
 
-      // If user is a client, show their projects
-      // If user is a worker, show all open projects
-      if (user.role === 'client') {
-        query = query.eq('client_id', user.id);
-      } else {
-        query = query.eq('status', 'open');
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('client_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching projects:', error);
+        return;
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const formattedProjects: Project[] = data.map(project => ({
-        id: project.id,
-        clientId: project.client_id,
-        title: project.title,
-        description: project.description,
-        tags: project.tags,
-        budget: project.budget,
-        status: project.status,
-        createdAt: new Date(project.created_at),
-        tasks: project.tasks?.map(task => ({
-          id: task.id,
-          projectId: project.id,
-          title: task.title,
-          description: '',
-          weight: 0,
-          status: task.status,
-          payout: task.payout,
-          assigneeId: task.assignee_id,
-        })) || [],
-      }));
-
-      setProjects(formattedProjects);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setProjects(data || []);
+    } catch (error) {
+      console.error('Error in fetchProjects:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const createProject = async (projectData: {
-    title: string;
-    description: string;
-    budget: number;
-    tags: string[];
-  }) => {
-    if (!user) return null;
-
+  const createProject = async (projectData: CreateProjectData): Promise<Project | null> => {
     try {
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('projects')
         .insert({
+          ...projectData,
           client_id: user.id,
-          title: projectData.title,
-          description: projectData.description,
-          budget: projectData.budget,
-          tags: projectData.tags,
-          status: 'open',
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating project:', error);
+        throw error;
+      }
 
-      // Create notification for project creation
-      await createNotification(
-        user.id,
-        'Project Created',
-        `Your project "${projectData.title}" has been created successfully`,
-        'success'
-      );
+      if (data) {
+        setProjects(prev => [data, ...prev]);
+        return data;
+      }
 
-      await fetchProjects(); // Refresh the list
-      return data;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project');
       return null;
+    } catch (error) {
+      console.error('Error in createProject:', error);
+      throw error;
+    }
+  };
+
+  const updateProject = async (projectId: string, updates: Partial<Project>): Promise<Project | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .update(updates)
+        .eq('id', projectId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating project:', error);
+        throw error;
+      }
+
+      if (data) {
+        setProjects(prev =>
+          prev.map(p => p.id === projectId ? data : p)
+        );
+        return data;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error in updateProject:', error);
+      throw error;
+    }
+  };
+
+  const deleteProject = async (projectId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) {
+        console.error('Error deleting project:', error);
+        throw error;
+      }
+
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      return true;
+    } catch (error) {
+      console.error('Error in deleteProject:', error);
+      throw error;
     }
   };
 
   return {
     projects,
-    isLoading,
-    error,
+    loading,
     createProject,
-    refetch: fetchProjects,
+    updateProject,
+    deleteProject,
+    refetch: fetchProjects
   };
 }
