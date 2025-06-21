@@ -20,7 +20,12 @@ import { OnboardingModal } from './components/onboarding/OnboardingModal';
 function DashboardRouter() {
   const { user } = useAuth();
   
-  if (!user) return null;
+  console.log('DashboardRouter: Rendering for user role:', user?.role);
+  
+  if (!user) {
+    console.log('DashboardRouter: No user found');
+    return null;
+  }
   
   return user.role === 'client' ? <ClientDashboard /> : <WorkerDashboard />;
 }
@@ -29,14 +34,23 @@ function AppContent() {
   const { user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  console.log('AppContent: Rendering with user:', !!user);
+
   useEffect(() => {
+    console.log('AppContent: User effect triggered', { 
+      user: !!user, 
+      onboardingCompleted: user?.onboarding_completed 
+    });
+    
     // Show onboarding for new users
     if (user && !user.onboarding_completed) {
+      console.log('AppContent: Showing onboarding modal');
       setShowOnboarding(true);
     }
   }, [user]);
 
   const handleOnboardingComplete = async () => {
+    console.log('AppContent: Onboarding completed');
     setShowOnboarding(false);
     // TODO: Update user's onboarding_completed status in database
   };
@@ -176,6 +190,8 @@ function AppContent() {
 }
 
 function App() {
+  console.log('App: Rendering main app component');
+  
   return (
     <AuthProvider>
       <Router>

@@ -11,7 +11,14 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
   const location = useLocation();
 
+  console.log('ProtectedRoute: Checking access', { 
+    user: !!user, 
+    isLoading, 
+    pathname: location.pathname 
+  });
+
   if (isLoading) {
+    console.log('ProtectedRoute: Still loading, showing spinner');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -23,8 +30,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
+    console.log('ProtectedRoute: No user, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  console.log('ProtectedRoute: User authenticated, rendering children');
   return <>{children}</>;
 }
