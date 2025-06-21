@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Task } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from './useNotifications';
 
 export function useTasks(projectId?: string) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { createNotification } = useNotifications();
 
   useEffect(() => {
     if (user) {
@@ -98,6 +100,17 @@ export function useTasks(projectId?: string) {
 
       if (error) throw error;
 
+      // Create notification for status change
+      const task = tasks.find(t => t.id === taskId);
+      if (task && assigneeId) {
+        await createNotification(
+          assigneeId,
+          'Task Assigned',
+          `You have been assigned to task: ${task.title}`,
+          'info'
+        );
+      }
+
       await fetchTasks(); // Refresh the list
       return true;
     } catch (err) {
@@ -146,14 +159,12 @@ export function useTasks(projectId?: string) {
         .single();
 
       if (taskData?.projects?.client_id) {
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: taskData.projects.client_id,
-            title: 'New Proposal Received',
-            message: `${user.name} submitted a proposal for "${taskData.title}"`,
-            type: 'info'
-          });
+        await createNotification(
+          taskData.projects.client_id,
+          'New Proposal Received',
+          `${user.name} submitted a proposal for "${taskData.title}"`,
+          'info'
+        );
       }
 
       return true;

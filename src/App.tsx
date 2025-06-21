@@ -13,6 +13,8 @@ import { MyTasksPage } from './components/tasks/MyTasksPage';
 import { EarningsPage } from './components/earnings/EarningsPage';
 import { NotificationsPage } from './components/notifications/NotificationsPage';
 import { ChatPage } from './components/chat/ChatPage';
+import { ProfilePage } from './components/profile/ProfilePage';
+import { SettingsPage } from './components/settings/SettingsPage';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
 
 function DashboardRouter() {
@@ -133,6 +135,28 @@ function AppContent() {
             <ProtectedRoute>
               <Layout>
                 <ChatPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <ProfilePage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <SettingsPage />
               </Layout>
             </ProtectedRoute>
           }

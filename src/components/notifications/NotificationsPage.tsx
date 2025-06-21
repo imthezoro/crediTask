@@ -9,68 +9,57 @@ import {
   Briefcase,
   MessageSquare,
   Star,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
-
-const mockNotifications = [
-  {
-    id: 1,
-    type: 'task_assigned',
-    title: 'New Task Assigned',
-    message: 'You have been assigned to "E-commerce Website Development"',
-    read: false,
-    createdAt: new Date('2024-01-15T10:30:00'),
-    icon: Briefcase,
-    color: 'text-blue-600 bg-blue-50'
-  },
-  {
-    id: 2,
-    type: 'payment_received',
-    title: 'Payment Received',
-    message: 'You received $450 for completing "Mobile App UI Design"',
-    read: false,
-    createdAt: new Date('2024-01-15T09:15:00'),
-    icon: DollarSign,
-    color: 'text-green-600 bg-green-50'
-  },
-  {
-    id: 3,
-    type: 'message',
-    title: 'New Message',
-    message: 'Sarah Johnson sent you a message about the logo project',
-    read: true,
-    createdAt: new Date('2024-01-14T16:45:00'),
-    icon: MessageSquare,
-    color: 'text-purple-600 bg-purple-50'
-  },
-  {
-    id: 4,
-    type: 'review',
-    title: 'New Review',
-    message: 'You received a 5-star review from Alex Chen',
-    read: true,
-    createdAt: new Date('2024-01-14T14:20:00'),
-    icon: Star,
-    color: 'text-yellow-600 bg-yellow-50'
-  },
-  {
-    id: 5,
-    type: 'task_deadline',
-    title: 'Task Deadline Reminder',
-    message: 'Your task "Content Writing" is due in 2 days',
-    read: false,
-    createdAt: new Date('2024-01-14T12:00:00'),
-    icon: AlertCircle,
-    color: 'text-red-600 bg-red-50'
-  }
-];
+import { useNotifications } from '../../hooks/useNotifications';
 
 export function NotificationsPage() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const { 
+    notifications, 
+    isLoading, 
+    unreadCount, 
+    markAsRead, 
+    markAllAsRead, 
+    deleteNotification 
+  } = useNotifications();
+  
   const [filter, setFilter] = useState('all');
-  const [selectedNotifications, setSelectedNotifications] = useState<number[]>([]);
+  const [selectedNotifications, setSelectedNotifications] = useState<string[]>([]);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'task_assigned':
+      case 'task_completed':
+        return Briefcase;
+      case 'payment_received':
+      case 'payment_released':
+        return DollarSign;
+      case 'message':
+        return MessageSquare;
+      case 'review':
+        return Star;
+      case 'warning':
+      case 'task_deadline':
+        return AlertCircle;
+      default:
+        return Bell;
+    }
+  };
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case 'success':
+        return 'text-green-600 bg-green-50';
+      case 'warning':
+        return 'text-yellow-600 bg-yellow-50';
+      case 'error':
+        return 'text-red-600 bg-red-50';
+      case 'info':
+      default:
+        return 'text-blue-600 bg-blue-50';
+    }
+  };
 
   const filteredNotifications = notifications.filter(notification => {
     if (filter === 'unread') return !notification.read;
@@ -78,25 +67,7 @@ export function NotificationsPage() {
     return true;
   });
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev =>
-      prev.map(notification =>
-        notification.id === id ? { ...notification, read: true } : notification
-      )
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev =>
-      prev.map(notification => ({ ...notification, read: true }))
-    );
-  };
-
-  const deleteNotification = (id: number) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const toggleSelection = (id: number) => {
+  const toggleSelection = (id: string) => {
     setSelectedNotifications(prev =>
       prev.includes(id)
         ? prev.filter(nId => nId !== id)
@@ -104,10 +75,10 @@ export function NotificationsPage() {
     );
   };
 
-  const deleteSelected = () => {
-    setNotifications(prev =>
-      prev.filter(n => !selectedNotifications.includes(n.id))
-    );
+  const deleteSelected = async () => {
+    for (const id of selectedNotifications) {
+      await deleteNotification(id);
+    }
     setSelectedNotifications([]);
   };
 
@@ -120,6 +91,14 @@ export function NotificationsPage() {
     if (diffInHours < 48) return 'Yesterday';
     return date.toLocaleDateString();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -218,7 +197,7 @@ export function NotificationsPage() {
         ) : (
           <div className="divide-y divide-gray-200">
             {filteredNotifications.map((notification) => {
-              const IconComponent = notification.icon;
+              const IconComponent = getNotificationIcon(notification.type);
               return (
                 <div
                   key={notification.id}
@@ -236,7 +215,7 @@ export function NotificationsPage() {
                     />
                     
                     {/* Icon */}
-                    <div className={`p-2 rounded-lg ${notification.color}`}>
+                    <div className={`p-2 rounded-lg ${getNotificationColor(notification.type)}`}>
                       <IconComponent className="h-5 w-5" />
                     </div>
                     

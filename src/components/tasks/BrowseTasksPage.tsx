@@ -30,7 +30,7 @@ export function BrowseTasksPage() {
     tier: 'all'
   });
 
-  // Filter available tasks for workers
+  // Filter available tasks for workers - only show open tasks without assignees
   const availableTasks = tasks.filter(task => 
     task.status === 'open' && 
     !task.assigneeId &&
@@ -130,7 +130,9 @@ export function BrowseTasksPage() {
         <div className="text-center py-12">
           <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks available</h3>
-          <p className="text-gray-600">Check back later for new opportunities</p>
+          <p className="text-gray-600">
+            {searchTerm ? 'Try adjusting your search terms' : 'Check back later for new opportunities'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -7,6 +7,8 @@ export interface User {
   rating: number;
   walletBalance: number;
   avatar?: string;
+  tier?: 'bronze' | 'silver' | 'gold' | 'platinum';
+  onboarding_completed?: boolean;
 }
 
 export interface Project {
@@ -32,6 +34,11 @@ export interface Task {
   status: 'open' | 'assigned' | 'submitted' | 'approved' | 'rejected';
   payout: number;
   deadline?: Date;
+  pricing_type?: 'fixed' | 'hourly';
+  hourly_rate?: number;
+  estimated_hours?: number;
+  required_skills?: string[];
+  auto_assign?: boolean;
 }
 
 export interface Submission {

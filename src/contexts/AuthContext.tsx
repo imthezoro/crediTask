@@ -67,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           rating: data.rating,
           walletBalance: data.wallet_balance,
           avatar: data.avatar_url || undefined,
+          tier: data.tier || 'bronze',
+          onboarding_completed: data.onboarding_completed || false,
         });
       }
     } catch (error) {
@@ -118,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             rating: 0,
             wallet_balance: role === 'client' ? 5000 : 0,
             skills: role === 'worker' ? [] : null,
+            tier: role === 'worker' ? 'bronze' : null,
+            onboarding_completed: false,
           });
 
         if (profileError) throw profileError;

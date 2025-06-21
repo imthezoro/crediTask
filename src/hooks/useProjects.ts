@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from './useNotifications';
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { createNotification } = useNotifications();
 
   useEffect(() => {
     if (user) {
@@ -20,7 +22,8 @@ export function useProjects() {
 
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('projects')
         .select(`
           *,
@@ -31,9 +34,17 @@ export function useProjects() {
             payout,
             assignee_id
           )
-        `)
-        .eq('client_id', user.id)
-        .order('created_at', { ascending: false });
+        `);
+
+      // If user is a client, show their projects
+      // If user is a worker, show all open projects
+      if (user.role === 'client') {
+        query = query.eq('client_id', user.id);
+      } else {
+        query = query.eq('status', 'open');
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -89,6 +100,14 @@ export function useProjects() {
         .single();
 
       if (error) throw error;
+
+      // Create notification for project creation
+      await createNotification(
+        user.id,
+        'Project Created',
+        `Your project "${projectData.title}" has been created successfully`,
+        'success'
+      );
 
       await fetchProjects(); // Refresh the list
       return data;
