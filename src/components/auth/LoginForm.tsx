@@ -15,11 +15,20 @@ export function LoginForm() {
     e.preventDefault();
     setError('');
     
-    const success = await login(email, password);
-    if (success) {
-      navigate('/dashboard');
-    } else {
-      setError('Invalid email or password');
+    console.log('LoginForm: Attempting login for:', email);
+    
+    try {
+      const success = await login(email, password);
+      if (success) {
+        console.log('LoginForm: Login successful, navigating to dashboard');
+        navigate('/dashboard');
+      } else {
+        console.log('LoginForm: Login failed');
+        setError('Invalid email or password');
+      }
+    } catch (error) {
+      console.error('LoginForm: Login error:', error);
+      setError('An error occurred during login');
     }
   };
 

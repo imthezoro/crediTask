@@ -11,7 +11,8 @@ import {
   Users,
   Heart,
   Send,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTasks } from '../../hooks/useTasks';
@@ -19,7 +20,7 @@ import { TaskApplicationModal } from './TaskApplicationModal';
 
 export function BrowseTasksPage() {
   const { user } = useAuth();
-  const { tasks, isLoading, applyToTask } = useTasks();
+  const { tasks, isLoading, error, applyToTask } = useTasks();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
@@ -30,12 +31,27 @@ export function BrowseTasksPage() {
     tier: 'all'
   });
 
+  console.log('BrowseTasksPage: Rendering with tasks:', tasks.length, 'isLoading:', isLoading, 'error:', error);
+
   // Filter available tasks for workers - only show open tasks without assignees
-  const availableTasks = tasks.filter(task => 
-    task.status === 'open' && 
-    !task.assigneeId &&
-    task.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const availableTasks = tasks.filter(task => {
+    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         task.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const isAvailable = task.status === 'open' && !task.assigneeId;
+    
+    console.log('Task filter check:', {
+      taskId: task.id,
+      title: task.title,
+      status: task.status,
+      assigneeId: task.assigneeId,
+      matchesSearch,
+      isAvailable
+    });
+    
+    return matchesSearch && isAvailable;
+  });
+
+  console.log('BrowseTasksPage: Available tasks after filtering:', availableTasks.length);
 
   const getTierColor = (tier: string) => {
     switch (tier) {
@@ -63,6 +79,24 @@ export function BrowseTasksPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Tasks</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -78,6 +112,16 @@ export function BrowseTasksPage() {
           </span>
         </div>
       </div>
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h4 className="font-medium text-yellow-800 mb-2">Debug Info:</h4>
+          <p className="text-sm text-yellow-700">
+            Total tasks fetched: {tasks.length} | Available tasks: {availableTasks.length} | User role: {user?.role}
+          </p>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -133,6 +177,11 @@ export function BrowseTasksPage() {
           <p className="text-gray-600">
             {searchTerm ? 'Try adjusting your search terms' : 'Check back later for new opportunities'}
           </p>
+          {tasks.length > 0 && (
+            <p className="text-sm text-gray-500 mt-2">
+              Found {tasks.length} total tasks, but none are currently available for application
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

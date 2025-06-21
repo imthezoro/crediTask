@@ -15,7 +15,10 @@ import {
   TrendingUp,
   Loader2,
   Save,
-  X
+  X,
+  Shield,
+  Clock,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -186,11 +189,11 @@ export function ProfilePage() {
 
   const getTierColor = (tier: string) => {
     switch (tier) {
-      case 'bronze': return 'text-amber-600 bg-amber-50 border-amber-200';
-      case 'silver': return 'text-gray-600 bg-gray-50 border-gray-200';
-      case 'gold': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'platinum': return 'text-purple-600 bg-purple-50 border-purple-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'bronze': return 'text-amber-700 bg-gradient-to-r from-amber-100 to-amber-200 border-amber-300';
+      case 'silver': return 'text-gray-700 bg-gradient-to-r from-gray-100 to-gray-200 border-gray-300';
+      case 'gold': return 'text-yellow-700 bg-gradient-to-r from-yellow-100 to-yellow-200 border-yellow-300';
+      case 'platinum': return 'text-purple-700 bg-gradient-to-r from-purple-100 to-purple-200 border-purple-300';
+      default: return 'text-gray-700 bg-gradient-to-r from-gray-100 to-gray-200 border-gray-300';
     }
   };
 
@@ -226,7 +229,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -234,65 +237,72 @@ export function ProfilePage() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
-        <div className="px-6 pb-6 -mt-16 relative">
-          <div className="flex items-end space-x-5">
+      {/* Profile Header */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Cover Image */}
+        <div className="h-48 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 relative">
+          <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+        </div>
+        
+        {/* Profile Content */}
+        <div className="relative px-8 pb-8">
+          {/* Avatar */}
+          <div className="flex items-start justify-between -mt-16 mb-6">
             <div className="relative">
               {user.avatar ? (
                 <img
                   src={user.avatar}
                   alt={user.name}
-                  className="w-24 h-24 rounded-full border-4 border-white object-cover"
+                  className="w-32 h-32 rounded-2xl border-4 border-white object-cover shadow-lg"
                 />
               ) : (
-                <div className="w-24 h-24 rounded-full border-4 border-white bg-indigo-600 flex items-center justify-center">
-                  <User className="h-12 w-12 text-white" />
+                <div className="w-32 h-32 rounded-2xl border-4 border-white bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                  <User className="h-16 w-16 text-white" />
                 </div>
               )}
-              <button className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg hover:shadow-xl transition-shadow">
+              <button className="absolute -bottom-2 -right-2 bg-white rounded-full p-3 shadow-lg hover:shadow-xl transition-all border border-gray-200">
                 <Camera className="h-4 w-4 text-gray-600" />
               </button>
             </div>
             
-            <div className="flex-1 min-w-0 pb-1 mt-16">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h1 className="text-2xl font-bold text-gray-900">{user.name || 'User'}</h1>
-                    <span className="capitalize px-3 py-1 text-sm font-medium rounded-full bg-indigo-100 text-indigo-800">
-                      {user.role}
-                    </span>
-                    {user.role === 'worker' && (
-                      <span className={`px-3 py-1 text-sm font-medium rounded-full border capitalize ${getTierColor(user.tier || 'bronze')}`}>
-                        {user.tier || 'Bronze'} Tier
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-gray-600 flex items-center">
-                    <Mail className="h-4 w-4 mr-2" />
-                    {user.email}
-                  </p>
-                  <div className="flex items-center space-x-4 mt-2">
-                    <div className="flex items-center text-yellow-500">
-                      <Star className="h-4 w-4 mr-1 fill-current" />
-                      <span className="text-sm font-medium">{user.rating?.toFixed(1) || '0.0'}</span>
-                    </div>
-                    <div className="flex items-center text-gray-500">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span className="text-sm">Joined Dec 2024</span>
-                    </div>
-                  </div>
+            <button 
+              onClick={() => setIsEditing(true)}
+              className="mt-16 flex items-center space-x-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-xl"
+            >
+              <Edit className="h-4 w-4" />
+              <span>Edit Profile</span>
+            </button>
+          </div>
+
+          {/* User Info */}
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center space-x-4 mb-3">
+                <h1 className="text-3xl font-bold text-gray-900">{user.name || 'User'}</h1>
+                <span className="capitalize px-4 py-2 text-sm font-semibold rounded-xl bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-800 border border-indigo-300">
+                  {user.role}
+                </span>
+                {user.role === 'worker' && (
+                  <span className={`px-4 py-2 text-sm font-semibold rounded-xl border capitalize ${getTierColor(user.tier || 'bronze')}`}>
+                    <Award className="h-4 w-4 inline mr-2" />
+                    {user.tier || 'Bronze'} Tier
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-6 text-gray-600">
+                <div className="flex items-center space-x-2">
+                  <Mail className="h-5 w-5" />
+                  <span>{user.email}</span>
                 </div>
-                
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Edit className="h-4 w-4" />
-                  <span>Edit Profile</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5" />
+                  <span>Joined Dec 2024</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Star className="h-5 w-5 text-yellow-500 fill-current" />
+                  <span className="font-medium">{user.rating?.toFixed(1) || '0.0'}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -301,7 +311,7 @@ export function ProfilePage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">
@@ -311,13 +321,13 @@ export function ProfilePage() {
                 {user.role === 'client' ? stats.totalProjects : stats.completedTasks}
               </p>
             </div>
-            <div className="bg-indigo-50 text-indigo-600 p-3 rounded-lg">
+            <div className="bg-indigo-50 text-indigo-600 p-3 rounded-xl">
               <Briefcase className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">
@@ -327,25 +337,25 @@ export function ProfilePage() {
                 ${stats.totalEarnings.toLocaleString()}
               </p>
             </div>
-            <div className="bg-green-50 text-green-600 p-3 rounded-lg">
+            <div className="bg-green-50 text-green-600 p-3 rounded-xl">
               <DollarSign className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Average Rating</p>
               <p className="text-3xl font-bold text-gray-900 mt-2">{stats.averageRating.toFixed(1)}</p>
             </div>
-            <div className="bg-yellow-50 text-yellow-600 p-3 rounded-lg">
+            <div className="bg-yellow-50 text-yellow-600 p-3 rounded-xl">
               <Star className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Wallet Balance</p>
@@ -353,7 +363,7 @@ export function ProfilePage() {
                 ${user.walletBalance?.toLocaleString() || '0'}
               </p>
             </div>
-            <div className="bg-purple-50 text-purple-600 p-3 rounded-lg">
+            <div className="bg-purple-50 text-purple-600 p-3 rounded-xl">
               <TrendingUp className="h-6 w-6" />
             </div>
           </div>
@@ -361,16 +371,19 @@ export function ProfilePage() {
       </div>
 
       {/* Skills & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Skills */}
         {user.role === 'worker' && user.skills && user.skills.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills</h3>
-            <div className="flex flex-wrap gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Shield className="h-5 w-5 mr-2 text-indigo-600" />
+              Skills & Expertise
+            </h3>
+            <div className="flex flex-wrap gap-3">
               {user.skills.map((skill) => (
                 <span
                   key={skill}
-                  className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-full"
+                  className="px-4 py-2 text-sm bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-700 rounded-lg border border-indigo-300 font-medium"
                 >
                   {skill}
                 </span>
@@ -381,20 +394,26 @@ export function ProfilePage() {
 
         {/* Recent Activity */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Clock className="h-5 w-5 mr-2 text-indigo-600" />
+            Recent Activity
+          </h3>
           {recentActivity.length === 0 ? (
             <p className="text-gray-600 text-sm">No recent activity</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {recentActivity.map((item) => (
-                <div key={item.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {user.role === 'client' ? item.title : `${item.title} - ${item.projects?.title || 'Project'}`}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(item.created_at).toLocaleDateString()}
-                    </p>
+                <div key={item.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {user.role === 'client' ? item.title : `${item.title} - ${item.projects?.title || 'Project'}`}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(item.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
                     {item.status}

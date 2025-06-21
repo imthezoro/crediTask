@@ -22,7 +22,8 @@ export function useTasks(projectId?: string) {
 
     try {
       setIsLoading(true);
-      console.log('useTasks: Fetching tasks for user:', user.id, 'role:', user.role);
+      setError(null);
+      console.log('useTasks: Fetching tasks for user:', user.id, 'role:', user.role, 'projectId:', projectId);
       
       let query = supabase
         .from('tasks')
@@ -39,17 +40,24 @@ export function useTasks(projectId?: string) {
         `);
 
       if (projectId) {
+        // If projectId is specified, get tasks for that specific project
         query = query.eq('project_id', projectId);
       } else if (user.role === 'worker') {
-        // For workers, show all open tasks (not just their assigned ones)
-        // This allows them to see tasks they can apply to
-        query = query.eq('status', 'open');
-      } else {
+        // For workers browsing tasks, show all open tasks without assignees
+        query = query
+          .eq('status', 'open')
+          .is('assignee_id', null);
+      } else if (user.role === 'client') {
         // For clients, show tasks from their projects
-        const { data: projectIds } = await supabase
+        const { data: projectIds, error: projectError } = await supabase
           .from('projects')
           .select('id')
           .eq('client_id', user.id);
+        
+        if (projectError) {
+          console.error('useTasks: Error fetching client projects:', projectError);
+          throw projectError;
+        }
         
         if (projectIds && projectIds.length > 0) {
           query = query.in('project_id', projectIds.map(p => p.id));
@@ -88,6 +96,7 @@ export function useTasks(projectId?: string) {
       }));
 
       setTasks(formattedTasks);
+      console.log('useTasks: Successfully set tasks:', formattedTasks.length);
     } catch (err) {
       console.error('useTasks: Error in fetchTasks:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');

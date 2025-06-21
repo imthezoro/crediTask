@@ -141,6 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       setIsLoading(true);
+      
+      // Clear any existing session first
+      await supabase.auth.signOut();
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -219,12 +223,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Logging out...');
     
     try {
+      setIsLoading(true);
       await supabase.auth.signOut();
       setUser(null);
       setSupabaseUser(null);
+      
+      // Clear any cached data
+      localStorage.clear();
+      sessionStorage.clear();
+      
       console.log('AuthProvider: Logout successful');
     } catch (error) {
       console.error('AuthProvider: Logout error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 

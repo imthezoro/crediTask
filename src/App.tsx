@@ -32,10 +32,10 @@ function DashboardRouter() {
 }
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  console.log('AppContent: Rendering with user:', !!user);
+  console.log('AppContent: Rendering with user:', !!user, 'isLoading:', isLoading);
 
   useEffect(() => {
     console.log('AppContent: User effect triggered', { 
@@ -55,6 +55,18 @@ function AppContent() {
     setShowOnboarding(false);
     // TODO: Update user's onboarding_completed status in database
   };
+
+  // Show loading while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -188,8 +200,21 @@ function AppContent() {
           }
         />
         
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Default redirect - redirect to login if not authenticated, dashboard if authenticated */}
+        <Route 
+          path="/" 
+          element={
+            user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+          } 
+        />
+        
+        {/* Catch all route - redirect to login if not authenticated */}
+        <Route 
+          path="*" 
+          element={
+            user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+          } 
+        />
       </Routes>
 
       {/* Onboarding Modal */}
