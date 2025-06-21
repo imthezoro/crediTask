@@ -21,85 +21,140 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const clearSession = async () => {
-    console.log('AuthProvider: Clearing corrupted session...');
+    console.log('AuthProvider: Clearing session...');
     setUser(null);
     setSupabaseUser(null);
     
     // Clear local storage and session storage
-    localStorage.clear();
-    sessionStorage.clear();
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (error) {
+      console.warn('AuthProvider: Could not clear storage:', error);
+    }
     
-    // Sign out from Supabase to clear any cached tokens
-    await supabase.auth.signOut();
+    // Sign out from Supabase
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('AuthProvider: Error during signout:', error);
+    }
+    
     setIsLoading(false);
   };
 
-  useEffect(() => {
-    console.log('AuthProvider: Initializing auth state...');
+  const handleAuthError = (error: any) => {
+    console.error('AuthProvider: Auth error:', error);
     
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('AuthProvider: Initial session check', { session: !!session, error });
-      
-      if (error) {
-        console.error('AuthProvider: Session error:', error);
+    // Check for token-related errors
+    if (error?.message?.includes('refresh_token_not_found') || 
+        error?.message?.includes('Invalid Refresh Token') ||
+        error?.message?.includes('JWT') ||
+        error?.code === 'invalid_grant') {
+      console.log('AuthProvider: Token error detected, clearing session...');
+      clearSession();
+      return true;
+    }
+    
+    return false;
+  };
+
+  useEffect(() => {
+    console.log('AuthProvider: Initializing...');
+    
+    let mounted = true;
+    
+    const initializeAuth = async () => {
+      try {
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.log('AuthProvider: Initialization timeout, clearing session...');
+            clearSession();
+          }
+        }, 10000); // 10 second timeout
+
+        // Get initial session with error handling
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        // If there's a token refresh error, clear the session
-        if (error.message?.includes('refresh_token_not_found') || 
-            error.message?.includes('Invalid Refresh Token')) {
-          console.log('AuthProvider: Detected invalid refresh token, clearing session...');
-          clearSession();
+        clearTimeout(timeoutId);
+        
+        if (!mounted) return;
+
+        if (error) {
+          console.error('AuthProvider: Session error:', error);
+          if (handleAuthError(error)) return;
+          setIsLoading(false);
           return;
         }
-        
-        setIsLoading(false);
-        return;
-      }
 
-      setSupabaseUser(session?.user ?? null);
-      if (session?.user) {
-        console.log('AuthProvider: Found session, fetching profile...');
-        fetchUserProfile(session.user.id);
-      } else {
-        console.log('AuthProvider: No session found');
-        setIsLoading(false);
+        console.log('AuthProvider: Initial session check', { session: !!session });
+        
+        setSupabaseUser(session?.user ?? null);
+        
+        if (session?.user) {
+          console.log('AuthProvider: Found session, fetching profile...');
+          await fetchUserProfile(session.user.id);
+        } else {
+          console.log('AuthProvider: No session found');
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('AuthProvider: Initialization error:', error);
+        if (mounted) {
+          if (!handleAuthError(error)) {
+            setIsLoading(false);
+          }
+        }
       }
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
       console.log('AuthProvider: Auth state changed', { event, session: !!session });
       
-      // Handle token refresh errors
-      if (event === 'TOKEN_REFRESHED' && !session) {
-        console.log('AuthProvider: Token refresh failed, clearing session...');
-        await clearSession();
-        return;
-      }
-      
-      // Handle sign out events
-      if (event === 'SIGNED_OUT') {
-        console.log('AuthProvider: User signed out');
-        setUser(null);
-        setSupabaseUser(null);
-        setIsLoading(false);
-        return;
-      }
-      
-      setSupabaseUser(session?.user ?? null);
-      if (session?.user) {
-        console.log('AuthProvider: Auth change - fetching profile...');
-        await fetchUserProfile(session.user.id);
-      } else {
-        console.log('AuthProvider: Auth change - clearing user');
-        setUser(null);
-        setIsLoading(false);
+      try {
+        // Handle specific events
+        if (event === 'SIGNED_OUT') {
+          console.log('AuthProvider: User signed out');
+          setUser(null);
+          setSupabaseUser(null);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.log('AuthProvider: Token refresh failed');
+          await clearSession();
+          return;
+        }
+        
+        setSupabaseUser(session?.user ?? null);
+        
+        if (session?.user) {
+          console.log('AuthProvider: Auth change - fetching profile...');
+          await fetchUserProfile(session.user.id);
+        } else {
+          console.log('AuthProvider: Auth change - clearing user');
+          setUser(null);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('AuthProvider: Auth state change error:', error);
+        if (!handleAuthError(error)) {
+          setIsLoading(false);
+        }
       }
     });
 
     return () => {
+      mounted = false;
       console.log('AuthProvider: Cleaning up auth subscription');
       subscription.unsubscribe();
     };
@@ -148,11 +203,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
         }
+        
+        // Handle auth errors
+        if (handleAuthError(error)) return;
+        
         throw error;
       }
 
       if (data) {
-        console.log('AuthProvider: Successfully fetched user profile:', data);
+        console.log('AuthProvider: Successfully fetched user profile');
         
         setUser({
           id: data.id,
@@ -170,14 +229,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('AuthProvider: Error in fetchUserProfile:', error);
       
-      // If there's an auth error while fetching profile, clear the session
-      if (error && typeof error === 'object' && 'message' in error) {
-        const errorMessage = (error as any).message;
-        if (errorMessage?.includes('JWT') || errorMessage?.includes('token')) {
-          console.log('AuthProvider: Auth error detected, clearing session...');
-          await clearSession();
-          return;
-        }
+      // Handle auth errors
+      if (!handleAuthError(error)) {
+        // For non-auth errors, still set loading to false
+        setIsLoading(false);
       }
     } finally {
       console.log('AuthProvider: Setting loading to false');
@@ -201,16 +256,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('AuthProvider: Login error:', error);
-        throw error;
+        handleAuthError(error);
+        return false;
       }
       
       console.log('AuthProvider: Login successful');
       return true;
     } catch (error) {
       console.error('AuthProvider: Login failed:', error);
+      handleAuthError(error);
       return false;
     } finally {
-      setIsLoading(false);
+      // Don't set loading to false here, let the auth state change handle it
     }
   };
 
@@ -228,7 +285,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (authError) {
         console.error('AuthProvider: Signup auth error:', authError);
-        throw authError;
+        handleAuthError(authError);
+        return false;
       }
 
       if (authData.user) {
@@ -251,7 +309,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('AuthProvider: Profile creation error:', profileError);
-          throw profileError;
+          handleAuthError(profileError);
+          return false;
         }
         
         console.log('AuthProvider: Signup completed successfully');
@@ -262,9 +321,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     } catch (error) {
       console.error('AuthProvider: Signup error:', error);
+      handleAuthError(error);
       return false;
     } finally {
-      setIsLoading(false);
+      // Don't set loading to false here, let the auth state change handle it
     }
   };
 
@@ -273,18 +333,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       setIsLoading(true);
-      await supabase.auth.signOut();
-      setUser(null);
-      setSupabaseUser(null);
-      
-      // Clear any cached data
-      localStorage.clear();
-      sessionStorage.clear();
-      
+      await clearSession();
       console.log('AuthProvider: Logout successful');
     } catch (error) {
       console.error('AuthProvider: Logout error:', error);
-    } finally {
+      // Even if logout fails, clear local state
+      setUser(null);
+      setSupabaseUser(null);
       setIsLoading(false);
     }
   };
@@ -311,7 +366,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('AuthProvider: Profile update error:', error);
-        throw error;
+        handleAuthError(error);
+        return false;
       }
 
       setUser({ ...user, ...updates });
@@ -319,6 +375,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('AuthProvider: Profile update failed:', error);
+      handleAuthError(error);
       return false;
     }
   };

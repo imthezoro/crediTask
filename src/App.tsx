@@ -44,7 +44,8 @@ function AppContent() {
     });
     
     // Show onboarding for new users who haven't completed it yet
-    if (user && !user.onboarding_completed) {
+    // Only show if user exists and hasn't completed onboarding
+    if (user && user.onboarding_completed === false) {
       console.log('AppContent: Showing onboarding modal for new user');
       setShowOnboarding(true);
     }
@@ -61,8 +62,9 @@ function AppContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading FreelanceFlow...</p>
+          <p className="text-gray-500 text-sm mt-2">Please wait while we set up your workspace</p>
         </div>
       </div>
     );
@@ -217,8 +219,8 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Onboarding Modal for first-time users */}
-      {showOnboarding && user && !user.onboarding_completed && (
+      {/* Onboarding Modal for first-time users - only show if explicitly needed */}
+      {showOnboarding && user && user.onboarding_completed === false && (
         <OnboardingModal
           isOpen={showOnboarding}
           onClose={handleOnboardingComplete}
