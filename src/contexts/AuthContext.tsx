@@ -20,6 +20,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const clearSession = async () => {
+    console.log('AuthProvider: Clearing corrupted session...');
+    setUser(null);
+    setSupabaseUser(null);
+    
+    // Clear local storage and session storage
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Sign out from Supabase to clear any cached tokens
+    await supabase.auth.signOut();
+    setIsLoading(false);
+  };
+
   useEffect(() => {
     console.log('AuthProvider: Initializing auth state...');
     
@@ -29,6 +43,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (error) {
         console.error('AuthProvider: Session error:', error);
+        
+        // If there's a token refresh error, clear the session
+        if (error.message?.includes('refresh_token_not_found') || 
+            error.message?.includes('Invalid Refresh Token')) {
+          console.log('AuthProvider: Detected invalid refresh token, clearing session...');
+          clearSession();
+          return;
+        }
+        
         setIsLoading(false);
         return;
       }
@@ -48,6 +71,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('AuthProvider: Auth state changed', { event, session: !!session });
+      
+      // Handle token refresh errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.log('AuthProvider: Token refresh failed, clearing session...');
+        await clearSession();
+        return;
+      }
+      
+      // Handle sign out events
+      if (event === 'SIGNED_OUT') {
+        console.log('AuthProvider: User signed out');
+        setUser(null);
+        setSupabaseUser(null);
+        setIsLoading(false);
+        return;
+      }
       
       setSupabaseUser(session?.user ?? null);
       if (session?.user) {
@@ -130,6 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('AuthProvider: Error in fetchUserProfile:', error);
+      
+      // If there's an auth error while fetching profile, clear the session
+      if (error && typeof error === 'object' && 'message' in error) {
+        const errorMessage = (error as any).message;
+        if (errorMessage?.includes('JWT') || errorMessage?.includes('token')) {
+          console.log('AuthProvider: Auth error detected, clearing session...');
+          await clearSession();
+          return;
+        }
+      }
     } finally {
       console.log('AuthProvider: Setting loading to false');
       setIsLoading(false);
