@@ -156,6 +156,43 @@ export function useTasks(projectId?: string) {
     try {
       console.log('useTasks: Applying to task:', taskId, 'by user:', user.id);
       
+      // First, check if a proposal already exists for this task and worker
+      const { data: existingProposal, error: checkError } = await supabase
+        .from('proposals')
+        .select('id')
+        .eq('task_id', taskId)
+        .eq('worker_id', user.id)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected if no proposal exists
+        console.error('useTasks: Error checking existing proposal:', checkError);
+        throw checkError;
+      }
+
+      if (existingProposal) {
+        setError('You have already submitted a proposal for this task.');
+        return false;
+      }
+
+      // Check if application already exists
+      const { data: existingApplication, error: appCheckError } = await supabase
+        .from('task_applications')
+        .select('id')
+        .eq('task_id', taskId)
+        .eq('worker_id', user.id)
+        .single();
+
+      if (appCheckError && appCheckError.code !== 'PGRST116') {
+        console.error('useTasks: Error checking existing application:', appCheckError);
+        throw appCheckError;
+      }
+
+      if (existingApplication) {
+        setError('You have already applied to this task.');
+        return false;
+      }
+
       // Insert proposal
       const { error: proposalError } = await supabase
         .from('proposals')
@@ -214,6 +251,7 @@ export function useTasks(projectId?: string) {
     tasks,
     isLoading,
     error,
+    setError,
     updateTaskStatus,
     claimTask,
     applyToTask,

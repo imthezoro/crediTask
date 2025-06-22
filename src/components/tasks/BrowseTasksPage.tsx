@@ -22,7 +22,7 @@ import { TaskDetailsModal } from './TaskDetailsModal';
 
 export function BrowseTasksPage() {
   const { user } = useAuth();
-  const { tasks, isLoading, error, applyToTask } = useTasks();
+  const { tasks, isLoading, error, setError, applyToTask } = useTasks();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
@@ -82,6 +82,16 @@ export function BrowseTasksPage() {
   const handleApplyFromDetails = () => {
     setShowDetailsModal(false);
     setShowApplicationModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowApplicationModal(false);
+    setShowDetailsModal(false);
+    setSelectedTask(null);
+    // Clear any error when closing modal
+    if (error) {
+      setError(null);
+    }
   };
 
   if (isLoading) {
@@ -304,10 +314,7 @@ export function BrowseTasksPage() {
       {/* Task Details Modal */}
       <TaskDetailsModal
         isOpen={showDetailsModal}
-        onClose={() => {
-          setShowDetailsModal(false);
-          setSelectedTask(null);
-        }}
+        onClose={handleCloseModal}
         task={selectedTask}
         onApply={handleApplyFromDetails}
       />
@@ -315,12 +322,10 @@ export function BrowseTasksPage() {
       {/* Application Modal */}
       <TaskApplicationModal
         isOpen={showApplicationModal}
-        onClose={() => {
-          setShowApplicationModal(false);
-          setSelectedTask(null);
-        }}
+        onClose={handleCloseModal}
         task={selectedTask}
         onSubmit={handleApplyToTask}
+        errorMessage={error}
       />
     </div>
   );

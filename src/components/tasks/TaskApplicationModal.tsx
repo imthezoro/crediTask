@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { X, Send, DollarSign, Clock, FileText, Loader2 } from 'lucide-react';
+import { X, Send, DollarSign, Clock, FileText, Loader2, AlertCircle } from 'lucide-react';
 
 interface TaskApplicationModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: any;
   onSubmit: (taskId: string, proposal: any) => Promise<void>;
+  errorMessage?: string | null;
 }
 
-export function TaskApplicationModal({ isOpen, onClose, task, onSubmit }: TaskApplicationModalProps) {
+export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMessage }: TaskApplicationModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     coverLetter: '',
@@ -56,6 +57,17 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit }: TaskAp
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-96">
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="text-sm font-medium text-red-800">Application Error</h4>
+                <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Task Summary */}
             <div className="bg-gray-50 rounded-lg p-4">
@@ -184,7 +196,7 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit }: TaskAp
             
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !formData.coverLetter}
+              disabled={isSubmitting || !formData.coverLetter || !!errorMessage}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
             >
               {isSubmitting ? (
