@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(false);
             setIsInitialized(true);
           }
-        }, 10000); // 10 second timeout
+        }, 8000); // 8 second timeout
 
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -118,6 +118,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         
+        if (event === 'SIGNED_IN') {
+          console.log('AuthProvider: User signed in, fetching profile...');
+          setSupabaseUser(session?.user ?? null);
+          if (session?.user) {
+            await fetchUserProfile(session.user.id);
+          }
+          return;
+        }
+        
         if (event === 'TOKEN_REFRESHED') {
           console.log('AuthProvider: Token refreshed');
           if (!session) {
@@ -127,14 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // Handle session changes
+        // Handle other session changes
         setSupabaseUser(session?.user ?? null);
         
-        if (session?.user) {
-          console.log('AuthProvider: Auth change - fetching profile...');
+        if (session?.user && event !== 'SIGNED_IN') {
+          console.log('AuthProvider: Session change - fetching profile...');
           await fetchUserProfile(session.user.id);
-        } else {
-          console.log('AuthProvider: Auth change - clearing user');
+        } else if (!session?.user) {
+          console.log('AuthProvider: Session change - clearing user');
           setUser(null);
           if (isInitialized) {
             setIsLoading(false);
@@ -233,10 +242,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     } finally {
-      if (isInitialized) {
-        console.log('AuthProvider: Setting loading to false');
-        setIsLoading(false);
-      }
+      console.log('AuthProvider: Setting loading to false after profile fetch');
+      setIsLoading(false);
     }
   };
 
@@ -244,8 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Attempting login for:', email);
     
     try {
-      setIsLoading(true);
-      
+      // Don't set loading here - let the auth state change handle it
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -253,7 +259,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('AuthProvider: Login error:', error);
-        setIsLoading(false);
         return false;
       }
       
@@ -261,7 +266,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('AuthProvider: Login failed:', error);
-      setIsLoading(false);
       return false;
     }
   };
@@ -270,8 +274,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Attempting signup for:', email, 'as', role);
     
     try {
-      setIsLoading(true);
-      
       // Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -280,7 +282,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (authError) {
         console.error('AuthProvider: Signup auth error:', authError);
-        setIsLoading(false);
         return false;
       }
 
@@ -304,7 +305,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('AuthProvider: Profile creation error:', profileError);
-          setIsLoading(false);
           return false;
         }
         
@@ -313,11 +313,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       console.log('AuthProvider: Signup failed - no user returned');
-      setIsLoading(false);
       return false;
     } catch (error) {
       console.error('AuthProvider: Signup error:', error);
-      setIsLoading(false);
       return false;
     }
   };
@@ -326,8 +324,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Logging out...');
     
     try {
-      setIsLoading(true);
-      
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       

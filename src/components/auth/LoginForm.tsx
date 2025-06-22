@@ -8,6 +8,7 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, login, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -22,6 +23,7 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
     
     console.log('LoginForm: Attempting login for:', email);
     
@@ -37,6 +39,8 @@ export function LoginForm() {
     } catch (error) {
       console.error('LoginForm: Login error:', error);
       setError('An error occurred during login');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -138,10 +142,10 @@ export function LoginForm() {
             <div>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   'Sign in'

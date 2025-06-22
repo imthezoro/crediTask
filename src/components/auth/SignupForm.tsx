@@ -13,6 +13,7 @@ export function SignupForm() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, signup, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -27,22 +28,31 @@ export function SignupForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
     
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      setIsSubmitting(false);
       return;
     }
     
     if (!formData.role) {
       setError('Please select your role');
+      setIsSubmitting(false);
       return;
     }
     
-    const success = await signup(formData.name, formData.email, formData.password, formData.role);
-    if (success) {
-      navigate('/dashboard');
-    } else {
-      setError('Failed to create account');
+    try {
+      const success = await signup(formData.name, formData.email, formData.password, formData.role);
+      if (success) {
+        navigate('/dashboard');
+      } else {
+        setError('Failed to create account');
+      }
+    } catch (error) {
+      setError('An error occurred during signup');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -209,10 +219,10 @@ export function SignupForm() {
             <div>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   'Create account'
