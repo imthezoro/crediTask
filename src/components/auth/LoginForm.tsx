@@ -30,8 +30,8 @@ export function LoginForm() {
     try {
       const success = await login(email, password);
       if (success) {
-        console.log('LoginForm: Login successful, navigating to dashboard');
-        navigate('/dashboard');
+        console.log('LoginForm: Login successful, will redirect via auth state change');
+        // Don't navigate here, let the auth state change handle it
       } else {
         console.log('LoginForm: Login failed');
         setError('Invalid email or password');
