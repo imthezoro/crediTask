@@ -12,7 +12,8 @@ import {
   Search,
   Wallet,
   MessageSquare,
-  HelpCircle
+  HelpCircle,
+  Inbox
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
@@ -32,6 +33,7 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
   const clientNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/projects', icon: FolderOpen, label: 'Projects' },
+    { path: '/applications', icon: Inbox, label: 'Applications' },
     { path: '/chat', icon: MessageSquare, label: 'Chat' },
     { path: '/payments', icon: Wallet, label: 'Payments' },
   ];
