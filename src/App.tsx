@@ -43,18 +43,25 @@ function AppContent() {
       onboardingCompleted: user?.onboarding_completed 
     });
     
-    // Show onboarding for new users who haven't completed it yet
-    // Only show if user exists and hasn't completed onboarding
+    // Only show onboarding for users who haven't completed it yet
+    // This will only trigger once when user first loads after signup
     if (user && user.onboarding_completed === false) {
-      console.log('AppContent: Showing onboarding modal for new user');
+      console.log('AppContent: User needs onboarding, showing modal');
       setShowOnboarding(true);
+    } else if (user && user.onboarding_completed === true) {
+      console.log('AppContent: User has completed onboarding, not showing modal');
+      setShowOnboarding(false);
     }
-  }, [user]);
+  }, [user?.id, user?.onboarding_completed]); // Only depend on user ID and onboarding status
 
-  const handleOnboardingComplete = async () => {
+  const handleOnboardingComplete = () => {
     console.log('AppContent: Onboarding completed');
     setShowOnboarding(false);
-    // TODO: Update user's onboarding_completed status in database
+  };
+
+  const handleShowOnboarding = () => {
+    console.log('AppContent: Manually showing onboarding');
+    setShowOnboarding(true);
   };
 
   // Show loading while checking authentication
@@ -82,7 +89,7 @@ function AppContent() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <DashboardRouter />
               </Layout>
             </ProtectedRoute>
@@ -93,7 +100,7 @@ function AppContent() {
           path="/projects"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <ProjectsPage />
               </Layout>
             </ProtectedRoute>
@@ -104,7 +111,7 @@ function AppContent() {
           path="/projects/:projectId/tasks"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <TaskManagementPage />
               </Layout>
             </ProtectedRoute>
@@ -115,7 +122,7 @@ function AppContent() {
           path="/browse"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <BrowseTasksPage />
               </Layout>
             </ProtectedRoute>
@@ -126,7 +133,7 @@ function AppContent() {
           path="/my-tasks"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <MyTasksPage />
               </Layout>
             </ProtectedRoute>
@@ -137,7 +144,7 @@ function AppContent() {
           path="/earnings"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <EarningsPage />
               </Layout>
             </ProtectedRoute>
@@ -148,7 +155,7 @@ function AppContent() {
           path="/payments"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <div className="text-center py-12">
                   <h2 className="text-2xl font-bold text-gray-900">Payments</h2>
                   <p className="text-gray-600 mt-2">Payment management interface coming soon...</p>
@@ -162,7 +169,7 @@ function AppContent() {
           path="/notifications"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <NotificationsPage />
               </Layout>
             </ProtectedRoute>
@@ -173,7 +180,7 @@ function AppContent() {
           path="/chat"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <ChatPage />
               </Layout>
             </ProtectedRoute>
@@ -184,7 +191,7 @@ function AppContent() {
           path="/profile"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <ProfilePage />
               </Layout>
             </ProtectedRoute>
@@ -195,7 +202,7 @@ function AppContent() {
           path="/settings"
           element={
             <ProtectedRoute>
-              <Layout>
+              <Layout onShowOnboarding={handleShowOnboarding}>
                 <SettingsPage />
               </Layout>
             </ProtectedRoute>
@@ -219,8 +226,8 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Onboarding Modal for first-time users - only show if explicitly needed */}
-      {showOnboarding && user && user.onboarding_completed === false && (
+      {/* Onboarding Modal - only show when explicitly requested */}
+      {showOnboarding && user && (
         <OnboardingModal
           isOpen={showOnboarding}
           onClose={handleOnboardingComplete}

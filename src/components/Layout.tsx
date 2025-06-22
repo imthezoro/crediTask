@@ -16,19 +16,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
-import { OnboardingModal } from './onboarding/OnboardingModal';
 
 interface LayoutProps {
   children: React.ReactNode;
+  onShowOnboarding: () => void;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, onShowOnboarding }: LayoutProps) {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const clientNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -50,8 +49,14 @@ export function Layout({ children }: LayoutProps) {
   const handleLogout = async () => {
     console.log('Layout: Logging out user...');
     setShowUserMenu(false);
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Layout: Logout error:', error);
+      // Force navigation even if logout fails
+      navigate('/login');
+    }
   };
 
   const handleLogoClick = () => {
@@ -60,7 +65,7 @@ export function Layout({ children }: LayoutProps) {
 
   const handleShowOnboarding = () => {
     setShowUserMenu(false);
-    setShowOnboarding(true);
+    onShowOnboarding();
   };
 
   return (
@@ -201,12 +206,6 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
-
-      {/* Onboarding Modal */}
-      <OnboardingModal
-        isOpen={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-      />
     </div>
   );
 }

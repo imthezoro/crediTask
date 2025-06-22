@@ -12,6 +12,7 @@ import {
   Users
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -202,8 +203,9 @@ const workerSteps = [
 ];
 
 export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
+  const [isCompleting, setIsCompleting] = useState(false);
   
   if (!isOpen || !user) return null;
 
@@ -212,8 +214,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
 
   const handleNext = () => {
     if (isLastStep) {
-      // Mark onboarding as completed
-      onClose();
+      handleComplete();
     } else {
       setCurrentStep(currentStep + 1);
     }
@@ -225,8 +226,31 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
     }
   };
 
-  const handleSkip = () => {
-    onClose();
+  const handleComplete = async () => {
+    setIsCompleting(true);
+    try {
+      // Mark onboarding as completed in the database
+      const { error } = await supabase
+        .from('users')
+        .update({ onboarding_completed: true })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Error completing onboarding:', error);
+      } else {
+        // Update local user state
+        await updateProfile({ onboarding_completed: true });
+      }
+    } catch (error) {
+      console.error('Error in handleComplete:', error);
+    } finally {
+      setIsCompleting(false);
+      onClose();
+    }
+  };
+
+  const handleSkip = async () => {
+    await handleComplete();
   };
 
   const currentStepData = steps[currentStep];
@@ -248,7 +272,8 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
           </div>
           <button
             onClick={handleSkip}
-            className="text-gray-400 hover:text-gray-600 text-sm"
+            disabled={isCompleting}
+            className="text-gray-400 hover:text-gray-600 text-sm disabled:opacity-50"
           >
             Skip tour
           </button>
@@ -284,7 +309,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
         <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
           <button
             onClick={handlePrevious}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || isCompleting}
             className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -304,9 +329,10 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
 
           <button
             onClick={handleNext}
-            className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            disabled={isCompleting}
+            className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span>{isLastStep ? 'Get Started' : 'Next'}</span>
+            <span>{isLastStep ? (isCompleting ? 'Completing...' : 'Get Started') : 'Next'}</span>
             {isLastStep ? (
               <Check className="h-4 w-4" />
             ) : (

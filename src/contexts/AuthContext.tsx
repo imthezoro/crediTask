@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('AuthProvider: Initialization timeout, clearing session...');
             clearSession();
           }
-        }, 10000); // 10 second timeout
+        }, 15000); // 15 second timeout
 
         // Get initial session with error handling
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -358,6 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.skills !== undefined) updateData.skills = updates.skills;
       if (updates.avatar !== undefined) updateData.avatar_url = updates.avatar;
+      if (updates.onboarding_completed !== undefined) updateData.onboarding_completed = updates.onboarding_completed;
 
       const { error } = await supabase
         .from('users')
