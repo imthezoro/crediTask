@@ -24,7 +24,7 @@ interface LayoutProps {
 
 export function Layout({ children, onShowOnboarding }: LayoutProps) {
   const { user, logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, markAllAsRead } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -66,6 +66,14 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
   const handleShowOnboarding = () => {
     setShowUserMenu(false);
     onShowOnboarding();
+  };
+
+  const handleNotificationClick = () => {
+    // Mark all notifications as read when opening notifications page
+    if (unreadCount > 0) {
+      markAllAsRead();
+    }
+    navigate('/notifications');
   };
 
   return (
@@ -127,8 +135,8 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
               </button>
 
               {/* Notifications */}
-              <Link
-                to="/notifications"
+              <button
+                onClick={handleNotificationClick}
                 className="relative rounded-full p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               >
                 <Bell className="h-5 w-5" />
@@ -137,7 +145,7 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
-              </Link>
+              </button>
 
               {/* User menu */}
               <div className="relative">
