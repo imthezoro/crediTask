@@ -127,7 +127,7 @@ export function TaskManagementPage() {
         title: 'Frontend Development',
         description: 'Develop the user interface using React and Tailwind CSS',
         weight: 8,
-        payout: Math.round(project.budget * 0.4),
+        payout: Math.max(1, Math.round(project.budget * 0.4)),
         pricing_type: 'fixed',
         required_skills: ['React', 'JavaScript', 'CSS', 'HTML'],
         status: 'open'
@@ -136,7 +136,7 @@ export function TaskManagementPage() {
         title: 'Backend API Development',
         description: 'Create REST API endpoints and database integration',
         weight: 7,
-        payout: Math.round(project.budget * 0.3),
+        payout: Math.max(1, Math.round(project.budget * 0.3)),
         pricing_type: 'fixed',
         required_skills: ['Node.js', 'Express', 'Database', 'API'],
         status: 'open'
@@ -145,7 +145,7 @@ export function TaskManagementPage() {
         title: 'UI/UX Design',
         description: 'Design user interface mockups and user experience flow',
         weight: 5,
-        payout: Math.round(project.budget * 0.2),
+        payout: Math.max(1, Math.round(project.budget * 0.2)),
         pricing_type: 'fixed',
         required_skills: ['Figma', 'UI Design', 'UX Design'],
         status: 'open'
@@ -154,7 +154,7 @@ export function TaskManagementPage() {
         title: 'Testing & QA',
         description: 'Comprehensive testing and quality assurance',
         weight: 3,
-        payout: Math.round(project.budget * 0.1),
+        payout: Math.max(1, Math.round(project.budget * 0.1)),
         pricing_type: 'fixed',
         required_skills: ['Testing', 'QA', 'Bug Testing'],
         status: 'open'
