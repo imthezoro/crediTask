@@ -44,7 +44,6 @@ function AppContent() {
       onboardingCompleted: user?.onboarding_completed 
     });
     
-    // Only show onboarding for users who haven't completed it yet
     if (user && user.onboarding_completed === false) {
       console.log('AppContent: User needs onboarding, showing modal');
       setShowOnboarding(true);

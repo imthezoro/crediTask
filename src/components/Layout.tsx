@@ -13,7 +13,8 @@ import {
   Wallet,
   MessageSquare,
   HelpCircle,
-  Inbox
+  Inbox,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../hooks/useNotifications';
@@ -29,6 +30,7 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const clientNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -51,13 +53,18 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
   const handleLogout = async () => {
     console.log('Layout: Logging out user...');
     setShowUserMenu(false);
+    setIsLoggingOut(true);
+    
     try {
       await logout();
-      navigate('/login');
+      console.log('Layout: Logout successful, navigating to login');
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Layout: Logout error:', error);
       // Force navigation even if logout fails
-      navigate('/login');
+      navigate('/login', { replace: true });
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -154,6 +161,7 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center space-x-3 rounded-full p-2 text-gray-600 hover:bg-gray-100"
+                  disabled={isLoggingOut}
                 >
                   {user?.avatar ? (
                     <img
@@ -199,10 +207,15 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
                     </button>
                     <button
                       onClick={handleLogout}
-                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      disabled={isLoggingOut}
+                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                     >
-                      <LogOut className="mr-3 h-4 w-4" />
-                      Sign out
+                      {isLoggingOut ? (
+                        <Loader2 className="mr-3 h-4 w-4 animate-spin" />
+                      ) : (
+                        <LogOut className="mr-3 h-4 w-4" />
+                      )}
+                      {isLoggingOut ? 'Signing out...' : 'Sign out'}
                     </button>
                   </div>
                 )}

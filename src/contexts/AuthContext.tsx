@@ -21,10 +21,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const clearSession = () => {
+  const clearSession = async () => {
     console.log('AuthProvider: Clearing session...');
     setUser(null);
     setSupabaseUser(null);
+    
+    // Clear local storage
+    try {
+      localStorage.removeItem('freelanceflow-auth-token');
+      localStorage.removeItem('sb-' + import.meta.env.VITE_SUPABASE_URL?.split('//')[1]?.split('.')[0] + '-auth-token');
+      sessionStorage.clear();
+    } catch (error) {
+      console.warn('AuthProvider: Could not clear storage:', error);
+    }
+    
     setIsLoading(false);
   };
 
@@ -114,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Handle specific events
         if (event === 'SIGNED_OUT') {
           console.log('AuthProvider: User signed out');
-          clearSession();
+          await clearSession();
           return;
         }
         
@@ -131,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('AuthProvider: Token refreshed');
           if (!session) {
             console.log('AuthProvider: Token refresh failed, clearing session');
-            clearSession();
+            await clearSession();
             return;
           }
         }
@@ -251,7 +261,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Attempting login for:', email);
     
     try {
-      // Don't set loading here - let the auth state change handle it
+      // Clear any existing session first
+      await supabase.auth.signOut();
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -324,6 +336,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Logging out...');
     
     try {
+      // Set loading to true during logout
+      setIsLoading(true);
+      
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       
@@ -331,13 +346,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('AuthProvider: Logout error:', error);
       }
       
-      // Clear local state regardless of logout success
-      clearSession();
+      // Clear local state and storage
+      await clearSession();
       console.log('AuthProvider: Logout completed');
     } catch (error) {
       console.error('AuthProvider: Logout error:', error);
       // Even if logout fails, clear local state
-      clearSession();
+      await clearSession();
     }
   };
 
