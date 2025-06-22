@@ -162,15 +162,14 @@ export function useTasks(projectId?: string) {
         .select('id')
         .eq('task_id', taskId)
         .eq('worker_id', user.id)
-        .single();
+        .limit(1);
 
-      if (checkError && checkError.code !== 'PGRST116') {
-        // PGRST116 is "not found" error, which is expected if no proposal exists
+      if (checkError) {
         console.error('useTasks: Error checking existing proposal:', checkError);
         throw checkError;
       }
 
-      if (existingProposal) {
+      if (existingProposal && existingProposal.length > 0) {
         setError('You have already submitted a proposal for this task.');
         return false;
       }
@@ -181,14 +180,14 @@ export function useTasks(projectId?: string) {
         .select('id')
         .eq('task_id', taskId)
         .eq('worker_id', user.id)
-        .single();
+        .limit(1);
 
-      if (appCheckError && appCheckError.code !== 'PGRST116') {
+      if (appCheckError) {
         console.error('useTasks: Error checking existing application:', appCheckError);
         throw appCheckError;
       }
 
-      if (existingApplication) {
+      if (existingApplication && existingApplication.length > 0) {
         setError('You have already applied to this task.');
         return false;
       }
@@ -227,13 +226,13 @@ export function useTasks(projectId?: string) {
         .from('tasks')
         .select('title, projects(client_id)')
         .eq('id', taskId)
-        .single();
+        .limit(1);
 
-      if (taskData?.projects?.client_id && createNotification) {
+      if (taskData?.[0]?.projects?.client_id && createNotification) {
         await createNotification(
-          taskData.projects.client_id,
+          taskData[0].projects.client_id,
           'New Proposal Received',
-          `${user.name} submitted a proposal for "${taskData.title}"`,
+          `${user.name} submitted a proposal for "${taskData[0].title}"`,
           'info'
         );
       }
