@@ -68,7 +68,8 @@ export function useApplicationBuckets() {
       setIsLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
+      // First, get the application buckets with task and project info
+      const { data: bucketsData, error: bucketsError } = await supabase
         .from('application_buckets')
         .select(`
           *,
@@ -81,70 +82,103 @@ export function useApplicationBuckets() {
           ),
           projects!application_buckets_project_id_fkey (
             title
-          ),
-          task_applications!task_applications_bucket_id_fkey (
-            *,
-            users!task_applications_worker_id_fkey (
-              name,
-              email,
-              skills,
-              rating,
-              avatar_url
-            ),
-            proposals!proposals_task_id_fkey (
-              cover_letter,
-              proposed_rate,
-              estimated_hours
-            )
           )
         `)
         .eq('client_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (bucketsError) throw bucketsError;
 
-      const formattedBuckets: ApplicationBucket[] = (data || []).map(bucket => ({
-        id: bucket.id,
-        projectId: bucket.project_id,
-        taskId: bucket.task_id,
-        clientId: bucket.client_id,
-        totalApplications: bucket.total_applications,
-        reviewedApplications: bucket.reviewed_applications,
-        status: bucket.status,
-        createdAt: new Date(bucket.created_at),
-        updatedAt: new Date(bucket.updated_at),
-        task: {
-          title: bucket.tasks?.title || '',
-          description: bucket.tasks?.description || '',
-          payout: bucket.tasks?.payout || 0,
-          status: bucket.tasks?.status || '',
-          autoAssign: bucket.tasks?.auto_assign || false
-        },
-        project: {
-          title: bucket.projects?.title || ''
-        },
-        applications: (bucket.task_applications || []).map((app: any) => ({
-          id: app.id,
-          taskId: app.task_id,
-          workerId: app.worker_id,
-          bucketId: app.bucket_id,
-          selected: app.selected,
-          reviewed: app.reviewed,
-          appliedAt: new Date(app.applied_at),
-          worker: {
-            name: app.users?.name || '',
-            email: app.users?.email || '',
-            skills: app.users?.skills || [],
-            rating: app.users?.rating || 0,
-            avatar: app.users?.avatar_url
+      if (!bucketsData || bucketsData.length === 0) {
+        setBuckets([]);
+        return;
+      }
+
+      // Get all task applications for these buckets
+      const bucketIds = bucketsData.map(bucket => bucket.id);
+      const { data: applicationsData, error: applicationsError } = await supabase
+        .from('task_applications')
+        .select(`
+          *,
+          users!task_applications_worker_id_fkey (
+            name,
+            email,
+            skills,
+            rating,
+            avatar_url
+          )
+        `)
+        .in('bucket_id', bucketIds);
+
+      if (applicationsError) throw applicationsError;
+
+      // Get all proposals for the tasks in these buckets
+      const taskIds = bucketsData.map(bucket => bucket.task_id);
+      const { data: proposalsData, error: proposalsError } = await supabase
+        .from('proposals')
+        .select(`
+          *
+        `)
+        .in('task_id', taskIds);
+
+      if (proposalsError) throw proposalsError;
+
+      // Combine the data
+      const formattedBuckets: ApplicationBucket[] = bucketsData.map(bucket => {
+        const bucketApplications = (applicationsData || []).filter(app => app.bucket_id === bucket.id);
+        
+        const applications: TaskApplication[] = bucketApplications.map(app => {
+          // Find the corresponding proposal for this worker and task
+          const proposal = (proposalsData || []).find(p => 
+            p.task_id === bucket.task_id && p.worker_id === app.worker_id
+          );
+
+          return {
+            id: app.id,
+            taskId: app.task_id,
+            workerId: app.worker_id,
+            bucketId: app.bucket_id,
+            selected: app.selected,
+            reviewed: app.reviewed,
+            appliedAt: new Date(app.applied_at),
+            worker: {
+              name: app.users?.name || '',
+              email: app.users?.email || '',
+              skills: app.users?.skills || [],
+              rating: app.users?.rating || 0,
+              avatar: app.users?.avatar_url
+            },
+            proposal: proposal ? {
+              coverLetter: proposal.cover_letter,
+              proposedRate: proposal.proposed_rate,
+              estimatedHours: proposal.estimated_hours
+            } : undefined
+          };
+        });
+
+        return {
+          id: bucket.id,
+          projectId: bucket.project_id,
+          taskId: bucket.task_id,
+          clientId: bucket.client_id,
+          totalApplications: bucket.total_applications,
+          reviewedApplications: bucket.reviewed_applications,
+          status: bucket.status,
+          createdAt: new Date(bucket.created_at),
+          updatedAt: new Date(bucket.updated_at),
+          task: {
+            title: bucket.tasks?.title || '',
+            description: bucket.tasks?.description || '',
+            payout: bucket.tasks?.payout || 0,
+            status: bucket.tasks?.status || '',
+            autoAssign: bucket.tasks?.auto_assign || false
           },
-          proposal: app.proposals?.[0] ? {
-            coverLetter: app.proposals[0].cover_letter,
-            proposedRate: app.proposals[0].proposed_rate,
-            estimatedHours: app.proposals[0].estimated_hours
-          } : undefined
-        }))
-      }));
+          project: {
+            title: bucket.projects?.title || ''
+          },
+          applications
+        };
+      });
 
       setBuckets(formattedBuckets);
     } catch (err) {
