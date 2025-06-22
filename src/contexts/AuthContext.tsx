@@ -19,27 +19,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const clearSession = async () => {
+  const clearSession = () => {
     console.log('AuthProvider: Clearing session...');
     setUser(null);
     setSupabaseUser(null);
-    
-    // Clear local storage and session storage
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch (error) {
-      console.warn('AuthProvider: Could not clear storage:', error);
-    }
-    
-    // Sign out from Supabase
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.warn('AuthProvider: Error during signout:', error);
-    }
-    
     setIsLoading(false);
   };
 
@@ -63,28 +48,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Initializing...');
     
     let mounted = true;
+    let initTimeout: NodeJS.Timeout;
     
     const initializeAuth = async () => {
       try {
-        // Set a timeout to prevent infinite loading
-        const timeoutId = setTimeout(() => {
-          if (mounted) {
-            console.log('AuthProvider: Initialization timeout, clearing session...');
-            clearSession();
+        // Set a reasonable timeout to prevent infinite loading
+        initTimeout = setTimeout(() => {
+          if (mounted && !isInitialized) {
+            console.log('AuthProvider: Initialization timeout, setting loading to false');
+            setIsLoading(false);
+            setIsInitialized(true);
           }
-        }, 15000); // 15 second timeout
+        }, 10000); // 10 second timeout
 
-        // Get initial session with error handling
+        // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
-        
-        clearTimeout(timeoutId);
         
         if (!mounted) return;
 
         if (error) {
           console.error('AuthProvider: Session error:', error);
-          if (handleAuthError(error)) return;
-          setIsLoading(false);
+          if (!handleAuthError(error)) {
+            setIsLoading(false);
+          }
+          setIsInitialized(true);
           return;
         }
 
@@ -99,19 +86,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('AuthProvider: No session found');
           setIsLoading(false);
         }
+        
+        setIsInitialized(true);
+        clearTimeout(initTimeout);
       } catch (error) {
         console.error('AuthProvider: Initialization error:', error);
         if (mounted) {
           if (!handleAuthError(error)) {
             setIsLoading(false);
           }
+          setIsInitialized(true);
         }
       }
     };
 
     initializeAuth();
 
-    // Listen for auth changes
+    // Listen for auth changes with improved handling
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -123,18 +114,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Handle specific events
         if (event === 'SIGNED_OUT') {
           console.log('AuthProvider: User signed out');
-          setUser(null);
-          setSupabaseUser(null);
-          setIsLoading(false);
+          clearSession();
           return;
         }
         
-        if (event === 'TOKEN_REFRESHED' && !session) {
-          console.log('AuthProvider: Token refresh failed');
-          await clearSession();
-          return;
+        if (event === 'TOKEN_REFRESHED') {
+          console.log('AuthProvider: Token refreshed');
+          if (!session) {
+            console.log('AuthProvider: Token refresh failed, clearing session');
+            clearSession();
+            return;
+          }
         }
         
+        // Handle session changes
         setSupabaseUser(session?.user ?? null);
         
         if (session?.user) {
@@ -143,7 +136,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           console.log('AuthProvider: Auth change - clearing user');
           setUser(null);
-          setIsLoading(false);
+          if (isInitialized) {
+            setIsLoading(false);
+          }
         }
       } catch (error) {
         console.error('AuthProvider: Auth state change error:', error);
@@ -156,6 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       console.log('AuthProvider: Cleaning up auth subscription');
+      if (initTimeout) {
+        clearTimeout(initTimeout);
+      }
       subscription.unsubscribe();
     };
   }, []);
@@ -235,8 +233,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     } finally {
-      console.log('AuthProvider: Setting loading to false');
-      setIsLoading(false);
+      if (isInitialized) {
+        console.log('AuthProvider: Setting loading to false');
+        setIsLoading(false);
+      }
     }
   };
 
@@ -246,9 +246,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Clear any existing session first
-      await supabase.auth.signOut();
-      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -256,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('AuthProvider: Login error:', error);
-        handleAuthError(error);
+        setIsLoading(false);
         return false;
       }
       
@@ -264,10 +261,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('AuthProvider: Login failed:', error);
-      handleAuthError(error);
+      setIsLoading(false);
       return false;
-    } finally {
-      // Don't set loading to false here, let the auth state change handle it
     }
   };
 
@@ -285,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (authError) {
         console.error('AuthProvider: Signup auth error:', authError);
-        handleAuthError(authError);
+        setIsLoading(false);
         return false;
       }
 
@@ -309,7 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('AuthProvider: Profile creation error:', profileError);
-          handleAuthError(profileError);
+          setIsLoading(false);
           return false;
         }
         
@@ -318,13 +313,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       console.log('AuthProvider: Signup failed - no user returned');
+      setIsLoading(false);
       return false;
     } catch (error) {
       console.error('AuthProvider: Signup error:', error);
-      handleAuthError(error);
+      setIsLoading(false);
       return false;
-    } finally {
-      // Don't set loading to false here, let the auth state change handle it
     }
   };
 
@@ -333,14 +327,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       setIsLoading(true);
-      await clearSession();
-      console.log('AuthProvider: Logout successful');
+      
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('AuthProvider: Logout error:', error);
+      }
+      
+      // Clear local state regardless of logout success
+      clearSession();
+      console.log('AuthProvider: Logout completed');
     } catch (error) {
       console.error('AuthProvider: Logout error:', error);
       // Even if logout fails, clear local state
-      setUser(null);
-      setSupabaseUser(null);
-      setIsLoading(false);
+      clearSession();
     }
   };
 
@@ -367,7 +368,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('AuthProvider: Profile update error:', error);
-        handleAuthError(error);
         return false;
       }
 
@@ -376,7 +376,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('AuthProvider: Profile update failed:', error);
-      handleAuthError(error);
       return false;
     }
   };
@@ -384,7 +383,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   console.log('AuthProvider: Current state', { 
     user: !!user, 
     supabaseUser: !!supabaseUser, 
-    isLoading 
+    isLoading,
+    isInitialized
   });
 
   return (

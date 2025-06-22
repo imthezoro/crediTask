@@ -45,7 +45,6 @@ function AppContent() {
     });
     
     // Only show onboarding for users who haven't completed it yet
-    // This will only trigger once when user first loads after signup
     if (user && user.onboarding_completed === false) {
       console.log('AppContent: User needs onboarding, showing modal');
       setShowOnboarding(true);
@@ -53,7 +52,7 @@ function AppContent() {
       console.log('AppContent: User has completed onboarding, not showing modal');
       setShowOnboarding(false);
     }
-  }, [user?.id, user?.onboarding_completed]); // Only depend on user ID and onboarding status
+  }, [user?.id, user?.onboarding_completed]);
 
   const handleOnboardingComplete = () => {
     console.log('AppContent: Onboarding completed');
@@ -72,7 +71,7 @@ function AppContent() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
           <p className="text-gray-600 text-lg">Loading FreelanceFlow...</p>
-          <p className="text-gray-500 text-sm mt-2">Please wait while we set up your workspace</p>
+          <p className="text-gray-500 text-sm mt-2">Initializing your workspace</p>
         </div>
       </div>
     );
@@ -221,7 +220,7 @@ function AppContent() {
           }
         />
         
-        {/* Default redirect - redirect to login if not authenticated, dashboard if authenticated */}
+        {/* Default redirect */}
         <Route 
           path="/" 
           element={
@@ -229,7 +228,7 @@ function AppContent() {
           } 
         />
         
-        {/* Catch all route - redirect to login if not authenticated */}
+        {/* Catch all route */}
         <Route 
           path="*" 
           element={
@@ -238,7 +237,7 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Onboarding Modal - only show when explicitly requested */}
+      {/* Onboarding Modal */}
       {showOnboarding && user && (
         <OnboardingModal
           isOpen={showOnboarding}
