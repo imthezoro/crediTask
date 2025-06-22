@@ -16,6 +16,7 @@ import { NotificationsPage } from './components/notifications/NotificationsPage'
 import { ChatPage } from './components/chat/ChatPage';
 import { ProfilePage } from './components/profile/ProfilePage';
 import { SettingsPage } from './components/settings/SettingsPage';
+import { ApplicationBucketsPage } from './components/applications/ApplicationBucketsPage';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
 
 function DashboardRouter() {
@@ -113,6 +114,17 @@ function AppContent() {
             <ProtectedRoute>
               <Layout onShowOnboarding={handleShowOnboarding}>
                 <TaskManagementPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/applications"
+          element={
+            <ProtectedRoute>
+              <Layout onShowOnboarding={handleShowOnboarding}>
+                <ApplicationBucketsPage />
               </Layout>
             </ProtectedRoute>
           }

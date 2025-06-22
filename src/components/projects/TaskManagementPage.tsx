@@ -11,7 +11,10 @@ import {
   Save,
   X,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Settings,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -28,6 +31,8 @@ interface Task {
   estimated_hours?: number;
   required_skills: string[];
   status: 'open' | 'assigned' | 'submitted' | 'approved' | 'rejected';
+  auto_assign: boolean;
+  application_window_minutes: number;
 }
 
 interface Project {
@@ -57,7 +62,9 @@ export function TaskManagementPage() {
     payout: 0,
     pricing_type: 'fixed',
     required_skills: [],
-    status: 'open'
+    status: 'open',
+    auto_assign: false,
+    application_window_minutes: 60
   });
 
   useEffect(() => {
@@ -103,7 +110,9 @@ export function TaskManagementPage() {
         hourly_rate: task.hourly_rate,
         estimated_hours: task.estimated_hours,
         required_skills: task.required_skills || [],
-        status: task.status
+        status: task.status,
+        auto_assign: task.auto_assign || false,
+        application_window_minutes: task.application_window_minutes || 60
       }));
 
       setTasks(formattedTasks);
@@ -127,37 +136,45 @@ export function TaskManagementPage() {
         title: 'Frontend Development',
         description: 'Develop the user interface using React and Tailwind CSS',
         weight: 8,
-        payout: Math.max(1, Math.round(project.budget * 0.4)),
+        payout: Math.max(100, Math.round(project.budget * 0.4)),
         pricing_type: 'fixed',
         required_skills: ['React', 'JavaScript', 'CSS', 'HTML'],
-        status: 'open'
+        status: 'open',
+        auto_assign: false,
+        application_window_minutes: 60
       },
       {
         title: 'Backend API Development',
         description: 'Create REST API endpoints and database integration',
         weight: 7,
-        payout: Math.max(1, Math.round(project.budget * 0.3)),
+        payout: Math.max(100, Math.round(project.budget * 0.3)),
         pricing_type: 'fixed',
         required_skills: ['Node.js', 'Express', 'Database', 'API'],
-        status: 'open'
+        status: 'open',
+        auto_assign: false,
+        application_window_minutes: 60
       },
       {
         title: 'UI/UX Design',
         description: 'Design user interface mockups and user experience flow',
         weight: 5,
-        payout: Math.max(1, Math.round(project.budget * 0.2)),
+        payout: Math.max(100, Math.round(project.budget * 0.2)),
         pricing_type: 'fixed',
         required_skills: ['Figma', 'UI Design', 'UX Design'],
-        status: 'open'
+        status: 'open',
+        auto_assign: false,
+        application_window_minutes: 60
       },
       {
         title: 'Testing & QA',
         description: 'Comprehensive testing and quality assurance',
         weight: 3,
-        payout: Math.max(1, Math.round(project.budget * 0.1)),
+        payout: Math.max(100, Math.round(project.budget * 0.1)),
         pricing_type: 'fixed',
         required_skills: ['Testing', 'QA', 'Bug Testing'],
-        status: 'open'
+        status: 'open',
+        auto_assign: false,
+        application_window_minutes: 60
       }
     ];
 
@@ -168,20 +185,28 @@ export function TaskManagementPage() {
 
   const createTask = async (taskData: Task) => {
     try {
+      // Ensure payout is at least 1
+      const validatedTaskData = {
+        ...taskData,
+        payout: Math.max(1, taskData.payout)
+      };
+
       const { data, error } = await supabase
         .from('tasks')
         .insert({
           project_id: projectId,
-          title: taskData.title,
-          description: taskData.description,
-          weight: taskData.weight,
-          payout: taskData.payout,
-          deadline: taskData.deadline?.toISOString(),
-          pricing_type: taskData.pricing_type,
-          hourly_rate: taskData.hourly_rate,
-          estimated_hours: taskData.estimated_hours,
-          required_skills: taskData.required_skills,
-          status: taskData.status
+          title: validatedTaskData.title,
+          description: validatedTaskData.description,
+          weight: validatedTaskData.weight,
+          payout: validatedTaskData.payout,
+          deadline: validatedTaskData.deadline?.toISOString(),
+          pricing_type: validatedTaskData.pricing_type,
+          hourly_rate: validatedTaskData.hourly_rate,
+          estimated_hours: validatedTaskData.estimated_hours,
+          required_skills: validatedTaskData.required_skills,
+          status: validatedTaskData.status,
+          auto_assign: validatedTaskData.auto_assign,
+          application_window_minutes: validatedTaskData.application_window_minutes
         })
         .select()
         .single();
@@ -198,9 +223,18 @@ export function TaskManagementPage() {
 
   const updateTask = async (taskId: string, taskData: Partial<Task>) => {
     try {
+      // Ensure payout is at least 1 if being updated
+      const validatedTaskData = {
+        ...taskData
+      };
+      
+      if (validatedTaskData.payout !== undefined) {
+        validatedTaskData.payout = Math.max(1, validatedTaskData.payout);
+      }
+
       const { error } = await supabase
         .from('tasks')
-        .update(taskData)
+        .update(validatedTaskData)
         .eq('id', taskId);
 
       if (error) throw error;
@@ -241,7 +275,9 @@ export function TaskManagementPage() {
         payout: 0,
         pricing_type: 'fixed',
         required_skills: [],
-        status: 'open'
+        status: 'open',
+        auto_assign: false,
+        application_window_minutes: 60
       });
     }
   };
@@ -437,6 +473,11 @@ export function TaskManagementPage() {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(task.status)}`}>
                         {task.status}
                       </span>
+                      {task.auto_assign && (
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+                          Auto-Assign
+                        </span>
+                      )}
                     </div>
                     <p className="text-gray-600 mb-4">{task.description}</p>
                     
@@ -458,6 +499,18 @@ export function TaskManagementPage() {
                         <span>{task.pricing_type === 'hourly' ? 'Hourly' : 'Fixed'}</span>
                       </div>
                     </div>
+
+                    {task.auto_assign && (
+                      <div className="mt-3 p-3 bg-purple-50 rounded-lg">
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Settings className="h-4 w-4 text-purple-600" />
+                          <span className="text-purple-800 font-medium">Auto-Assignment Enabled</span>
+                        </div>
+                        <p className="text-purple-700 text-xs mt-1">
+                          Application window: {task.application_window_minutes} minutes
+                        </p>
+                      </div>
+                    )}
 
                     {task.required_skills.length > 0 && (
                       <div className="mt-3">
@@ -571,8 +624,8 @@ export function TaskManagementPage() {
                         }
                       }}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="0"
-                      min="0"
+                      placeholder="100"
+                      min="1"
                     />
                   </div>
 
@@ -595,6 +648,57 @@ export function TaskManagementPage() {
                       max="10"
                     />
                   </div>
+                </div>
+
+                {/* Auto-Assignment Settings */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-medium text-gray-700">
+                      Auto-Assignment
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editingTask) {
+                          setEditingTask({...editingTask, auto_assign: !editingTask.auto_assign});
+                        } else {
+                          setNewTask({...newTask, auto_assign: !newTask.auto_assign});
+                        }
+                      }}
+                      className="flex items-center space-x-2"
+                    >
+                      {(editingTask ? editingTask.auto_assign : newTask.auto_assign) ? (
+                        <ToggleRight className="h-6 w-6 text-indigo-600" />
+                      ) : (
+                        <ToggleLeft className="h-6 w-6 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                  
+                  {(editingTask ? editingTask.auto_assign : newTask.auto_assign) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Application Window (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        value={editingTask ? editingTask.application_window_minutes : newTask.application_window_minutes}
+                        onChange={(e) => {
+                          if (editingTask) {
+                            setEditingTask({...editingTask, application_window_minutes: parseInt(e.target.value) || 60});
+                          } else {
+                            setNewTask({...newTask, application_window_minutes: parseInt(e.target.value) || 60});
+                          }
+                        }}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        min="5"
+                        placeholder="60"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Time to collect applications before auto-assignment
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
