@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -35,6 +35,8 @@ function DashboardRouter() {
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const navigate = useNavigate();
+  const location = window.location.pathname;
 
   console.log('AppContent: Rendering with user:', !!user, 'isLoading:', isLoading);
 
@@ -51,7 +53,18 @@ function AppContent() {
       console.log('AppContent: User has completed onboarding, not showing modal');
       setShowOnboarding(false);
     }
-  }, [user?.id, user?.onboarding_completed]);
+
+    // Redirect logged-in users away from /login and /signup
+    if (user && (location === '/login' || location === '/signup')) {
+      navigate('/dashboard', { replace: true });
+    }
+    // Redirect logged-out users away from protected routes
+    if (!user && !isLoading &&
+      !['/login', '/signup', '/forgot-password'].includes(location)
+    ) {
+      navigate('/login', { replace: true });
+    }
+  }, [user?.id, user?.onboarding_completed, navigate, location, isLoading]);
 
   const handleOnboardingComplete = () => {
     console.log('AppContent: Onboarding completed');

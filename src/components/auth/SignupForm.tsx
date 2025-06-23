@@ -45,7 +45,12 @@ export function SignupForm() {
     try {
       const success = await signup(formData.name, formData.email, formData.password, formData.role);
       if (success) {
-        navigate('/dashboard');
+        // Fallback: If user is not redirected after 1s, force redirect
+        setTimeout(() => {
+          if (window.location.pathname === '/signup') {
+            navigate('/dashboard', { replace: true });
+          }
+        }, 1000);
       } else {
         setError('Failed to create account');
       }

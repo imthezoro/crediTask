@@ -62,12 +62,13 @@ export function ChatPage() {
       setIsLoading(true);
       
       if (user.role === 'worker') {
-        // For workers, get channels based on their assigned tasks
+        // For workers, get channels based on their approved tasks
         const { data: tasks, error: tasksError } = await supabase
           .from('tasks')
           .select(`
             id,
             title,
+            status,
             projects (
               id,
               title,
@@ -78,7 +79,7 @@ export function ChatPage() {
             )
           `)
           .eq('assignee_id', user.id)
-          .eq('status', 'assigned');
+          .eq('status', 'approved'); // Only approved tasks
 
         if (tasksError) {
           console.error('Error fetching worker tasks:', tasksError);
@@ -112,6 +113,7 @@ export function ChatPage() {
             title,
             tasks (
               assignee_id,
+              status,
               users!tasks_assignee_id_fkey (
                 name
               )
@@ -124,11 +126,11 @@ export function ChatPage() {
           return;
         }
 
-        // Create channels for each project with assigned workers
+        // Create channels for each project with assigned and approved workers
         const clientChannels: ChatChannel[] = [];
         (projects || []).forEach(project => {
           const assignedWorkers = project.tasks
-            .filter(task => task.assignee_id)
+            .filter(task => task.assignee_id && task.status === 'approved') // Only approved tasks
             .map(task => ({
               id: task.assignee_id,
               name: task.users?.name || 'Worker'

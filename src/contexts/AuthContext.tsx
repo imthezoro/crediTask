@@ -85,7 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (error) {
           console.error('AuthProvider: Session error:', error);
+          // Only clear session if this is a real token error
           if (!handleAuthError(error)) {
+            setUser(null);
+            setSupabaseUser(null);
             setIsLoading(false);
           }
           return;
@@ -100,13 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchUserProfile(session.user.id);
         } else {
           console.log('AuthProvider: No session found');
+          setUser(null);
           setIsLoading(false);
         }
       } catch (error) {
         console.error('AuthProvider: Initialization error:', error);
         if (mounted) {
           clearTimeout(initTimeout);
+          // Only clear session if this is a real token error
           if (!handleAuthError(error)) {
+            setUser(null);
+            setSupabaseUser(null);
             setIsLoading(false);
           }
         }
