@@ -9,16 +9,16 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user, login, isLoading } = useAuth();
+  const { user, login, isLoading, isInitialized } = useAuth();
   const navigate = useNavigate();
 
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
-    if (user && !isLoading) {
+    if (isInitialized && !isLoading && user) {
       console.log('🔄 LoginForm: User already authenticated, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, isInitialized, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +45,7 @@ export function LoginForm() {
   };
 
   // Show loading while checking if user is already authenticated
-  if (isLoading) {
+  if (!isInitialized || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-amber-50 px-4">
         <div className="text-center">

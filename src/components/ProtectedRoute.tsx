@@ -8,35 +8,38 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isInitialized } = useAuth();
   const location = useLocation();
 
-  console.log('ProtectedRoute: Checking access', { 
+  console.log('🛡️ ProtectedRoute: Checking access', { 
     user: !!user, 
     isLoading, 
+    isInitialized,
     pathname: location.pathname 
   });
 
-  // Show loading spinner while checking authentication
-  if (isLoading) {
-    console.log('ProtectedRoute: Still loading, showing spinner');
+  // Show loading spinner while auth is initializing or loading
+  if (!isInitialized || isLoading) {
+    console.log('⏳ ProtectedRoute: Auth still initializing, showing loading...');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
-          <p className="text-gray-600">Checking authentication...</p>
-          <p className="text-gray-500 text-sm mt-2">Please wait a moment</p>
+          <p className="text-gray-600 text-lg">Loading FreelanceFlow...</p>
+          <p className="text-gray-500 text-sm mt-2">
+            {!isInitialized ? 'Initializing authentication...' : 'Checking your session...'}
+          </p>
         </div>
       </div>
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!user) {
-    console.log('ProtectedRoute: No user, redirecting to login');
+  // Only redirect to login if auth is fully initialized and no user is found
+  if (isInitialized && !isLoading && !user) {
+    console.log('🚫 ProtectedRoute: No authenticated user, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  console.log('ProtectedRoute: User authenticated, rendering children');
+  console.log('✅ ProtectedRoute: User authenticated, rendering protected content');
   return <>{children}</>;
 }

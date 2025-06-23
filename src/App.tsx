@@ -22,10 +22,10 @@ import { OnboardingModal } from './components/onboarding/OnboardingModal';
 function DashboardRouter() {
   const { user } = useAuth();
   
-  console.log('DashboardRouter: Rendering for user role:', user?.role);
+  console.log('🏠 DashboardRouter: Rendering for user role:', user?.role);
   
   if (!user) {
-    console.log('DashboardRouter: No user found');
+    console.log('🚫 DashboardRouter: No user found');
     return null;
   }
   
@@ -33,44 +33,47 @@ function DashboardRouter() {
 }
 
 function AppContent() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isInitialized } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  console.log('AppContent: Rendering with user:', !!user, 'isLoading:', isLoading);
+  console.log('🎯 AppContent: Rendering with user:', !!user, 'isLoading:', isLoading, 'isInitialized:', isInitialized);
 
   useEffect(() => {
-    console.log('AppContent: User effect triggered', { 
+    console.log('🎯 AppContent: User effect triggered', { 
       user: !!user, 
-      onboardingCompleted: user?.onboarding_completed 
+      onboardingCompleted: user?.onboarding_completed,
+      isInitialized
     });
     
-    if (user && user.onboarding_completed === false) {
-      console.log('AppContent: User needs onboarding, showing modal');
+    if (isInitialized && user && user.onboarding_completed === false) {
+      console.log('🎯 AppContent: User needs onboarding, showing modal');
       setShowOnboarding(true);
-    } else if (user && user.onboarding_completed === true) {
-      console.log('AppContent: User has completed onboarding, not showing modal');
+    } else if (isInitialized && user && user.onboarding_completed === true) {
+      console.log('🎯 AppContent: User has completed onboarding, not showing modal');
       setShowOnboarding(false);
     }
-  }, [user?.id, user?.onboarding_completed]);
+  }, [user?.id, user?.onboarding_completed, isInitialized]);
 
   const handleOnboardingComplete = () => {
-    console.log('AppContent: Onboarding completed');
+    console.log('🎯 AppContent: Onboarding completed');
     setShowOnboarding(false);
   };
 
   const handleShowOnboarding = () => {
-    console.log('AppContent: Manually showing onboarding');
+    console.log('🎯 AppContent: Manually showing onboarding');
     setShowOnboarding(true);
   };
 
-  // Show loading while checking authentication
-  if (isLoading) {
+  // Show loading while auth is initializing
+  if (!isInitialized || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
           <p className="text-gray-600 text-lg">Loading FreelanceFlow...</p>
-          <p className="text-gray-500 text-sm mt-2">Initializing your workspace</p>
+          <p className="text-gray-500 text-sm mt-2">
+            {!isInitialized ? 'Initializing your workspace...' : 'Checking your session...'}
+          </p>
         </div>
       </div>
     );
@@ -248,7 +251,7 @@ function AppContent() {
 }
 
 function App() {
-  console.log('App: Rendering main app component');
+  console.log('🚀 App: Rendering main app component');
   
   return (
     <AuthProvider>
