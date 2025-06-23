@@ -11,13 +11,14 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Settings
 } from 'lucide-react';
-import { supabase, testSupabaseConnection, getConnectionStatus } from '../../lib/supabase';
+import { supabase, testSupabaseConnection, getConnectionStatus, checkConfiguration } from '../../lib/supabase';
 
 interface TestResult {
   name: string;
-  status: 'pending' | 'success' | 'error' | 'warning';
+  status: 'pending' | 'success' | 'error' | 'warning' | 'skipped';
   message: string;
   details?: string;
   duration?: number;
@@ -31,7 +32,8 @@ export function SupabaseConnectionTest() {
     url: '',
     anonKey: '',
     urlValid: false,
-    keyValid: false
+    keyValid: false,
+    isConfigured: false
   });
 
   useEffect(() => {
@@ -39,14 +41,16 @@ export function SupabaseConnectionTest() {
   }, []);
 
   const checkEnvironmentVariables = () => {
+    const config = checkConfiguration();
     const url = import.meta.env.VITE_SUPABASE_URL || '';
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     
     setEnvVars({
       url,
       anonKey,
-      urlValid: url.startsWith('https://') && url.includes('.supabase.co'),
-      keyValid: anonKey.length > 50 && anonKey.startsWith('eyJ')
+      urlValid: config.urlValid,
+      keyValid: config.keyValid,
+      isConfigured: config.isValid
     });
   };
 
@@ -96,19 +100,21 @@ export function SupabaseConnectionTest() {
 
     // Test 1: Environment Variables
     await runTest('Environment Variables', async () => {
-      if (!envVars.url || !envVars.anonKey) {
+      const config = checkConfiguration();
+      
+      if (!config.hasUrl || !config.hasKey) {
         return {
           success: false,
           message: 'Missing environment variables',
-          details: `URL: ${envVars.url ? 'Present' : 'Missing'}, Key: ${envVars.anonKey ? 'Present' : 'Missing'}`
+          details: `URL: ${config.hasUrl ? 'Present' : 'Missing'}, Key: ${config.hasKey ? 'Present' : 'Missing'}`
         };
       }
       
-      if (!envVars.urlValid || !envVars.keyValid) {
+      if (!config.urlValid || !config.keyValid) {
         return {
           success: false,
           message: 'Invalid environment variables format',
-          details: `URL Valid: ${envVars.urlValid}, Key Valid: ${envVars.keyValid}`
+          details: `URL Valid: ${config.urlValid}, Key Valid: ${config.keyValid}`
         };
       }
 
@@ -118,178 +124,207 @@ export function SupabaseConnectionTest() {
       };
     }, 1000);
 
-    // Test 2: Basic Connection (with shorter timeout)
-    await runTest('Basic Connection', async () => {
-      try {
-        // Use the improved connection test with shorter timeout
-        const success = await testSupabaseConnection(3000);
-        
-        if (!success) {
-          return {
-            success: false,
-            message: 'Failed to connect to Supabase',
-            details: 'Check console for detailed error information'
-          };
-        }
-
-        return {
-          success: true,
-          message: 'Successfully connected to Supabase'
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: 'Connection error',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    }, 4000);
-
-    // Test 3: Database Query (simple query)
-    await runTest('Database Query', async () => {
-      try {
-        // Try a simple query that should work even without tables
-        const { data, error } = await supabase.rpc('version');
-        
-        if (error) {
-          return {
-            success: false,
-            message: 'Database query failed',
-            details: error.message
-          };
-        }
-
-        return {
-          success: true,
-          message: 'Database queries are working',
-          details: 'PostgreSQL version query successful'
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: 'Query execution failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    }, 3000);
-
-    // Test 4: Auth Service
-    await runTest('Auth Service', async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          return {
-            success: false,
-            message: 'Auth service error',
-            details: error.message
-          };
-        }
-
-        return {
-          success: true,
-          message: 'Auth service is working',
-          details: `Session: ${data.session ? 'Active' : 'None'}`
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: 'Auth service failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    }, 3000);
-
-    // Test 5: Database Schema (only if basic connection works)
-    const connectionStatus = getConnectionStatus();
-    if (connectionStatus.status === 'connected') {
-      await runTest('Database Schema', async () => {
+    // Only run connection tests if configuration is valid
+    if (envVars.isConfigured) {
+      // Test 2: Basic Connection
+      await runTest('Basic Connection', async () => {
         try {
-          const tables = ['users', 'projects', 'tasks', 'notifications'];
-          const results = [];
+          const success = await testSupabaseConnection(5000);
           
-          for (const table of tables) {
-            const { error } = await supabase.from(table).select('*').limit(1);
-            results.push({ table, exists: !error });
-          }
-          
-          const missingTables = results.filter(r => !r.exists).map(r => r.table);
-          
-          if (missingTables.length > 0) {
+          if (!success) {
+            const status = getConnectionStatus();
             return {
               success: false,
-              message: 'Missing database tables',
-              details: `Missing: ${missingTables.join(', ')}`
+              message: 'Failed to connect to Supabase',
+              details: status.lastError || 'Check console for detailed error information'
             };
           }
 
           return {
             success: true,
-            message: 'All required tables exist',
-            details: `Checked: ${tables.join(', ')}`
+            message: 'Successfully connected to Supabase'
           };
         } catch (error) {
           return {
             success: false,
-            message: 'Schema check failed',
+            message: 'Connection error',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }, 6000);
+
+      // Test 3: Database Query
+      await runTest('Database Query', async () => {
+        try {
+          const { data, error } = await supabase.rpc('version');
+          
+          if (error) {
+            return {
+              success: false,
+              message: 'Database query failed',
+              details: error.message
+            };
+          }
+
+          return {
+            success: true,
+            message: 'Database queries are working',
+            details: 'PostgreSQL version query successful'
+          };
+        } catch (error) {
+          return {
+            success: false,
+            message: 'Query execution failed',
             details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
       }, 5000);
 
-      // Test 6: Demo User Check
-      await runTest('Demo Users', async () => {
+      // Test 4: Auth Service
+      await runTest('Auth Service', async () => {
         try {
-          const { data: sarahUser, error: sarahError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', 'sarah@example.com')
-            .limit(1);
-
-          const { data: alexUser, error: alexError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', 'alex@example.com')
-            .limit(1);
-
-          const sarahExists = !sarahError && sarahUser && sarahUser.length > 0;
-          const alexExists = !alexError && alexUser && alexUser.length > 0;
-
-          if (!sarahExists && !alexExists) {
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
             return {
               success: false,
-              message: 'Demo users not found',
-              details: 'Neither sarah@example.com nor alex@example.com exist in the database'
-            };
-          }
-
-          if (!sarahExists || !alexExists) {
-            return {
-              success: false,
-              message: 'Some demo users missing',
-              details: `Sarah: ${sarahExists ? 'Found' : 'Missing'}, Alex: ${alexExists ? 'Found' : 'Missing'}`
+              message: 'Auth service error',
+              details: error.message
             };
           }
 
           return {
             success: true,
-            message: 'Demo users found',
-            details: 'Both demo accounts exist and are ready for login'
+            message: 'Auth service is working',
+            details: `Session: ${data.session ? 'Active' : 'None'}`
           };
         } catch (error) {
           return {
             success: false,
-            message: 'Demo user check failed',
+            message: 'Auth service failed',
             details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
-      }, 3000);
+      }, 5000);
+
+      // Test 5: Database Schema
+      const connectionStatus = getConnectionStatus();
+      if (connectionStatus.status === 'connected') {
+        await runTest('Database Schema', async () => {
+          try {
+            const tables = ['users', 'projects', 'tasks', 'notifications'];
+            const results = [];
+            
+            for (const table of tables) {
+              const { error } = await supabase.from(table).select('*').limit(1);
+              results.push({ table, exists: !error });
+            }
+            
+            const missingTables = results.filter(r => !r.exists).map(r => r.table);
+            
+            if (missingTables.length > 0) {
+              return {
+                success: false,
+                message: 'Missing database tables',
+                details: `Missing: ${missingTables.join(', ')}`
+              };
+            }
+
+            return {
+              success: true,
+              message: 'All required tables exist',
+              details: `Checked: ${tables.join(', ')}`
+            };
+          } catch (error) {
+            return {
+              success: false,
+              message: 'Schema check failed',
+              details: error instanceof Error ? error.message : 'Unknown error'
+            };
+          }
+        }, 8000);
+
+        // Test 6: Demo User Check
+        await runTest('Demo Users', async () => {
+          try {
+            const { data: sarahUser, error: sarahError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('email', 'sarah@example.com')
+              .limit(1);
+
+            const { data: alexUser, error: alexError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('email', 'alex@example.com')
+              .limit(1);
+
+            const sarahExists = !sarahError && sarahUser && sarahUser.length > 0;
+            const alexExists = !alexError && alexUser && alexUser.length > 0;
+
+            if (!sarahExists && !alexExists) {
+              return {
+                success: false,
+                message: 'Demo users not found',
+                details: 'Neither sarah@example.com nor alex@example.com exist in the database'
+              };
+            }
+
+            if (!sarahExists || !alexExists) {
+              return {
+                success: false,
+                message: 'Some demo users missing',
+                details: `Sarah: ${sarahExists ? 'Found' : 'Missing'}, Alex: ${alexExists ? 'Found' : 'Missing'}`
+              };
+            }
+
+            return {
+              success: true,
+              message: 'Demo users found',
+              details: 'Both demo accounts exist and are ready for login'
+            };
+          } catch (error) {
+            return {
+              success: false,
+              message: 'Demo user check failed',
+              details: error instanceof Error ? error.message : 'Unknown error'
+            };
+          }
+        }, 5000);
+      }
+    } else {
+      // Skip connection tests if configuration is invalid
+      updateTest('Basic Connection', {
+        status: 'skipped',
+        message: 'Skipped due to invalid configuration'
+      });
+      updateTest('Database Query', {
+        status: 'skipped',
+        message: 'Skipped due to invalid configuration'
+      });
+      updateTest('Auth Service', {
+        status: 'skipped',
+        message: 'Skipped due to invalid configuration'
+      });
+      updateTest('Database Schema', {
+        status: 'skipped',
+        message: 'Skipped due to invalid configuration'
+      });
+      updateTest('Demo Users', {
+        status: 'skipped',
+        message: 'Skipped due to invalid configuration'
+      });
     }
 
     setIsRunning(false);
   };
 
   const createDemoUsers = async () => {
+    if (!envVars.isConfigured) {
+      alert('Please configure your Supabase environment variables first.');
+      return;
+    }
+
     setIsRunning(true);
     
     try {
@@ -356,6 +391,7 @@ export function SupabaseConnectionTest() {
       case 'error': return <XCircle className="h-5 w-5 text-red-600" />;
       case 'warning': return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
       case 'pending': return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
+      case 'skipped': return <Settings className="h-5 w-5 text-gray-400" />;
     }
   };
 
@@ -394,31 +430,9 @@ export function SupabaseConnectionTest() {
           </div>
         </div>
 
-        {/* Troubleshooting Guide */}
-        {hasConnectionIssues && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-red-900 mb-2">Configuration Issues Detected</h3>
-                <div className="text-sm text-red-700 space-y-2">
-                  <p>To fix connection issues, please verify your Supabase configuration:</p>
-                  <ol className="list-decimal list-inside space-y-1 ml-4">
-                    <li>Go to your <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center">Supabase Dashboard <ExternalLink className="h-3 w-3 ml-1" /></a></li>
-                    <li>Select your project and go to Settings → API</li>
-                    <li>Copy the "Project URL" and "Project API key (anon public)"</li>
-                    <li>Update your .env file with the correct values</li>
-                    <li>Restart your development server</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Environment Variables Status */}
+        {/* Configuration Status */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-medium text-gray-900 mb-3">Environment Variables</h3>
+          <h3 className="font-medium text-gray-900 mb-3">Configuration Status</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div className="flex items-center space-x-2">
               {envVars.urlValid ? (
@@ -438,6 +452,17 @@ export function SupabaseConnectionTest() {
             </div>
           </div>
           
+          <div className="mt-3 flex items-center space-x-2">
+            {envVars.isConfigured ? (
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            ) : (
+              <XCircle className="h-4 w-4 text-red-600" />
+            )}
+            <span className="font-medium">
+              Overall Configuration: {envVars.isConfigured ? 'Valid' : 'Invalid'}
+            </span>
+          </div>
+          
           {showDetails && (
             <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-600">
               <div>URL: {envVars.url || 'Not set'}</div>
@@ -445,6 +470,32 @@ export function SupabaseConnectionTest() {
             </div>
           )}
         </div>
+
+        {/* Troubleshooting Guide */}
+        {hasConnectionIssues && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-red-900 mb-2">Configuration Issues Detected</h3>
+                <div className="text-sm text-red-700 space-y-2">
+                  <p>To fix connection issues, please verify your Supabase configuration:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-4">
+                    <li>Go to your <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center">Supabase Dashboard <ExternalLink className="h-3 w-3 ml-1" /></a></li>
+                    <li>Select your project and go to Settings → API</li>
+                    <li>Copy the "Project URL" and "Project API key (anon public)"</li>
+                    <li>Create or update your .env file with these values:</li>
+                  </ol>
+                  <div className="mt-2 p-3 bg-red-100 rounded text-xs font-mono">
+                    VITE_SUPABASE_URL=https://your-project.supabase.co<br/>
+                    VITE_SUPABASE_ANON_KEY=your-anon-key-here
+                  </div>
+                  <p className="mt-2">After updating the .env file, restart your development server.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Test Results */}
         <div className="space-y-3">
@@ -479,7 +530,7 @@ export function SupabaseConnectionTest() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={createDemoUsers}
-                disabled={isRunning}
+                disabled={isRunning || !envVars.isConfigured}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
               >
                 <User className="h-4 w-4" />
