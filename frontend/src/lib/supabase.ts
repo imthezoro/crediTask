@@ -5,15 +5,19 @@ import type { Database } from '../types/database';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables. Please check your .env file.');
+}
+
 // Create Supabase client
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storage: window.localStorage,
-    storageKey: 'freelanceflow-auth'
+    detectSessionInUrl: false, // Changed to false to avoid conflicts with React Router
+    storage: localStorage,
+    storageKey: 'freelanceflow-auth',
   },
   global: {
     headers: {
@@ -52,3 +56,18 @@ supabase.auth.onAuthStateChange((event, session) => {
     console.log('🔍 Initial session loaded:', !!session);
   }
 });
+
+// Export a function to check if a session exists
+export const getExistingSession = async () => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error('Error getting session:', error);
+      return null;
+    }
+    return data.session;
+  } catch (error) {
+    console.error('Error in getExistingSession:', error);
+    return null;
+  }
+};

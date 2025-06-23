@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { supabase, getExistingSession } from '../lib/supabase';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -47,28 +48,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('🔍 AuthProvider: Checking for existing session...');
         
         // Get the current session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const existingSession = await getExistingSession();
         
         if (!mounted) return;
         
         // Clear the timeout since we got a response
         clearTimeout(initTimeout);
 
-        if (error) {
-          console.error('❌ AuthProvider: Session error:', error);
-          setError(`Session error: ${error.message}`);
-          setUser(null);
-          setSupabaseUser(null);
-          setIsLoading(false);
-          setIsInitialized(true);
-          return;
-        }
-
-        console.log('📋 AuthProvider: Session check complete. Session exists:', !!session);
-        
-        if (session?.user) {
-          console.log('👤 AuthProvider: Valid session found, setting up user...');
-          setSupabaseUser(session.user);
+        if (existingSession) {
+          console.log('👤 AuthProvider: Valid session found, setting up user...', existingSession);
+          setSession(existingSession);
+          setSupabaseUser(existingSession.user);
           
           // Try to get user from localStorage first for faster loading
           try {
@@ -83,11 +73,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           
           // Always fetch fresh profile data
-          await fetchUserProfile(session.user.id);
+          await fetchUserProfile(existingSession.user.id);
         } else {
           console.log('🚫 AuthProvider: No session found');
           setUser(null);
           setSupabaseUser(null);
+          setSession(null);
           // Clear any stored user data
           try {
             localStorage.removeItem('freelanceflow-user');
@@ -107,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setError(`Initialization error: ${error instanceof Error ? error.message : 'Unknown error'}`);
           setUser(null);
           setSupabaseUser(null);
+          setSession(null);
           setIsLoading(false);
           setIsInitialized(true);
         }
@@ -119,13 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
       
-      console.log('🔄 AuthProvider: Auth state changed:', event, 'Session exists:', !!session);
+      console.log('🔄 AuthProvider: Auth state changed:', event, 'Session exists:', !!newSession);
       
       try {
         setError(null); // Clear any previous errors
+        setSession(newSession);
         
         switch (event) {
           case 'SIGNED_OUT':
@@ -140,20 +133,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             break;
             
           case 'SIGNED_IN':
-            if (session?.user) {
+            if (newSession?.user) {
               console.log('✅ AuthProvider: User signed in, fetching profile...');
-              setSupabaseUser(session.user);
-              await fetchUserProfile(session.user.id);
+              setSupabaseUser(newSession.user);
+              await fetchUserProfile(newSession.user.id);
             }
             break;
             
           case 'TOKEN_REFRESHED':
-            if (session?.user) {
+            if (newSession?.user) {
               console.log('🔄 AuthProvider: Token refreshed');
-              setSupabaseUser(session.user);
+              setSupabaseUser(newSession.user);
               // Don't refetch profile on token refresh unless we don't have user data
               if (!user) {
-                await fetchUserProfile(session.user.id);
+                await fetchUserProfile(newSession.user.id);
               }
             } else {
               console.log('❌ AuthProvider: Token refresh failed, clearing session');
@@ -162,12 +155,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             break;
             
+          case 'USER_UPDATED':
+            if (newSession?.user) {
+              console.log('👤 AuthProvider: User updated, refreshing profile...');
+              setSupabaseUser(newSession.user);
+              await fetchUserProfile(newSession.user.id);
+            }
+            break;
+            
           default:
             // Handle other events
-            if (session?.user) {
-              setSupabaseUser(session.user);
+            if (newSession?.user) {
+              setSupabaseUser(newSession.user);
               if (!user) {
-                await fetchUserProfile(session.user.id);
+                await fetchUserProfile(newSession.user.id);
               }
             } else {
               setUser(null);
@@ -291,6 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.user && data.session) {
         console.log('✅ AuthProvider: Login successful');
         // The auth state change listener will handle setting the user
+        setSession(data.session);
         setIsLoading(false);
         return true;
       }
@@ -354,6 +356,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         console.log('✅ AuthProvider: Signup completed successfully');
+        if (authData.session) {
+          setSession(authData.session);
+        }
         setIsLoading(false);
         return true;
       }
@@ -393,6 +398,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear state immediately
       setUser(null);
       setSupabaseUser(null);
+      setSession(null);
       
       console.log('✅ AuthProvider: Logout completed');
     } catch (error) {
@@ -401,6 +407,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear state even if logout fails
       setUser(null);
       setSupabaseUser(null);
+      setSession(null);
     }
   };
 
@@ -454,7 +461,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   console.log('📊 AuthProvider: Current state', { 
     user: !!user, 
-    supabaseUser: !!supabaseUser, 
+    supabaseUser: !!supabaseUser,
+    session: !!session,
     isLoading,
     isInitialized,
     error
