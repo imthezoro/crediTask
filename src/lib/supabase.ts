@@ -20,7 +20,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     flowType: 'pkce',
     storage: window.localStorage,
     storageKey: 'freelanceflow-auth',
-    debug: false
+    debug: true // Enable debug mode to see auth logs
   },
   global: {
     headers: {
@@ -54,4 +54,11 @@ supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_IN') {
     console.log('✅ User signed in successfully');
   }
+
+  if (event === 'INITIAL_SESSION') {
+    console.log('🔍 Initial session loaded:', !!session);
+  }
 });
+
+// Test connection
+console.log('🔗 Supabase client initialized with URL:', supabaseUrl);

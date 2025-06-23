@@ -12,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   isInitialized: boolean;
   updateProfile: (updates: Partial<User>) => Promise<boolean>;
+  error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -40,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setIsInitialized(true);
             }
           }
-        }, 5000);
+        }, 10000); // Increased timeout to 10 seconds
 
         console.log('🔍 AuthProvider: Checking for existing session...');
         
@@ -54,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (error) {
           console.error('❌ AuthProvider: Session error:', error);
+          setError(`Session error: ${error.message}`);
           setUser(null);
           setSupabaseUser(null);
           setIsLoading(false);
@@ -101,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('💥 AuthProvider: Initialization error:', error);
         if (mounted) {
           clearTimeout(initTimeout);
+          setError(`Initialization error: ${error instanceof Error ? error.message : 'Unknown error'}`);
           setUser(null);
           setSupabaseUser(null);
           setIsLoading(false);
@@ -121,6 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('🔄 AuthProvider: Auth state changed:', event, 'Session exists:', !!session);
       
       try {
+        setError(null); // Clear any previous errors
+        
         switch (event) {
           case 'SIGNED_OUT':
             console.log('👋 AuthProvider: User signed out');
@@ -170,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         console.error('💥 AuthProvider: Auth state change error:', error);
+        setError(`Auth state error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
 
@@ -222,11 +229,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return;
             } else {
               console.error('❌ AuthProvider: Error creating user profile:', insertError);
+              setError(`Profile creation error: ${insertError.message}`);
             }
           }
+        } else {
+          setError(`Profile fetch error: ${error.message}`);
         }
         
-        // Don't throw error, just log it
         return;
       }
 
@@ -257,48 +266,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('💥 AuthProvider: Error in fetchUserProfile:', error);
-      // Don't clear the session on profile fetch errors
+      setError(`Profile fetch error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     console.log('🔐 AuthProvider: Attempting login for:', email);
+    setError(null);
+    setIsLoading(true);
     
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) {
         console.error('❌ AuthProvider: Login error:', error);
+        setError(error.message);
+        setIsLoading(false);
         return false;
       }
       
       if (data.user && data.session) {
         console.log('✅ AuthProvider: Login successful');
         // The auth state change listener will handle setting the user
+        setIsLoading(false);
         return true;
       }
       
+      setError('Login failed: No user data received');
+      setIsLoading(false);
       return false;
     } catch (error) {
       console.error('💥 AuthProvider: Login failed:', error);
+      setError(`Login failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsLoading(false);
       return false;
     }
   };
 
   const signup = async (name: string, email: string, password: string, role: 'client' | 'worker'): Promise<boolean> => {
     console.log('📝 AuthProvider: Attempting signup for:', email, 'as', role);
+    setError(null);
+    setIsLoading(true);
     
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
+        options: {
+          data: {
+            name: name.trim()
+          }
+        }
       });
 
       if (authError) {
         console.error('❌ AuthProvider: Signup auth error:', authError);
+        setError(authError.message);
+        setIsLoading(false);
         return false;
       }
 
@@ -309,8 +336,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('users')
           .insert({
             id: authData.user.id,
-            email,
-            name,
+            email: email.trim(),
+            name: name.trim(),
             role,
             rating: 0,
             wallet_balance: role === 'client' ? 5000 : 0,
@@ -321,22 +348,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (profileError) {
           console.error('❌ AuthProvider: Profile creation error:', profileError);
+          setError(`Profile creation failed: ${profileError.message}`);
+          setIsLoading(false);
           return false;
         }
         
         console.log('✅ AuthProvider: Signup completed successfully');
+        setIsLoading(false);
         return true;
       }
       
+      setError('Signup failed: No user data received');
+      setIsLoading(false);
       return false;
     } catch (error) {
       console.error('💥 AuthProvider: Signup error:', error);
+      setError(`Signup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsLoading(false);
       return false;
     }
   };
 
   const logout = async (): Promise<void> => {
     console.log('👋 AuthProvider: Logging out...');
+    setError(null);
     
     try {
       // Clear local storage first
@@ -352,6 +387,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (error) {
         console.error('❌ AuthProvider: Logout error:', error);
+        setError(`Logout error: ${error.message}`);
       }
       
       // Clear state immediately
@@ -361,6 +397,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('✅ AuthProvider: Logout completed');
     } catch (error) {
       console.error('💥 AuthProvider: Logout error:', error);
+      setError(`Logout error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       // Clear state even if logout fails
       setUser(null);
       setSupabaseUser(null);
@@ -370,10 +407,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
     if (!user) {
       console.log('❌ AuthProvider: Cannot update profile - no user');
+      setError('Cannot update profile: No user logged in');
       return false;
     }
 
     console.log('📝 AuthProvider: Updating profile:', updates);
+    setError(null);
 
     try {
       const updateData: any = {};
@@ -390,6 +429,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('❌ AuthProvider: Profile update error:', error);
+        setError(`Profile update failed: ${error.message}`);
         return false;
       }
 
@@ -407,6 +447,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('💥 AuthProvider: Profile update failed:', error);
+      setError(`Profile update failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return false;
     }
   };
@@ -415,7 +456,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: !!user, 
     supabaseUser: !!supabaseUser, 
     isLoading,
-    isInitialized
+    isInitialized,
+    error
   });
 
   return (
@@ -427,7 +469,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout, 
       isLoading,
       isInitialized,
-      updateProfile 
+      updateProfile,
+      error
     }}>
       {children}
     </AuthContext.Provider>

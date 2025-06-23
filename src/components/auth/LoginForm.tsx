@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Briefcase, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Briefcase, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user, login, isLoading, isInitialized } = useAuth();
+  const { user, login, isLoading, isInitialized, error } = useAuth();
   const navigate = useNavigate();
 
   // Redirect to dashboard if user is already logged in
@@ -22,7 +21,11 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    
+    if (!email.trim() || !password) {
+      return;
+    }
+    
     setIsSubmitting(true);
     
     console.log('🔐 LoginForm: Attempting login for:', email);
@@ -34,18 +37,17 @@ export function LoginForm() {
         navigate('/dashboard', { replace: true });
       } else {
         console.log('❌ LoginForm: Login failed');
-        setError('Invalid email or password');
+        // Error is handled by the auth context
       }
     } catch (error) {
       console.error('💥 LoginForm: Login error:', error);
-      setError('An error occurred during login');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // Show loading while checking if user is already authenticated
-  if (!isInitialized || isLoading) {
+  if (!isInitialized || (isLoading && !isSubmitting)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-amber-50 px-4">
         <div className="text-center">
@@ -92,6 +94,7 @@ export function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:z-10 sm:text-sm transition-all"
                 placeholder="Enter your email"
+                disabled={isSubmitting}
               />
             </div>
 
@@ -110,11 +113,13 @@ export function LoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none relative block w-full px-3 py-3 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:z-10 sm:text-sm transition-all"
                   placeholder="Enter your password"
+                  disabled={isSubmitting}
                 />
                 <button
                   type="button"
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={isSubmitting}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4 text-gray-400" />
@@ -126,8 +131,9 @@ export function LoginForm() {
             </div>
 
             {error && (
-              <div className="text-red-600 text-sm text-center bg-red-50 py-2 px-3 rounded-lg">
-                {error}
+              <div className="flex items-center space-x-2 text-red-600 text-sm bg-red-50 py-3 px-4 rounded-lg border border-red-200">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -142,11 +148,14 @@ export function LoginForm() {
             <div>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !email.trim() || !password}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Signing in...
+                  </>
                 ) : (
                   'Sign in'
                 )}
@@ -169,11 +178,13 @@ export function LoginForm() {
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="bg-gray-50 p-2 rounded">
                 <strong>Client:</strong><br />
-                sarah@example.com
+                sarah@example.com<br />
+                <span className="text-gray-500">password123</span>
               </div>
               <div className="bg-gray-50 p-2 rounded">
                 <strong>Worker:</strong><br />
-                alex@example.com
+                alex@example.com<br />
+                <span className="text-gray-500">password123</span>
               </div>
             </div>
           </div>
