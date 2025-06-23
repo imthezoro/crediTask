@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log('AuthProvider: Initialization timeout, setting loading to false');
             setIsLoading(false);
           }
-        }, 5000); // 5 second timeout
+        }, 10000); // 10 second timeout
 
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -273,22 +273,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Attempting login for:', email);
     
     try {
+      // Clear any existing session first
+      await supabase.auth.signOut();
+      
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) {
         console.error('AuthProvider: Login error:', error);
+        
+        // Provide more specific error messages
+        if (error.message.includes('Invalid login credentials')) {
+          console.log('AuthProvider: Invalid credentials');
+        } else if (error.message.includes('Email not confirmed')) {
+          console.log('AuthProvider: Email not confirmed');
+        } else {
+          console.log('AuthProvider: Other login error:', error.message);
+        }
+        
         return false;
       }
       
-      if (data.user) {
+      if (data.user && data.session) {
         console.log('AuthProvider: Login successful');
         // Don't set loading here, let the auth state change handle it
         return true;
       }
       
+      console.log('AuthProvider: Login failed - no user or session returned');
       return false;
     } catch (error) {
       console.error('AuthProvider: Login failed:', error);
@@ -302,8 +316,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
+        options: {
+          data: {
+            name: name.trim()
+          }
+        }
       });
 
       if (authError) {
@@ -319,8 +338,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .from('users')
           .insert({
             id: authData.user.id,
-            email,
-            name,
+            email: email.trim(),
+            name: name.trim(),
             role,
             rating: 0,
             wallet_balance: role === 'client' ? 5000 : 0,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Briefcase, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Briefcase, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function LoginForm() {
@@ -39,11 +39,37 @@ export function LoginForm() {
         }, 1000);
       } else {
         console.log('LoginForm: Login failed');
-        setError('Invalid email or password');
+        setError('Invalid email or password. Please check your credentials and try again.');
       }
     } catch (error) {
       console.error('LoginForm: Login error:', error);
-      setError('An error occurred during login');
+      setError('An error occurred during login. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDemoLogin = async (demoEmail: string, demoPassword: string = 'password123') => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setError('');
+    setIsSubmitting(true);
+    
+    try {
+      const success = await login(demoEmail, demoPassword);
+      if (success) {
+        console.log('LoginForm: Demo login successful');
+        setTimeout(() => {
+          if (window.location.pathname === '/login') {
+            navigate('/dashboard', { replace: true });
+          }
+        }, 1000);
+      } else {
+        setError('Demo login failed. Please try manual login.');
+      }
+    } catch (error) {
+      console.error('LoginForm: Demo login error:', error);
+      setError('Demo login failed. Please try manual login.');
     } finally {
       setIsSubmitting(false);
     }
@@ -131,8 +157,9 @@ export function LoginForm() {
             </div>
 
             {error && (
-              <div className="text-red-600 text-sm text-center bg-red-50 py-2 px-3 rounded-lg">
-                {error}
+              <div className="flex items-start space-x-3 text-red-600 text-sm bg-red-50 py-3 px-4 rounded-lg border border-red-200">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
 
@@ -170,16 +197,36 @@ export function LoginForm() {
 
           {/* Demo credentials */}
           <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-3">Demo Credentials:</p>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-gray-50 p-2 rounded">
-                <strong>Client:</strong><br />
-                sarah@example.com
-              </div>
-              <div className="bg-gray-50 p-2 rounded">
-                <strong>Worker:</strong><br />
-                alex@example.com
-              </div>
+            <p className="text-xs text-gray-500 text-center mb-4">Demo Credentials (Click to auto-fill):</p>
+            <div className="grid grid-cols-1 gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('sarah@example.com')}
+                disabled={isSubmitting}
+                className="bg-blue-50 hover:bg-blue-100 border border-blue-200 p-3 rounded-lg transition-colors disabled:opacity-50 text-left"
+              >
+                <div className="font-medium text-blue-900">Client Account</div>
+                <div className="text-blue-700">sarah@example.com</div>
+                <div className="text-blue-600 text-xs mt-1">Password: password123</div>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('alex@example.com')}
+                disabled={isSubmitting}
+                className="bg-green-50 hover:bg-green-100 border border-green-200 p-3 rounded-lg transition-colors disabled:opacity-50 text-left"
+              >
+                <div className="font-medium text-green-900">Worker Account</div>
+                <div className="text-green-700">alex@example.com</div>
+                <div className="text-green-600 text-xs mt-1">Password: password123</div>
+              </button>
+            </div>
+            
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-800">
+                <strong>Note:</strong> If demo login doesn't work, the demo users may need to be created. 
+                Try signing up with these credentials first, or contact support.
+              </p>
             </div>
           </div>
         </div>
