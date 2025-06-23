@@ -16,13 +16,11 @@ console.log('Supabase Configuration Check:', {
 if (!supabaseUrl) {
   console.error('❌ Missing VITE_SUPABASE_URL environment variable');
   console.error('💡 Please add VITE_SUPABASE_URL to your .env file');
-  // Don't throw immediately - let the app handle this gracefully
 }
 
 if (!supabaseAnonKey) {
   console.error('❌ Missing VITE_SUPABASE_ANON_KEY environment variable');
   console.error('💡 Please add VITE_SUPABASE_ANON_KEY to your .env file');
-  // Don't throw immediately - let the app handle this gracefully
 }
 
 // Only validate format if variables exist
@@ -113,26 +111,19 @@ const testConnection = async (timeoutMs: number = 5000) => {
       connectionStatus = 'failed';
       lastError = error.message;
       
-      // Only log detailed errors in development
+      // Only log detailed errors in development and reduce noise
       if (import.meta.env.MODE === 'development') {
-        console.error('❌ Supabase connection failed:', {
+        console.warn('⚠️ Supabase connection failed:', {
           message: error.message,
           code: error.code,
-          hint: error.hint,
-          details: error.details,
           duration: `${duration}ms`
         });
         
         // Provide more specific error guidance
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          console.error('💡 This appears to be a network connectivity issue. Please check:');
-          console.error('   - Your internet connection');
-          console.error('   - Firewall or proxy settings');
-          console.error('   - Whether your Supabase project is active');
+          console.info('💡 Network connectivity issue detected. Please check your Supabase configuration.');
         } else if (error.message.includes('Invalid API key') || error.code === 'PGRST301') {
-          console.error('💡 This appears to be an authentication issue. Please check:');
-          console.error('   - Your VITE_SUPABASE_ANON_KEY is correct');
-          console.error('   - Your Supabase project settings');
+          console.info('💡 Authentication issue detected. Please verify your VITE_SUPABASE_ANON_KEY.');
         }
       }
       
@@ -148,27 +139,21 @@ const testConnection = async (timeoutMs: number = 5000) => {
     connectionStatus = 'failed';
     lastError = error instanceof Error ? error.message : 'Unknown error';
     
-    // Only log detailed errors in development
-    if (import.meta.env.MODE === 'development') {
-      console.error('❌ Supabase connection error:', {
+    // Reduce console noise - only log once per session for timeouts
+    if (import.meta.env.MODE === 'development' && connectionAttempts <= 3) {
+      console.warn('⚠️ Supabase connection error:', {
         message: error instanceof Error ? error.message : 'Unknown error',
         duration: `${duration}ms`,
         attempts: connectionAttempts
       });
       
       // Provide troubleshooting guidance based on error type
-      if (error instanceof Error) {
-        if (error.message.includes('timeout')) {
-          console.error('💡 Connection timeout suggests:');
-          console.error('   - Network connectivity issues');
-          console.error('   - Supabase project may be paused or unavailable');
-          console.error('   - Firewall blocking the connection');
-        } else if (error.message.includes('fetch')) {
-          console.error('💡 Fetch error suggests:');
-          console.error('   - CORS issues (check your Supabase project settings)');
-          console.error('   - Invalid Supabase URL');
-          console.error('   - Network connectivity problems');
-        }
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.info('💡 Connection timeout detected. This usually means:');
+        console.info('   - Your Supabase project credentials may be incorrect');
+        console.info('   - Your Supabase project may be paused or inactive');
+        console.info('   - Network connectivity issues');
+        console.info('   - Please use the diagnostics tool on the login page for detailed troubleshooting');
       }
     }
     
@@ -176,48 +161,34 @@ const testConnection = async (timeoutMs: number = 5000) => {
   }
 };
 
-// Only test connection if configuration is valid
+// Only test connection if configuration is valid and limit initial attempts
 if (isConfigurationValid()) {
   // Test connection immediately with shorter timeout for faster feedback
   testConnection(3000).catch(() => {
-    // Silently handle initial connection test failures
-    console.warn('⚠️ Initial Supabase connection test failed - this is normal if the service is not yet configured');
+    // Silently handle initial connection test failures to reduce console noise
+    if (import.meta.env.MODE === 'development') {
+      console.info('ℹ️ Initial Supabase connection test failed. Use the diagnostics tool for detailed troubleshooting.');
+    }
   });
 } else {
-  console.warn('⚠️ Skipping initial Supabase connection test due to invalid configuration');
+  console.warn('⚠️ Supabase configuration is invalid or missing. Please check your .env file.');
   connectionStatus = 'misconfigured';
 }
 
 // Add error handling for auth state changes with better logging
 supabase.auth.onAuthStateChange((event, session) => {
-  // Only log in development to reduce noise
-  if (import.meta.env.MODE === 'development') {
-    const timestamp = new Date().toISOString();
-    console.log(`🔐 [${timestamp}] Supabase auth event:`, {
-      event,
+  // Only log important events in development to reduce noise
+  if (import.meta.env.MODE === 'development' && ['SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED'].includes(event)) {
+    console.log(`🔐 Auth event: ${event}`, {
       hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user?.id,
-      userEmail: session?.user?.email
+      userId: session?.user?.id
     });
-  }
-  
-  if (event === 'SIGNED_OUT') {
-    console.log('👋 User signed out, clearing cache');
-  }
-  
-  if (event === 'TOKEN_REFRESHED') {
-    console.log('🔄 Token refreshed successfully');
-  }
-  
-  if (event === 'SIGNED_IN') {
-    console.log('👋 User signed in successfully');
   }
 });
 
-// Periodic connection health check with exponential backoff
+// Periodic connection health check with exponential backoff - but less aggressive
 let healthCheckInterval: number | null = null;
-let healthCheckDelay = 60000; // Start with 1 minute
+let healthCheckDelay = 300000; // Start with 5 minutes to reduce noise
 
 const startHealthCheck = () => {
   // Only start health checks if configuration is valid
@@ -233,18 +204,17 @@ const startHealthCheck = () => {
     const now = Date.now();
     // Only check if we haven't checked recently and connection was previously failed
     if (connectionStatus === 'failed' && now - lastConnectionCheck > healthCheckDelay) {
-      console.log('🔍 Performing connection health check...');
       const success = await testConnection(3000);
       
       if (success) {
         // Reset delay on successful connection
-        healthCheckDelay = 60000;
+        healthCheckDelay = 300000;
       } else {
-        // Exponential backoff up to 10 minutes
-        healthCheckDelay = Math.min(healthCheckDelay * 1.5, 600000);
+        // Exponential backoff up to 30 minutes
+        healthCheckDelay = Math.min(healthCheckDelay * 1.5, 1800000);
       }
     }
-  }, 30000); // Check every 30 seconds
+  }, 300000); // Check every 5 minutes instead of 30 seconds
 };
 
 startHealthCheck();
