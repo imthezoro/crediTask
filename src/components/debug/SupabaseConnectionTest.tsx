@@ -9,9 +9,11 @@ import {
   User,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, testSupabaseConnection, getConnectionStatus } from '../../lib/supabase';
 
 interface TestResult {
   name: string;
@@ -59,7 +61,7 @@ export function SupabaseConnectionTest() {
     });
   };
 
-  const runTest = async (name: string, testFn: () => Promise<{ success: boolean; message: string; details?: string }>) => {
+  const runTest = async (name: string, testFn: () => Promise<{ success: boolean; message: string; details?: string }>, timeoutMs: number = 5000) => {
     const startTime = Date.now();
     updateTest(name, { status: 'pending', message: 'Running...' });
     
@@ -67,7 +69,7 @@ export function SupabaseConnectionTest() {
       const result = await Promise.race([
         testFn(),
         new Promise<{ success: boolean; message: string; details?: string }>((_, reject) => 
-          setTimeout(() => reject(new Error('Test timeout after 10 seconds')), 10000)
+          setTimeout(() => reject(new Error(`Test timeout after ${timeoutMs / 1000} seconds`)), timeoutMs)
         )
       ]);
       
@@ -114,24 +116,25 @@ export function SupabaseConnectionTest() {
         success: true,
         message: 'Environment variables are properly configured'
       };
-    });
+    }, 1000);
 
-    // Test 2: Basic Connection
+    // Test 2: Basic Connection (with shorter timeout)
     await runTest('Basic Connection', async () => {
       try {
-        const { data, error } = await supabase.from('users').select('count').limit(1);
+        // Use the improved connection test with shorter timeout
+        const success = await testSupabaseConnection(3000);
         
-        if (error) {
+        if (!success) {
           return {
             success: false,
-            message: 'Database connection failed',
-            details: error.message
+            message: 'Failed to connect to Supabase',
+            details: 'Check console for detailed error information'
           };
         }
 
         return {
           success: true,
-          message: 'Successfully connected to Supabase database'
+          message: 'Successfully connected to Supabase'
         };
       } catch (error) {
         return {
@@ -140,9 +143,37 @@ export function SupabaseConnectionTest() {
           details: error instanceof Error ? error.message : 'Unknown error'
         };
       }
-    });
+    }, 4000);
 
-    // Test 3: Auth Service
+    // Test 3: Database Query (simple query)
+    await runTest('Database Query', async () => {
+      try {
+        // Try a simple query that should work even without tables
+        const { data, error } = await supabase.rpc('version');
+        
+        if (error) {
+          return {
+            success: false,
+            message: 'Database query failed',
+            details: error.message
+          };
+        }
+
+        return {
+          success: true,
+          message: 'Database queries are working',
+          details: 'PostgreSQL version query successful'
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: 'Query execution failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    }, 3000);
+
+    // Test 4: Auth Service
     await runTest('Auth Service', async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -167,135 +198,93 @@ export function SupabaseConnectionTest() {
           details: error instanceof Error ? error.message : 'Unknown error'
         };
       }
-    });
+    }, 3000);
 
-    // Test 4: Database Schema
-    await runTest('Database Schema', async () => {
-      try {
-        const tables = ['users', 'projects', 'tasks', 'notifications'];
-        const results = [];
-        
-        for (const table of tables) {
-          const { error } = await supabase.from(table).select('*').limit(1);
-          results.push({ table, exists: !error });
-        }
-        
-        const missingTables = results.filter(r => !r.exists).map(r => r.table);
-        
-        if (missingTables.length > 0) {
+    // Test 5: Database Schema (only if basic connection works)
+    const connectionStatus = getConnectionStatus();
+    if (connectionStatus.status === 'connected') {
+      await runTest('Database Schema', async () => {
+        try {
+          const tables = ['users', 'projects', 'tasks', 'notifications'];
+          const results = [];
+          
+          for (const table of tables) {
+            const { error } = await supabase.from(table).select('*').limit(1);
+            results.push({ table, exists: !error });
+          }
+          
+          const missingTables = results.filter(r => !r.exists).map(r => r.table);
+          
+          if (missingTables.length > 0) {
+            return {
+              success: false,
+              message: 'Missing database tables',
+              details: `Missing: ${missingTables.join(', ')}`
+            };
+          }
+
+          return {
+            success: true,
+            message: 'All required tables exist',
+            details: `Checked: ${tables.join(', ')}`
+          };
+        } catch (error) {
           return {
             success: false,
-            message: 'Missing database tables',
-            details: `Missing: ${missingTables.join(', ')}`
+            message: 'Schema check failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
+      }, 5000);
 
-        return {
-          success: true,
-          message: 'All required tables exist',
-          details: `Checked: ${tables.join(', ')}`
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: 'Schema check failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    });
+      // Test 6: Demo User Check
+      await runTest('Demo Users', async () => {
+        try {
+          const { data: sarahUser, error: sarahError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', 'sarah@example.com')
+            .limit(1);
 
-    // Test 5: Demo User Check
-    await runTest('Demo Users', async () => {
-      try {
-        const { data: sarahUser, error: sarahError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', 'sarah@example.com')
-          .limit(1);
+          const { data: alexUser, error: alexError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', 'alex@example.com')
+            .limit(1);
 
-        const { data: alexUser, error: alexError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', 'alex@example.com')
-          .limit(1);
+          const sarahExists = !sarahError && sarahUser && sarahUser.length > 0;
+          const alexExists = !alexError && alexUser && alexUser.length > 0;
 
-        const sarahExists = !sarahError && sarahUser && sarahUser.length > 0;
-        const alexExists = !alexError && alexUser && alexUser.length > 0;
+          if (!sarahExists && !alexExists) {
+            return {
+              success: false,
+              message: 'Demo users not found',
+              details: 'Neither sarah@example.com nor alex@example.com exist in the database'
+            };
+          }
 
-        if (!sarahExists && !alexExists) {
+          if (!sarahExists || !alexExists) {
+            return {
+              success: false,
+              message: 'Some demo users missing',
+              details: `Sarah: ${sarahExists ? 'Found' : 'Missing'}, Alex: ${alexExists ? 'Found' : 'Missing'}`
+            };
+          }
+
+          return {
+            success: true,
+            message: 'Demo users found',
+            details: 'Both demo accounts exist and are ready for login'
+          };
+        } catch (error) {
           return {
             success: false,
-            message: 'Demo users not found',
-            details: 'Neither sarah@example.com nor alex@example.com exist in the database'
+            message: 'Demo user check failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
-
-        if (!sarahExists || !alexExists) {
-          return {
-            success: false,
-            message: 'Some demo users missing',
-            details: `Sarah: ${sarahExists ? 'Found' : 'Missing'}, Alex: ${alexExists ? 'Found' : 'Missing'}`
-          };
-        }
-
-        return {
-          success: true,
-          message: 'Demo users found',
-          details: 'Both demo accounts exist and are ready for login'
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: 'Demo user check failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    });
-
-    // Test 6: Auth Login Test
-    await runTest('Auth Login Test', async () => {
-      try {
-        // Try to sign out first to clear any existing session
-        await supabase.auth.signOut();
-        
-        // Attempt login with demo credentials
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: 'sarah@example.com',
-          password: 'password123'
-        });
-
-        if (error) {
-          return {
-            success: false,
-            message: 'Demo login failed',
-            details: error.message
-          };
-        }
-
-        if (!data.user || !data.session) {
-          return {
-            success: false,
-            message: 'Login succeeded but no user/session returned',
-            details: `User: ${!!data.user}, Session: ${!!data.session}`
-          };
-        }
-
-        // Sign out after test
-        await supabase.auth.signOut();
-
-        return {
-          success: true,
-          message: 'Demo login works correctly',
-          details: 'Successfully logged in and out with demo credentials'
-        };
-      } catch (error) {
-        return {
-          success: false,
-          message: 'Login test failed',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
-    });
+      }, 3000);
+    }
 
     setIsRunning(false);
   };
@@ -370,6 +359,8 @@ export function SupabaseConnectionTest() {
     }
   };
 
+  const hasConnectionIssues = !envVars.urlValid || !envVars.keyValid;
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -403,6 +394,28 @@ export function SupabaseConnectionTest() {
           </div>
         </div>
 
+        {/* Troubleshooting Guide */}
+        {hasConnectionIssues && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-red-900 mb-2">Configuration Issues Detected</h3>
+                <div className="text-sm text-red-700 space-y-2">
+                  <p>To fix connection issues, please verify your Supabase configuration:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-4">
+                    <li>Go to your <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline inline-flex items-center">Supabase Dashboard <ExternalLink className="h-3 w-3 ml-1" /></a></li>
+                    <li>Select your project and go to Settings → API</li>
+                    <li>Copy the "Project URL" and "Project API key (anon public)"</li>
+                    <li>Update your .env file with the correct values</li>
+                    <li>Restart your development server</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Environment Variables Status */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-medium text-gray-900 mb-3">Environment Variables</h3>
@@ -424,6 +437,13 @@ export function SupabaseConnectionTest() {
               <span>VITE_SUPABASE_ANON_KEY: {envVars.anonKey ? 'Present' : 'Missing'}</span>
             </div>
           </div>
+          
+          {showDetails && (
+            <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-600">
+              <div>URL: {envVars.url || 'Not set'}</div>
+              <div>Key: {envVars.anonKey ? `${envVars.anonKey.substring(0, 20)}...` : 'Not set'}</div>
+            </div>
+          )}
         </div>
 
         {/* Test Results */}
@@ -472,6 +492,16 @@ export function SupabaseConnectionTest() {
               >
                 Refresh Page
               </button>
+              
+              <a
+                href="https://supabase.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                <span>Open Supabase Dashboard</span>
+              </a>
             </div>
           </div>
         )}
