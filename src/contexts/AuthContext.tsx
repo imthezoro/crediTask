@@ -19,96 +19,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const clearSession = async () => {
-    console.log('AuthProvider: Clearing session...');
-    setUser(null);
-    setSupabaseUser(null);
-    
-    // Clear local storage
-    try {
-      localStorage.removeItem('freelanceflow-auth-token');
-      // Clear Supabase's default storage keys
-      const keys = Object.keys(localStorage);
-      keys.forEach(key => {
-        if (key.startsWith('sb-') && key.includes('-auth-token')) {
-          localStorage.removeItem(key);
-        }
-      });
-      sessionStorage.clear();
-    } catch (error) {
-      console.warn('AuthProvider: Could not clear storage:', error);
-    }
-    
-    setIsLoading(false);
-  };
-
-  const handleAuthError = (error: any) => {
-    console.error('AuthProvider: Auth error:', error);
-    
-    // Check for token-related errors
-    if (error?.message?.includes('refresh_token_not_found') || 
-        error?.message?.includes('Invalid Refresh Token') ||
-        error?.message?.includes('JWT') ||
-        error?.code === 'invalid_grant') {
-      console.log('AuthProvider: Token error detected, clearing session...');
-      clearSession();
-      return true;
-    }
-    
-    return false;
-  };
-
+  // Initialize auth state
   useEffect(() => {
-    console.log('AuthProvider: Initializing...');
+    console.log('🚀 AuthProvider: Initializing...');
     
     let mounted = true;
     let initTimeout: NodeJS.Timeout;
-    
+
     const initializeAuth = async () => {
       try {
-        // Set a timeout to prevent infinite loading
+        // Set a reasonable timeout for initialization
         initTimeout = setTimeout(() => {
-          if (mounted) {
-            console.log('AuthProvider: Initialization timeout, setting loading to false');
+          if (mounted && !isInitialized) {
+            console.log('⏰ AuthProvider: Initialization timeout, setting as not authenticated');
             setIsLoading(false);
+            setIsInitialized(true);
           }
-        }, 5000); // 5 second timeout
+        }, 3000); // 3 second timeout
 
-        // Get initial session
+        console.log('🔍 AuthProvider: Getting session...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!mounted) return;
-
-        // Clear timeout since we got a response
         clearTimeout(initTimeout);
 
         if (error) {
-          console.error('AuthProvider: Session error:', error);
-          if (!handleAuthError(error)) {
-            setIsLoading(false);
-          }
+          console.error('❌ AuthProvider: Session error:', error);
+          setIsLoading(false);
+          setIsInitialized(true);
           return;
         }
 
-        console.log('AuthProvider: Initial session check', { session: !!session });
-        
-        setSupabaseUser(session?.user ?? null);
+        console.log('📋 AuthProvider: Session check result:', !!session);
         
         if (session?.user) {
-          console.log('AuthProvider: Found session, fetching profile...');
+          console.log('👤 AuthProvider: Found valid session, fetching profile...');
+          setSupabaseUser(session.user);
           await fetchUserProfile(session.user.id);
         } else {
-          console.log('AuthProvider: No session found');
-          setIsLoading(false);
+          console.log('🚫 AuthProvider: No valid session found');
+          setUser(null);
+          setSupabaseUser(null);
         }
+        
+        setIsLoading(false);
+        setIsInitialized(true);
       } catch (error) {
-        console.error('AuthProvider: Initialization error:', error);
+        console.error('💥 AuthProvider: Initialization error:', error);
         if (mounted) {
           clearTimeout(initTimeout);
-          if (!handleAuthError(error)) {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
+          setIsInitialized(true);
         }
       }
     };
@@ -121,60 +84,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       
-      console.log('AuthProvider: Auth state changed', { event, session: !!session });
+      console.log('🔄 AuthProvider: Auth state changed:', event, 'Session exists:', !!session);
       
       try {
-        // Handle specific events
         if (event === 'SIGNED_OUT') {
-          console.log('AuthProvider: User signed out');
+          console.log('👋 AuthProvider: User signed out');
           setUser(null);
           setSupabaseUser(null);
-          setIsLoading(false);
           return;
         }
         
-        if (event === 'SIGNED_IN') {
-          console.log('AuthProvider: User signed in, fetching profile...');
-          setSupabaseUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchUserProfile(session.user.id);
-          } else {
-            setIsLoading(false);
-          }
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('✅ AuthProvider: User signed in, fetching profile...');
+          setSupabaseUser(session.user);
+          await fetchUserProfile(session.user.id);
           return;
         }
         
-        if (event === 'TOKEN_REFRESHED') {
-          console.log('AuthProvider: Token refreshed');
-          if (!session) {
-            console.log('AuthProvider: Token refresh failed, clearing session');
-            await clearSession();
-            return;
-          }
+        if (event === 'TOKEN_REFRESHED' && session?.user) {
+          console.log('🔄 AuthProvider: Token refreshed, updating session...');
+          setSupabaseUser(session.user);
+          // Don't refetch profile on token refresh, just update session
+          return;
         }
         
         // Handle other session changes
-        setSupabaseUser(session?.user ?? null);
-        
         if (session?.user) {
-          console.log('AuthProvider: Session change - fetching profile...');
-          await fetchUserProfile(session.user.id);
+          setSupabaseUser(session.user);
+          if (!user) {
+            // Only fetch profile if we don't have user data
+            await fetchUserProfile(session.user.id);
+          }
         } else {
-          console.log('AuthProvider: Session change - clearing user');
           setUser(null);
-          setIsLoading(false);
+          setSupabaseUser(null);
         }
       } catch (error) {
-        console.error('AuthProvider: Auth state change error:', error);
-        if (!handleAuthError(error)) {
-          setIsLoading(false);
-        }
+        console.error('💥 AuthProvider: Auth state change error:', error);
       }
     });
 
     return () => {
       mounted = false;
-      console.log('AuthProvider: Cleaning up auth subscription');
+      console.log('🧹 AuthProvider: Cleaning up...');
       if (initTimeout) {
         clearTimeout(initTimeout);
       }
@@ -183,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
-    console.log('AuthProvider: Fetching profile for user:', userId);
+    console.log('👤 AuthProvider: Fetching profile for user:', userId);
     
     try {
       const { data, error } = await supabase
@@ -193,11 +145,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error) {
-        console.error('AuthProvider: Error fetching user profile:', error);
+        console.error('❌ AuthProvider: Error fetching user profile:', error);
         
         // If user doesn't exist in our users table, create a basic profile
         if (error.code === 'PGRST116') {
-          console.log('AuthProvider: User not found in users table, creating profile...');
+          console.log('➕ AuthProvider: User not found, creating profile...');
           
           const { data: authUser } = await supabase.auth.getUser();
           if (authUser.user) {
@@ -216,26 +168,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               });
             
             if (!insertError) {
-              console.log('AuthProvider: Created new user profile, retrying fetch...');
-              // Retry fetching the profile
+              console.log('✅ AuthProvider: Created new user profile, retrying fetch...');
               await fetchUserProfile(userId);
               return;
             } else {
-              console.error('AuthProvider: Error creating user profile:', insertError);
+              console.error('❌ AuthProvider: Error creating user profile:', insertError);
             }
           }
         }
-        
-        // Handle auth errors
-        if (handleAuthError(error)) return;
         
         throw error;
       }
 
       if (data) {
-        console.log('AuthProvider: Successfully fetched user profile');
+        console.log('✅ AuthProvider: Successfully fetched user profile');
         
-        setUser({
+        const userData: User = {
           id: data.id,
           role: data.role,
           name: data.name || '',
@@ -246,24 +194,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatar: data.avatar_url || undefined,
           tier: data.tier || 'bronze',
           onboarding_completed: data.onboarding_completed || false,
-        });
+        };
+        
+        setUser(userData);
+        
+        // Store user data in localStorage for persistence
+        try {
+          localStorage.setItem('freelanceflow-user', JSON.stringify(userData));
+        } catch (error) {
+          console.warn('Could not store user data:', error);
+        }
       }
     } catch (error) {
-      console.error('AuthProvider: Error in fetchUserProfile:', error);
-      
-      // Handle auth errors
-      if (!handleAuthError(error)) {
-        // For non-auth errors, still set loading to false
-        setIsLoading(false);
-      }
-    } finally {
-      console.log('AuthProvider: Setting loading to false after profile fetch');
-      setIsLoading(false);
+      console.error('💥 AuthProvider: Error in fetchUserProfile:', error);
+      // Don't clear session on profile fetch errors
     }
   };
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    console.log('AuthProvider: Attempting login for:', email);
+    console.log('🔐 AuthProvider: Attempting login for:', email);
     
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -272,42 +221,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        console.error('AuthProvider: Login error:', error);
+        console.error('❌ AuthProvider: Login error:', error);
         return false;
       }
       
-      if (data.user) {
-        console.log('AuthProvider: Login successful');
-        // Don't set loading here, let the auth state change handle it
+      if (data.user && data.session) {
+        console.log('✅ AuthProvider: Login successful');
         return true;
       }
       
       return false;
     } catch (error) {
-      console.error('AuthProvider: Login failed:', error);
+      console.error('💥 AuthProvider: Login failed:', error);
       return false;
     }
   };
 
   const signup = async (name: string, email: string, password: string, role: 'client' | 'worker'): Promise<boolean> => {
-    console.log('AuthProvider: Attempting signup for:', email, 'as', role);
+    console.log('📝 AuthProvider: Attempting signup for:', email, 'as', role);
     
     try {
-      // Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (authError) {
-        console.error('AuthProvider: Signup auth error:', authError);
+        console.error('❌ AuthProvider: Signup auth error:', authError);
         return false;
       }
 
       if (authData.user) {
-        console.log('AuthProvider: Auth signup successful, creating profile...');
+        console.log('✅ AuthProvider: Auth signup successful, creating profile...');
         
-        // Create user profile
         const { error: profileError } = await supabase
           .from('users')
           .insert({
@@ -323,50 +269,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
         if (profileError) {
-          console.error('AuthProvider: Profile creation error:', profileError);
+          console.error('❌ AuthProvider: Profile creation error:', profileError);
           return false;
         }
         
-        console.log('AuthProvider: Signup completed successfully');
+        console.log('✅ AuthProvider: Signup completed successfully');
         return true;
       }
       
-      console.log('AuthProvider: Signup failed - no user returned');
       return false;
     } catch (error) {
-      console.error('AuthProvider: Signup error:', error);
+      console.error('💥 AuthProvider: Signup error:', error);
       return false;
     }
   };
 
   const logout = async (): Promise<void> => {
-    console.log('AuthProvider: Logging out...');
+    console.log('👋 AuthProvider: Logging out...');
     
     try {
+      // Clear local storage first
+      try {
+        localStorage.removeItem('freelanceflow-user');
+        sessionStorage.clear();
+      } catch (error) {
+        console.warn('Could not clear storage:', error);
+      }
+      
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       
       if (error) {
-        console.error('AuthProvider: Logout error:', error);
+        console.error('❌ AuthProvider: Logout error:', error);
       }
       
-      // Clear local state and storage
-      await clearSession();
-      console.log('AuthProvider: Logout completed');
+      // Clear state
+      setUser(null);
+      setSupabaseUser(null);
+      
+      console.log('✅ AuthProvider: Logout completed');
     } catch (error) {
-      console.error('AuthProvider: Logout error:', error);
-      // Even if logout fails, clear local state
-      await clearSession();
+      console.error('💥 AuthProvider: Logout error:', error);
+      // Clear state even if logout fails
+      setUser(null);
+      setSupabaseUser(null);
     }
   };
 
   const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
     if (!user) {
-      console.log('AuthProvider: Cannot update profile - no user');
+      console.log('❌ AuthProvider: Cannot update profile - no user');
       return false;
     }
 
-    console.log('AuthProvider: Updating profile:', updates);
+    console.log('📝 AuthProvider: Updating profile:', updates);
 
     try {
       const updateData: any = {};
@@ -382,23 +338,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', user.id);
 
       if (error) {
-        console.error('AuthProvider: Profile update error:', error);
+        console.error('❌ AuthProvider: Profile update error:', error);
         return false;
       }
 
-      setUser({ ...user, ...updates });
-      console.log('AuthProvider: Profile updated successfully');
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      
+      // Update localStorage
+      try {
+        localStorage.setItem('freelanceflow-user', JSON.stringify(updatedUser));
+      } catch (error) {
+        console.warn('Could not update stored user data:', error);
+      }
+      
+      console.log('✅ AuthProvider: Profile updated successfully');
       return true;
     } catch (error) {
-      console.error('AuthProvider: Profile update failed:', error);
+      console.error('💥 AuthProvider: Profile update failed:', error);
       return false;
     }
   };
 
-  console.log('AuthProvider: Current state', { 
+  console.log('📊 AuthProvider: Current state', { 
     user: !!user, 
     supabaseUser: !!supabaseUser, 
-    isLoading
+    isLoading,
+    isInitialized
   });
 
   return (

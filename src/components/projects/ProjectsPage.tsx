@@ -191,17 +191,19 @@ export function ProjectsPage() {
             <div key={project.id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate">{project.title}</h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status)}`}>
+                      <h3 className="text-lg font-semibold text-gray-900 truncate" title={project.title}>
+                        {project.title}
+                      </h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 ${getStatusColor(project.status)}`}>
                         {getStatusLabel(project.status)}
                       </span>
                     </div>
-                    <p className="text-gray-600 text-sm line-clamp-2">{project.description}</p>
+                    <p className="text-gray-600 text-sm line-clamp-2 break-words">{project.description}</p>
                   </div>
                   
-                  <div className="relative">
+                  <div className="relative ml-2 flex-shrink-0">
                     <button className="p-1 hover:bg-gray-100 rounded-lg">
                       <MoreVertical className="h-4 w-4 text-gray-400" />
                     </button>
@@ -212,19 +214,19 @@ export function ProjectsPage() {
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="flex items-center text-sm text-gray-500">
                     <DollarSign className="h-4 w-4 mr-1" />
-                    ${project.budget.toLocaleString()}
+                    <span className="truncate">${project.budget.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center text-sm text-gray-500">
                     <Users className="h-4 w-4 mr-1" />
-                    {project.tasks?.length || 0} tasks
+                    <span className="truncate">{project.tasks?.length || 0} tasks</span>
                   </div>
                   <div className="flex items-center text-sm text-gray-500">
                     <Calendar className="h-4 w-4 mr-1" />
-                    {project.createdAt.toLocaleDateString()}
+                    <span className="truncate">{project.createdAt.toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center text-sm text-gray-500">
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    {project.tasks?.filter(t => t.status === 'approved').length || 0} done
+                    <span className="truncate">{project.tasks?.filter(t => t.status === 'approved').length || 0} done</span>
                   </div>
                 </div>
 
@@ -250,14 +252,15 @@ export function ProjectsPage() {
                     {project.tags.slice(0, 3).map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
+                        className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full truncate max-w-20"
+                        title={tag}
                       >
                         {tag}
                       </span>
                     ))}
                     {project.tags.length > 3 && (
                       <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                        +{project.tags.length - 3} more
+                        +{project.tags.length - 3}
                       </span>
                     )}
                   </div>
@@ -270,7 +273,7 @@ export function ProjectsPage() {
                     className="flex-1 bg-indigo-600 text-white text-center py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center justify-center space-x-1"
                   >
                     <Settings className="h-4 w-4" />
-                    <span>Manage Tasks</span>
+                    <span className="truncate">Manage</span>
                   </Link>
                   <button className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     <Edit className="h-4 w-4 text-gray-600" />

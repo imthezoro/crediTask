@@ -15,7 +15,7 @@ export function LoginForm() {
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
     if (user && !isLoading) {
-      console.log('LoginForm: User already logged in, redirecting to dashboard');
+      console.log('🔄 LoginForm: User already authenticated, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
     }
   }, [user, isLoading, navigate]);
@@ -25,19 +25,19 @@ export function LoginForm() {
     setError('');
     setIsSubmitting(true);
     
-    console.log('LoginForm: Attempting login for:', email);
+    console.log('🔐 LoginForm: Attempting login for:', email);
     
     try {
       const success = await login(email, password);
       if (success) {
-        console.log('LoginForm: Login successful, will redirect via auth state change');
-        // Don't navigate here, let the auth state change handle it
+        console.log('✅ LoginForm: Login successful, redirecting...');
+        navigate('/dashboard', { replace: true });
       } else {
-        console.log('LoginForm: Login failed');
+        console.log('❌ LoginForm: Login failed');
         setError('Invalid email or password');
       }
     } catch (error) {
-      console.error('LoginForm: Login error:', error);
+      console.error('💥 LoginForm: Login error:', error);
       setError('An error occurred during login');
     } finally {
       setIsSubmitting(false);

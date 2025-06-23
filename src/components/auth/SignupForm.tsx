@@ -20,7 +20,7 @@ export function SignupForm() {
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
     if (user && !isLoading) {
-      console.log('SignupForm: User already logged in, redirecting to dashboard');
+      console.log('🔄 SignupForm: User already authenticated, redirecting to dashboard');
       navigate('/dashboard', { replace: true });
     }
   }, [user, isLoading, navigate]);
@@ -45,7 +45,7 @@ export function SignupForm() {
     try {
       const success = await signup(formData.name, formData.email, formData.password, formData.role);
       if (success) {
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       } else {
         setError('Failed to create account');
       }
