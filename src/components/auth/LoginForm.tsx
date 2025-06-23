@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Briefcase, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { Briefcase, Eye, EyeOff, Loader2, AlertCircle, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SupabaseConnectionTest } from '../debug/SupabaseConnectionTest';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -9,6 +10,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const { user, login, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -65,11 +67,11 @@ export function LoginForm() {
           }
         }, 1000);
       } else {
-        setError('Demo login failed. Please try manual login.');
+        setError('Demo login failed. The demo users may not exist yet. Try running diagnostics.');
       }
     } catch (error) {
       console.error('LoginForm: Demo login error:', error);
-      setError('Demo login failed. Please try manual login.');
+      setError('Demo login failed. Try running diagnostics to check the connection.');
     } finally {
       setIsSubmitting(false);
     }
@@ -90,6 +92,25 @@ export function LoginForm() {
   // Don't render login form if user is already authenticated
   if (user) {
     return null;
+  }
+
+  // Show diagnostics if requested
+  if (showDiagnostics) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-amber-50 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="mb-6">
+            <button
+              onClick={() => setShowDiagnostics(false)}
+              className="text-indigo-600 hover:text-indigo-700 font-medium"
+            >
+              ← Back to Login
+            </button>
+          </div>
+          <SupabaseConnectionTest />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -159,7 +180,20 @@ export function LoginForm() {
             {error && (
               <div className="flex items-start space-x-3 text-red-600 text-sm bg-red-50 py-3 px-4 rounded-lg border border-red-200">
                 <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>{error}</span>
+                <div>
+                  <span>{error}</span>
+                  {error.includes('Demo login failed') && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowDiagnostics(true)}
+                        className="text-red-700 underline hover:text-red-800"
+                      >
+                        Run connection diagnostics
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -168,6 +202,16 @@ export function LoginForm() {
                 <Link to="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors">
                   Forgot your password?
                 </Link>
+              </div>
+              <div className="text-sm">
+                <button
+                  type="button"
+                  onClick={() => setShowDiagnostics(true)}
+                  className="font-medium text-gray-600 hover:text-gray-700 transition-colors flex items-center space-x-1"
+                >
+                  <Settings className="h-3 w-3" />
+                  <span>Diagnostics</span>
+                </button>
               </div>
             </div>
 
@@ -224,8 +268,7 @@ export function LoginForm() {
             
             <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-xs text-amber-800">
-                <strong>Note:</strong> If demo login doesn't work, the demo users may need to be created. 
-                Try signing up with these credentials first, or contact support.
+                <strong>Having trouble?</strong> Click "Diagnostics" above to test your Supabase connection and create demo users if needed.
               </p>
             </div>
           </div>
