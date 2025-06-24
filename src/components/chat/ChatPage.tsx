@@ -14,206 +14,201 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
-interface ChatChannel {
+interface ChatRoom {
   id: string;
   name: string;
-  type: 'project' | 'direct';
-  participants: string[];
-  lastMessage: string;
-  lastMessageTime: string;
-  unreadCount: number;
-  clientName?: string;
-  projectTitle?: string;
+  is_group: boolean;
+  project_id?: string;
+  created_at: string;
+  participant_count: number;
+  last_message?: string;
+  last_message_time?: string;
+  project_title?: string;
 }
 
 interface ChatMessage {
   id: string;
-  senderId: string;
-  senderName: string;
+  sender_id: string;
+  sender_name: string;
   content: string;
-  timestamp: Date;
-  type: 'text' | 'file' | 'system';
+  message_type: 'text' | 'file' | 'system';
+  created_at: Date;
+  file_url?: string;
 }
 
 export function ChatPage() {
   const { user } = useAuth();
-  const [channels, setChannels] = useState<ChatChannel[]>([]);
-  const [selectedChannel, setSelectedChannel] = useState<ChatChannel | null>(null);
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) {
-      fetchChannels();
+      fetchChatRooms();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (selectedRoom) {
+      fetchMessages(selectedRoom.id);
+    }
+  }, [selectedRoom]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const fetchChannels = async () => {
+  const fetchChatRooms = async () => {
     if (!user) return;
 
     try {
       setIsLoading(true);
       
-      if (user.role === 'worker') {
-        // For workers, get channels based on their approved tasks
-        const { data: tasks, error: tasksError } = await supabase
-          .from('tasks')
-          .select(`
-            id,
-            title,
-            status,
-            projects (
-              id,
-              title,
-              client_id,
-              users!projects_client_id_fkey (
-                name
-              )
-            )
-          `)
-          .eq('assignee_id', user.id)
-          .eq('status', 'approved'); // Only approved tasks
+      // Get chat rooms where user is a participant
+      const { data: roomsData, error: roomsError } = await supabase
+        .from('chat_rooms')
+        .select(`
+          *,
+          projects (
+            title
+          )
+        `)
+        .in('id', 
+          // Subquery to get room IDs where user is a participant
+          await supabase
+            .from('chat_participants')
+            .select('chat_room_id')
+            .eq('user_id', user.id)
+            .then(({ data }) => data?.map(p => p.chat_room_id) || [])
+        )
+        .order('created_at', { ascending: false });
 
-        if (tasksError) {
-          console.error('Error fetching worker tasks:', tasksError);
-          return;
-        }
+      if (roomsError) {
+        console.error('Error fetching chat rooms:', roomsError);
+        return;
+      }
 
-        // Create channels for each project the worker is involved in
-        const workerChannels: ChatChannel[] = (tasks || []).map(task => ({
-          id: `project-${task.projects.id}`,
-          name: task.projects.title,
-          type: 'project' as const,
-          participants: [user.id, task.projects.client_id],
-          lastMessage: 'Start collaborating on your project!',
-          lastMessageTime: '1 min ago',
-          unreadCount: 0,
-          clientName: task.projects.users?.name || 'Client',
-          projectTitle: task.projects.title
-        }));
+      // Get participant counts for each room
+      const roomsWithCounts = await Promise.all(
+        (roomsData || []).map(async (room) => {
+          const { count } = await supabase
+            .from('chat_participants')
+            .select('*', { count: 'exact', head: true })
+            .eq('chat_room_id', room.id);
 
-        setChannels(workerChannels);
-        if (workerChannels.length > 0 && !selectedChannel) {
-          setSelectedChannel(workerChannels[0]);
-          loadMockMessages(workerChannels[0]);
-        }
-      } else {
-        // For clients, get channels based on their projects
-        const { data: projects, error: projectsError } = await supabase
-          .from('projects')
-          .select(`
-            id,
-            title,
-            tasks (
-              assignee_id,
-              status,
-              users!tasks_assignee_id_fkey (
-                name
-              )
-            )
-          `)
-          .eq('client_id', user.id);
+          // Get last message
+          const { data: lastMessage } = await supabase
+            .from('chat_room_messages')
+            .select('content, created_at')
+            .eq('chat_room_id', room.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
 
-        if (projectsError) {
-          console.error('Error fetching client projects:', projectsError);
-          return;
-        }
+          return {
+            id: room.id,
+            name: room.name || (room.is_group ? 
+              (room.projects?.title ? `${room.projects.title} - Project Chat` : 'Project Chat') : 
+              'Direct Chat'
+            ),
+            is_group: room.is_group,
+            project_id: room.project_id,
+            created_at: room.created_at,
+            participant_count: count || 0,
+            last_message: lastMessage?.content || 'No messages yet',
+            last_message_time: lastMessage?.created_at ? 
+              new Date(lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+              '',
+            project_title: room.projects?.title
+          };
+        })
+      );
 
-        // Create channels for each project with assigned and approved workers
-        const clientChannels: ChatChannel[] = [];
-        (projects || []).forEach(project => {
-          const assignedWorkers = project.tasks
-            .filter(task => task.assignee_id && task.status === 'approved') // Only approved tasks
-            .map(task => ({
-              id: task.assignee_id,
-              name: task.users?.name || 'Worker'
-            }));
-
-          if (assignedWorkers.length > 0) {
-            clientChannels.push({
-              id: `project-${project.id}`,
-              name: project.title,
-              type: 'project' as const,
-              participants: [user.id, ...assignedWorkers.map(w => w.id)],
-              lastMessage: 'Project collaboration started',
-              lastMessageTime: '5 min ago',
-              unreadCount: 0,
-              projectTitle: project.title
-            });
-          }
-        });
-
-        setChannels(clientChannels);
-        if (clientChannels.length > 0 && !selectedChannel) {
-          setSelectedChannel(clientChannels[0]);
-          loadMockMessages(clientChannels[0]);
-        }
+      setChatRooms(roomsWithCounts);
+      
+      // Auto-select first room if none selected
+      if (roomsWithCounts.length > 0 && !selectedRoom) {
+        setSelectedRoom(roomsWithCounts[0]);
       }
     } catch (error) {
-      console.error('Error fetching channels:', error);
+      console.error('Error fetching chat rooms:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadMockMessages = (channel: ChatChannel) => {
-    // Mock messages for demonstration
-    const mockMessages: ChatMessage[] = [
-      {
-        id: '1',
-        senderId: user?.role === 'client' ? user.id : 'client',
-        senderName: user?.role === 'client' ? 'You' : (channel.clientName || 'Client'),
-        content: `Welcome to the ${channel.name} project chat!`,
-        timestamp: new Date(Date.now() - 3600000),
-        type: 'text'
-      },
-      {
-        id: '2',
-        senderId: user?.role === 'worker' ? user.id : 'worker',
-        senderName: user?.role === 'worker' ? 'You' : 'Worker',
-        content: 'Thank you! I\'m excited to work on this project.',
-        timestamp: new Date(Date.now() - 3000000),
-        type: 'text'
-      },
-      {
-        id: '3',
-        senderId: user?.role === 'client' ? user.id : 'client',
-        senderName: user?.role === 'client' ? 'You' : (channel.clientName || 'Client'),
-        content: 'Great! Let me know if you have any questions about the requirements.',
-        timestamp: new Date(Date.now() - 1800000),
-        type: 'text'
-      }
-    ];
+  const fetchMessages = async (roomId: string) => {
+    try {
+      setIsLoadingMessages(true);
+      
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('chat_room_messages')
+        .select(`
+          *,
+          users (
+            name
+          )
+        `)
+        .eq('chat_room_id', roomId)
+        .order('created_at', { ascending: true });
 
-    setMessages(mockMessages);
+      if (messagesError) {
+        console.error('Error fetching messages:', messagesError);
+        return;
+      }
+
+      const formattedMessages: ChatMessage[] = (messagesData || []).map(msg => ({
+        id: msg.id,
+        sender_id: msg.sender_id,
+        sender_name: msg.sender_id === user?.id ? 'You' : (msg.users?.name || 'Unknown'),
+        content: msg.content,
+        message_type: msg.message_type || 'text',
+        created_at: new Date(msg.created_at),
+        file_url: msg.file_url
+      }));
+
+      setMessages(formattedMessages);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const sendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedRoom || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('chat_room_messages')
+        .insert({
+          chat_room_id: selectedRoom.id,
+          sender_id: user.id,
+          content: newMessage.trim(),
+          message_type: 'text'
+        });
+
+      if (error) {
+        console.error('Error sending message:', error);
+        return;
+      }
+
+      setNewMessage('');
+      // Refresh messages
+      await fetchMessages(selectedRoom.id);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedChannel) return;
-
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      senderId: user?.id || '',
-      senderName: 'You',
-      content: newMessage,
-      timestamp: new Date(),
-      type: 'text'
-    };
-
-    setMessages(prev => [...prev, message]);
-    setNewMessage('');
   };
 
   const formatTime = (date: Date) => {
@@ -234,9 +229,9 @@ export function ChatPage() {
     }
   };
 
-  const filteredChannels = channels.filter(channel =>
-    channel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (channel.clientName && channel.clientName.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredRooms = chatRooms.filter(room =>
+    room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (room.project_title && room.project_title.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (isLoading) {
@@ -269,9 +264,9 @@ export function ChatPage() {
           </div>
         </div>
 
-        {/* Channel List */}
+        {/* Chat Rooms List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredChannels.length === 0 ? (
+          {filteredRooms.length === 0 ? (
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
@@ -283,33 +278,35 @@ export function ChatPage() {
               </p>
             </div>
           ) : (
-            filteredChannels.map((channel) => (
+            filteredRooms.map((room) => (
               <button
-                key={channel.id}
-                onClick={() => {
-                  setSelectedChannel(channel);
-                  loadMockMessages(channel);
-                }}
+                key={room.id}
+                onClick={() => setSelectedRoom(room)}
                 className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 ${
-                  selectedChannel?.id === channel.id ? 'bg-indigo-50 border-r-2 border-r-indigo-500' : ''
+                  selectedRoom?.id === room.id ? 'bg-indigo-50 border-r-2 border-r-indigo-500' : ''
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center space-x-2">
-                    <Hash className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium text-gray-900 truncate">{channel.name}</span>
+                    {room.is_group ? (
+                      <Hash className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <Users className="h-4 w-4 text-gray-400" />
+                    )}
+                    <span className="font-medium text-gray-900 truncate">{room.name}</span>
                   </div>
-                  {channel.unreadCount > 0 && (
-                    <span className="bg-indigo-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                      {channel.unreadCount}
-                    </span>
-                  )}
                 </div>
-                {channel.clientName && user?.role === 'worker' && (
-                  <p className="text-xs text-gray-500 mb-1">Client: {channel.clientName}</p>
+                
+                {room.project_title && room.is_group && (
+                  <p className="text-xs text-gray-500 mb-1">Project: {room.project_title}</p>
                 )}
-                <p className="text-sm text-gray-600 truncate">{channel.lastMessage}</p>
-                <p className="text-xs text-gray-500 mt-1">{channel.lastMessageTime}</p>
+                
+                <p className="text-sm text-gray-600 truncate">{room.last_message}</p>
+                
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-gray-500">{room.last_message_time}</p>
+                  <span className="text-xs text-gray-500">{room.participant_count} participants</span>
+                </div>
               </button>
             ))
           )}
@@ -318,21 +315,22 @@ export function ChatPage() {
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col">
-        {selectedChannel ? (
+        {selectedRoom ? (
           <>
             {/* Chat Header */}
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  <Hash className="h-5 w-5 text-indigo-600" />
+                  {selectedRoom.is_group ? (
+                    <Hash className="h-5 w-5 text-indigo-600" />
+                  ) : (
+                    <Users className="h-5 w-5 text-indigo-600" />
+                  )}
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{selectedChannel.name}</h3>
+                  <h3 className="font-semibold text-gray-900">{selectedRoom.name}</h3>
                   <p className="text-sm text-gray-600">
-                    {selectedChannel.clientName && user?.role === 'worker' 
-                      ? `Client: ${selectedChannel.clientName}`
-                      : `${selectedChannel.participants.length} participants`
-                    }
+                    {selectedRoom.participant_count} participants
                   </p>
                 </div>
               </div>
@@ -345,9 +343,6 @@ export function ChatPage() {
                   <Video className="h-5 w-5" />
                 </button>
                 <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                  <Users className="h-5 w-5" />
-                </button>
-                <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                   <MoreVertical className="h-5 w-5" />
                 </button>
               </div>
@@ -355,48 +350,64 @@ export function ChatPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message, index) => {
-                const showDate = index === 0 || 
-                  formatDate(message.timestamp) !== formatDate(messages[index - 1].timestamp);
-                
-                return (
-                  <div key={message.id}>
-                    {showDate && (
-                      <div className="text-center my-4">
-                        <span className="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-                          {formatDate(message.timestamp)}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className={`flex ${message.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs lg:max-w-md ${
-                        message.senderId === user?.id 
-                          ? 'bg-indigo-600 text-white' 
-                          : 'bg-gray-100 text-gray-900'
-                      } rounded-lg px-4 py-2`}>
-                        {message.senderId !== user?.id && (
-                          <p className="text-xs font-medium mb-1 opacity-75">
-                            {message.senderName}
+              {isLoadingMessages ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                messages.map((message, index) => {
+                  const showDate = index === 0 || 
+                    formatDate(message.created_at) !== formatDate(messages[index - 1].created_at);
+                  
+                  return (
+                    <div key={message.id}>
+                      {showDate && (
+                        <div className="text-center my-4">
+                          <span className="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
+                            {formatDate(message.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className={`flex ${message.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md ${
+                          message.message_type === 'system' 
+                            ? 'bg-gray-100 text-gray-700 text-center' 
+                            : message.sender_id === user?.id 
+                              ? 'bg-indigo-600 text-white' 
+                              : 'bg-gray-100 text-gray-900'
+                        } rounded-lg px-4 py-2`}>
+                          {message.sender_id !== user?.id && message.message_type !== 'system' && (
+                            <p className="text-xs font-medium mb-1 opacity-75">
+                              {message.sender_name}
+                            </p>
+                          )}
+                          <p className="text-sm">{message.content}</p>
+                          <p className={`text-xs mt-1 ${
+                            message.message_type === 'system'
+                              ? 'text-gray-500'
+                              : message.sender_id === user?.id 
+                                ? 'text-indigo-200' 
+                                : 'text-gray-500'
+                          }`}>
+                            {formatTime(message.created_at)}
                           </p>
-                        )}
-                        <p className="text-sm">{message.content}</p>
-                        <p className={`text-xs mt-1 ${
-                          message.senderId === user?.id ? 'text-indigo-200' : 'text-gray-500'
-                        }`}>
-                          {formatTime(message.timestamp)}
-                        </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Message Input */}
             <div className="p-4 border-t border-gray-200">
-              <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+              <form onSubmit={sendMessage} className="flex items-center space-x-2">
                 <button
                   type="button"
                   className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -435,7 +446,7 @@ export function ChatPage() {
             <div className="text-center">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">Select a conversation</h3>
-              <p className="text-gray-600">Choose a project to start chatting</p>
+              <p className="text-gray-600">Choose a chat to start messaging</p>
             </div>
           </div>
         )}
