@@ -174,45 +174,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Fetching profile for user:', userId);
     
     try {
+      // Use maybeSingle() instead of single() to handle cases where no user exists
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('AuthProvider: Error fetching user profile:', error);
-        
-        // If user doesn't exist in our users table, create a basic profile
-        if (error.code === 'PGRST116') {
-          console.log('AuthProvider: User not found in users table, creating profile...');
-          
-          const { data: authUser } = await supabase.auth.getUser();
-          if (authUser.user) {
-            const { error: insertError } = await supabase
-              .from('users')
-              .insert({
-                id: authUser.user.id,
-                email: authUser.user.email || '',
-                name: authUser.user.user_metadata?.name || '',
-                role: 'worker', // Default role
-                rating: 0,
-                wallet_balance: 0,
-                skills: [],
-                tier: 'bronze',
-                onboarding_completed: false,
-              });
-            
-            if (!insertError) {
-              console.log('AuthProvider: Created new user profile, retrying fetch...');
-              // Retry fetching the profile
-              await fetchUserProfile(userId);
-              return;
-            } else {
-              console.error('AuthProvider: Error creating user profile:', insertError);
-            }
-          }
-        }
         
         // Handle auth errors
         if (handleAuthError(error)) return;
@@ -220,7 +190,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
-      if (data) {
+      // If no user profile exists, create one
+      if (!data) {
+        console.log('AuthProvider: User not found in users table, creating profile...');
+        
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser.user) {
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert([{
+              id: authUser.user.id,
+              email: authUser.user.email || '',
+              name: authUser.user.user_metadata?.name || '',
+              role: 'worker', // Default role
+              rating: 0,
+              wallet_balance: 0,
+              skills: [],
+              tier: 'bronze',
+              onboarding_completed: false,
+            }]);
+          
+          // Handle duplicate key error gracefully (code 23505)
+          if (insertError && insertError.code !== '23505') {
+            console.error('AuthProvider: Error creating user profile:', insertError);
+            throw insertError;
+          } else if (insertError?.code === '23505') {
+            console.log('AuthProvider: User profile already exists (duplicate key), refetching...');
+          } else {
+            console.log('AuthProvider: Created new user profile successfully');
+          }
+          
+          // Retry fetching the profile after creation or if duplicate key error
+          await fetchUserProfile(userId);
+          return;
+        }
+      } else {
+        // User profile exists, set the user data
         console.log('AuthProvider: Successfully fetched user profile');
         
         setUser({
@@ -331,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Create user profile
         const { error: profileError } = await supabase
           .from('users')
-          .insert({
+          .insert([{
             id: authData.user.id,
             email: email.trim(),
             name: name.trim(),
@@ -341,11 +346,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             skills: role === 'worker' ? [] : null,
             tier: role === 'worker' ? 'bronze' : null,
             onboarding_completed: false,
-          });
+          }]);
 
-        if (profileError) {
+        // Handle duplicate key error gracefully (code 23505)
+        if (profileError && profileError.code !== '23505') {
           console.error('AuthProvider: Profile creation error:', profileError);
           return false;
+        } else if (profileError?.code === '23505') {
+          console.log('AuthProvider: User profile already exists during signup (duplicate key)');
+        } else {
+          console.log('AuthProvider: Profile created successfully during signup');
         }
         
         console.log('AuthProvider: Signup completed successfully');
