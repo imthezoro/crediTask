@@ -24,22 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Clearing session...');
     setUser(null);
     setSupabaseUser(null);
-    
-    // Clear local storage
-    try {
-      localStorage.removeItem('freelanceflow-auth-token');
-      // Clear Supabase's default storage keys
-      const keys = Object.keys(localStorage);
-      keys.forEach(key => {
-        if (key.startsWith('sb-') && key.includes('-auth-token')) {
-          localStorage.removeItem(key);
-        }
-      });
-      sessionStorage.clear();
-    } catch (error) {
-      console.warn('AuthProvider: Could not clear storage:', error);
-    }
-    
     setIsLoading(false);
   };
 
@@ -63,7 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Initializing...');
     
     let mounted = true;
-    let initTimeout: NodeJS.Timeout;
     
     const initializeAuth = async () => {
       try {
@@ -77,29 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Set a timeout to prevent infinite loading
-        initTimeout = setTimeout(() => {
-          if (mounted) {
-            console.log('AuthProvider: Initialization timeout, setting loading to false');
-            setIsLoading(false);
-          }
-        }, 8000); // 8 second timeout
-
-        // Get initial session with timeout
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 9000)
-        );
-
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as any;
+        console.log('AuthProvider: Getting initial session...');
+        
+        // Get initial session without timeout - let it take as long as needed
+        const { data, error } = await supabase.auth.getSession();
         
         if (!mounted) return;
-
-        // Clear timeout since we got a response
-        clearTimeout(initTimeout);
 
         if (error) {
           console.error('AuthProvider: Session error:', error);
@@ -112,22 +78,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        console.log('AuthProvider: Initial session check', { session: !!session });
+        console.log('AuthProvider: Initial session check', { session: !!data.session });
         
-        setSupabaseUser(session?.user ?? null);
-        
-        if (session?.user) {
+        // Handle null session gracefully
+        if (data.session) {
+          setSupabaseUser(data.session.user);
           console.log('AuthProvider: Found session, fetching profile...');
-          await fetchUserProfile(session.user.id);
+          await fetchUserProfile(data.session.user.id);
         } else {
           console.log('AuthProvider: No session found');
           setUser(null);
+          setSupabaseUser(null);
           setIsLoading(false);
         }
       } catch (error) {
         console.error('AuthProvider: Initialization error:', error);
         if (mounted) {
-          clearTimeout(initTimeout);
           // Only clear session if this is a real token error
           if (!handleAuthError(error)) {
             setUser(null);
@@ -178,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // Handle other session changes
+        // Handle other session changes gracefully
         setSupabaseUser(session?.user ?? null);
         
         if (session?.user) {
@@ -200,9 +166,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       console.log('AuthProvider: Cleaning up auth subscription');
-      if (initTimeout) {
-        clearTimeout(initTimeout);
-      }
       subscription.unsubscribe();
     };
   }, []);
@@ -408,7 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('AuthProvider: Logout error:', error);
       }
       
-      // Clear local state and storage
+      // Clear local state
       await clearSession();
       console.log('AuthProvider: Logout completed');
     } catch (error) {
@@ -458,6 +421,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabaseUser: !!supabaseUser, 
     isLoading
   });
+
+  // Show loading state while initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading FreelanceFlow...</p>
+          <p className="text-gray-500 text-sm mt-2">Initializing your workspace</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ 
