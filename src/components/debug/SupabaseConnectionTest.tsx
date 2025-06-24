@@ -12,7 +12,9 @@ import {
   EyeOff,
   ExternalLink,
   AlertCircle,
-  Settings
+  Settings,
+  Activity,
+  Clock
 } from 'lucide-react';
 import { supabase, testSupabaseConnection, getConnectionStatus, checkConfiguration } from '../../lib/supabase';
 
@@ -28,6 +30,7 @@ export function SupabaseConnectionTest() {
   const [tests, setTests] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [connectionInfo, setConnectionInfo] = useState(getConnectionStatus());
   const [envVars, setEnvVars] = useState({
     url: '',
     anonKey: '',
@@ -38,6 +41,13 @@ export function SupabaseConnectionTest() {
 
   useEffect(() => {
     checkEnvironmentVariables();
+    
+    // Update connection info every 5 seconds
+    const interval = setInterval(() => {
+      setConnectionInfo(getConnectionStatus());
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const checkEnvironmentVariables = () => {
@@ -65,7 +75,7 @@ export function SupabaseConnectionTest() {
     });
   };
 
-  const runTest = async (name: string, testFn: () => Promise<{ success: boolean; message: string; details?: string }>, timeoutMs: number = 5000) => {
+  const runTest = async (name: string, testFn: () => Promise<{ success: boolean; message: string; details?: string }>, timeoutMs: number = 8000) => {
     const startTime = Date.now();
     updateTest(name, { status: 'pending', message: 'Running...' });
     
@@ -129,7 +139,7 @@ export function SupabaseConnectionTest() {
       // Test 2: Basic Connection
       await runTest('Basic Connection', async () => {
         try {
-          const success = await testSupabaseConnection(5000);
+          const success = await testSupabaseConnection(8000);
           
           if (!success) {
             const status = getConnectionStatus();
@@ -151,12 +161,15 @@ export function SupabaseConnectionTest() {
             details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
-      }, 6000);
+      }, 10000);
 
       // Test 3: Database Query
       await runTest('Database Query', async () => {
         try {
-          const { data, error } = await supabase.rpc('version');
+          const { data, error } = await supabase
+            .from('users')
+            .select('count')
+            .limit(1);
           
           if (error) {
             return {
@@ -169,7 +182,7 @@ export function SupabaseConnectionTest() {
           return {
             success: true,
             message: 'Database queries are working',
-            details: 'PostgreSQL version query successful'
+            details: 'User table query successful'
           };
         } catch (error) {
           return {
@@ -178,7 +191,7 @@ export function SupabaseConnectionTest() {
             details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
-      }, 5000);
+      }, 8000);
 
       // Test 4: Auth Service
       await runTest('Auth Service', async () => {
@@ -205,7 +218,7 @@ export function SupabaseConnectionTest() {
             details: error instanceof Error ? error.message : 'Unknown error'
           };
         }
-      }, 5000);
+      }, 8000);
 
       // Test 5: Database Schema
       const connectionStatus = getConnectionStatus();
@@ -242,7 +255,7 @@ export function SupabaseConnectionTest() {
               details: error instanceof Error ? error.message : 'Unknown error'
             };
           }
-        }, 8000);
+        }, 10000);
 
         // Test 6: Demo User Check
         await runTest('Demo Users', async () => {
@@ -290,7 +303,7 @@ export function SupabaseConnectionTest() {
               details: error instanceof Error ? error.message : 'Unknown error'
             };
           }
-        }, 5000);
+        }, 8000);
       }
     } else {
       // Skip connection tests if configuration is invalid
@@ -428,6 +441,46 @@ export function SupabaseConnectionTest() {
               <span>Run Tests</span>
             </button>
           </div>
+        </div>
+
+        {/* Real-time Connection Status */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium text-gray-900">Real-time Connection Status</h3>
+            <div className="flex items-center space-x-2">
+              <Activity className="h-4 w-4 text-gray-500" />
+              <span className="text-sm text-gray-600">
+                Last check: {connectionInfo.lastCheck ? new Date(connectionInfo.lastCheck).toLocaleTimeString() : 'Never'}
+              </span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex items-center space-x-2">
+              {connectionInfo.status === 'connected' ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : connectionInfo.status === 'failed' ? (
+                <XCircle className="h-4 w-4 text-red-600" />
+              ) : connectionInfo.status === 'misconfigured' ? (
+                <Settings className="h-4 w-4 text-yellow-600" />
+              ) : (
+                <Clock className="h-4 w-4 text-gray-400" />
+              )}
+              <span>Status: {connectionInfo.status}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span>Attempts: {connectionInfo.attempts}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span>Configured: {connectionInfo.isConfigured ? 'Yes' : 'No'}</span>
+            </div>
+          </div>
+          
+          {connectionInfo.lastError && (
+            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+              <strong>Last Error:</strong> {connectionInfo.lastError}
+            </div>
+          )}
         </div>
 
         {/* Configuration Status */}

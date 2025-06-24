@@ -42,7 +42,7 @@ export const supabase = createClient<Database>(clientUrl, clientKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,
     flowType: 'pkce',
     debug: import.meta.env.MODE === 'development'
   },
@@ -50,6 +50,12 @@ export const supabase = createClient<Database>(clientUrl, clientKey, {
     headers: {
       'X-Client-Info': 'freelanceflow-web',
       'X-Client-Version': '1.0.0'
+    },
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
     }
   },
   db: {
@@ -79,7 +85,7 @@ const isConfigurationValid = () => {
 };
 
 // Test connection with better error handling and graceful degradation
-const testConnection = async (timeoutMs: number = 5000) => {
+const testConnection = async (timeoutMs: number = 8000) => {
   const startTime = Date.now();
   connectionAttempts++;
   
@@ -100,9 +106,13 @@ const testConnection = async (timeoutMs: number = 5000) => {
     );
     
     // Use a simpler query that's less likely to fail
-    const connectionPromise = supabase.rpc('version');
+    const connectionPromise = supabase
+      .from('users')
+      .select('count')
+      .limit(1)
+      .maybeSingle();
     
-    const { data, error } = await Promise.race([connectionPromise, timeoutPromise]);
+    const { error } = await Promise.race([connectionPromise, timeoutPromise]);
     
     const duration = Date.now() - startTime;
     lastConnectionCheck = Date.now();
@@ -111,20 +121,17 @@ const testConnection = async (timeoutMs: number = 5000) => {
       connectionStatus = 'failed';
       lastError = error.message;
       
-      // Only log detailed errors in development and reduce noise
-      if (import.meta.env.MODE === 'development') {
-        console.warn('⚠️ Supabase connection failed:', {
-          message: error.message,
-          code: error.code,
-          duration: `${duration}ms`
-        });
-        
-        // Provide more specific error guidance
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          console.info('💡 Network connectivity issue detected. Please check your Supabase configuration.');
-        } else if (error.message.includes('Invalid API key') || error.code === 'PGRST301') {
-          console.info('💡 Authentication issue detected. Please verify your VITE_SUPABASE_ANON_KEY.');
-        }
+      console.warn('⚠️ Supabase connection failed:', {
+        message: error.message,
+        code: error.code,
+        duration: `${duration}ms`
+      });
+      
+      // Provide more specific error guidance
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        console.info('💡 Network connectivity issue detected. Please check your Supabase configuration.');
+      } else if (error.message.includes('Invalid API key') || error.code === 'PGRST301') {
+        console.info('💡 Authentication issue detected. Please verify your VITE_SUPABASE_ANON_KEY.');
       }
       
       return false;
@@ -139,32 +146,29 @@ const testConnection = async (timeoutMs: number = 5000) => {
     connectionStatus = 'failed';
     lastError = error instanceof Error ? error.message : 'Unknown error';
     
-    // Reduce console noise - only log once per session for timeouts
-    if (import.meta.env.MODE === 'development' && connectionAttempts <= 3) {
-      console.warn('⚠️ Supabase connection error:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        duration: `${duration}ms`,
-        attempts: connectionAttempts
-      });
-      
-      // Provide troubleshooting guidance based on error type
-      if (error instanceof Error && error.message.includes('timeout')) {
-        console.info('💡 Connection timeout detected. This usually means:');
-        console.info('   - Your Supabase project credentials may be incorrect');
-        console.info('   - Your Supabase project may be paused or inactive');
-        console.info('   - Network connectivity issues');
-        console.info('   - Please use the diagnostics tool on the login page for detailed troubleshooting');
-      }
+    console.warn('⚠️ Supabase connection error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      duration: `${duration}ms`,
+      attempts: connectionAttempts
+    });
+    
+    // Provide troubleshooting guidance based on error type
+    if (error instanceof Error && error.message.includes('timeout')) {
+      console.info('💡 Connection timeout detected. This usually means:');
+      console.info('   - Your Supabase project credentials may be incorrect');
+      console.info('   - Your Supabase project may be paused or inactive');
+      console.info('   - Network connectivity issues');
+      console.info('   - Please use the diagnostics tool on the login page for detailed troubleshooting');
     }
     
     return false;
   }
 };
 
-// Only test connection if configuration is valid and limit initial attempts
+// Only test connection if configuration is valid
 if (isConfigurationValid()) {
   // Test connection immediately with shorter timeout for faster feedback
-  testConnection(3000).catch(() => {
+  testConnection(5000).catch(() => {
     // Silently handle initial connection test failures to reduce console noise
     if (import.meta.env.MODE === 'development') {
       console.info('ℹ️ Initial Supabase connection test failed. Use the diagnostics tool for detailed troubleshooting.');
@@ -184,40 +188,14 @@ supabase.auth.onAuthStateChange((event, session) => {
       userId: session?.user?.id
     });
   }
+  
+  // Handle token refresh failures
+  if (event === 'TOKEN_REFRESHED' && !session) {
+    console.warn('⚠️ Token refresh failed - user may need to re-authenticate');
+    connectionStatus = 'failed';
+    lastError = 'Token refresh failed';
+  }
 });
-
-// Periodic connection health check with exponential backoff - but less aggressive
-let healthCheckInterval: number | null = null;
-let healthCheckDelay = 300000; // Start with 5 minutes to reduce noise
-
-const startHealthCheck = () => {
-  // Only start health checks if configuration is valid
-  if (!isConfigurationValid()) {
-    return;
-  }
-  
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval);
-  }
-  
-  healthCheckInterval = setInterval(async () => {
-    const now = Date.now();
-    // Only check if we haven't checked recently and connection was previously failed
-    if (connectionStatus === 'failed' && now - lastConnectionCheck > healthCheckDelay) {
-      const success = await testConnection(3000);
-      
-      if (success) {
-        // Reset delay on successful connection
-        healthCheckDelay = 300000;
-      } else {
-        // Exponential backoff up to 30 minutes
-        healthCheckDelay = Math.min(healthCheckDelay * 1.5, 1800000);
-      }
-    }
-  }, 300000); // Check every 5 minutes instead of 30 seconds
-};
-
-startHealthCheck();
 
 // Export connection test function for manual use
 export const testSupabaseConnection = async (timeoutMs?: number) => {

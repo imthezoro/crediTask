@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, getConnectionStatus } from '../lib/supabase';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -67,16 +67,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const initializeAuth = async () => {
       try {
+        // Check if Supabase is properly configured first
+        const connectionStatus = getConnectionStatus();
+        if (!connectionStatus.isConfigured) {
+          console.warn('AuthProvider: Supabase not configured, skipping auth initialization');
+          if (mounted) {
+            setIsLoading(false);
+          }
+          return;
+        }
+
         // Set a timeout to prevent infinite loading
         initTimeout = setTimeout(() => {
           if (mounted) {
             console.log('AuthProvider: Initialization timeout, setting loading to false');
             setIsLoading(false);
           }
-        }, 10000); // 10 second timeout
+        }, 8000); // 8 second timeout
 
-        // Get initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Get initial session with timeout
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session check timeout')), 5000)
+        );
+
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]) as any;
         
         if (!mounted) return;
 
@@ -273,6 +291,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Attempting login for:', email);
     
     try {
+      // Check if Supabase is configured
+      const connectionStatus = getConnectionStatus();
+      if (!connectionStatus.isConfigured) {
+        console.error('AuthProvider: Supabase not configured');
+        return false;
+      }
+
       // Clear any existing session first
       await supabase.auth.signOut();
       
@@ -314,6 +339,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('AuthProvider: Attempting signup for:', email, 'as', role);
     
     try {
+      // Check if Supabase is configured
+      const connectionStatus = getConnectionStatus();
+      if (!connectionStatus.isConfigured) {
+        console.error('AuthProvider: Supabase not configured');
+        return false;
+      }
+
       // Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
