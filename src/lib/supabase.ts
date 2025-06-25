@@ -44,7 +44,7 @@ export const supabase = createClient<Database>(clientUrl, clientKey, {
     persistSession: true,
     detectSessionInUrl: false,
     flowType: 'pkce',
-    debug: import.meta.env.MODE === 'development'
+    debug: false // Reduce console noise
   },
   global: {
     headers: {
@@ -54,7 +54,7 @@ export const supabase = createClient<Database>(clientUrl, clientKey, {
     fetch: (url, options = {}) => {
       return fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(10000), // 10 second timeout
+        signal: AbortSignal.timeout(15000), // Increased timeout to 15 seconds
       });
     }
   },
@@ -68,11 +68,12 @@ export const supabase = createClient<Database>(clientUrl, clientKey, {
   }
 });
 
-// Enhanced connection monitoring
+// Connection monitoring with improved logic
 let connectionAttempts = 0;
 let lastConnectionCheck = 0;
 let connectionStatus: 'unknown' | 'connected' | 'failed' | 'misconfigured' = 'unknown';
 let lastError: string | null = null;
+let isTestingConnection = false; // Prevent concurrent tests
 
 // Check if configuration is valid
 const isConfigurationValid = () => {
@@ -84,38 +85,40 @@ const isConfigurationValid = () => {
          supabaseAnonKey.startsWith('eyJ');
 };
 
-// Test connection with better error handling and graceful degradation
-const testConnection = async (timeoutMs: number = 8000) => {
+// Improved connection test with better error handling
+const testConnection = async (timeoutMs: number = 12000) => {
+  // Prevent concurrent connection tests
+  if (isTestingConnection) {
+    console.log('🔄 Connection test already in progress, skipping...');
+    return connectionStatus === 'connected';
+  }
+
   const startTime = Date.now();
   connectionAttempts++;
+  isTestingConnection = true;
   
   // Check configuration first
   if (!isConfigurationValid()) {
     connectionStatus = 'misconfigured';
     lastError = 'Invalid or missing Supabase configuration';
-    console.warn('⚠️ Supabase configuration is invalid - skipping connection test');
+    isTestingConnection = false;
     return false;
   }
   
   try {
     console.log(`🔄 Testing Supabase connection (attempt ${connectionAttempts})...`);
     
-    // Create a more specific timeout promise
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error(`Connection timeout after ${timeoutMs / 1000} seconds`)), timeoutMs)
-    );
-    
-    // Use a simpler query that's less likely to fail
-    const connectionPromise = supabase
-      .from('users')
-      .select('count')
-      .limit(1)
-      .maybeSingle();
-    
-    const { error } = await Promise.race([connectionPromise, timeoutPromise]);
+    // Use a simple query that's less likely to cause issues
+    const { error } = await Promise.race([
+      supabase.rpc('ping').then(() => ({ error: null })).catch(err => ({ error: err })),
+      new Promise<{ error: Error }>((_, reject) => 
+        setTimeout(() => reject(new Error(`Connection timeout after ${timeoutMs / 1000} seconds`)), timeoutMs)
+      )
+    ]);
     
     const duration = Date.now() - startTime;
     lastConnectionCheck = Date.now();
+    isTestingConnection = false;
     
     if (error) {
       connectionStatus = 'failed';
@@ -123,16 +126,9 @@ const testConnection = async (timeoutMs: number = 8000) => {
       
       console.warn('⚠️ Supabase connection failed:', {
         message: error.message,
-        code: error.code,
-        duration: `${duration}ms`
+        duration: `${duration}ms`,
+        attempts: connectionAttempts
       });
-      
-      // Provide more specific error guidance
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        console.info('💡 Network connectivity issue detected. Please check your Supabase configuration.');
-      } else if (error.message.includes('Invalid API key') || error.code === 'PGRST301') {
-        console.info('💡 Authentication issue detected. Please verify your VITE_SUPABASE_ANON_KEY.');
-      }
       
       return false;
     }
@@ -145,6 +141,7 @@ const testConnection = async (timeoutMs: number = 8000) => {
     const duration = Date.now() - startTime;
     connectionStatus = 'failed';
     lastError = error instanceof Error ? error.message : 'Unknown error';
+    isTestingConnection = false;
     
     console.warn('⚠️ Supabase connection error:', {
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -152,48 +149,55 @@ const testConnection = async (timeoutMs: number = 8000) => {
       attempts: connectionAttempts
     });
     
-    // Provide troubleshooting guidance based on error type
-    if (error instanceof Error && error.message.includes('timeout')) {
-      console.info('💡 Connection timeout detected. This usually means:');
-      console.info('   - Your Supabase project credentials may be incorrect');
-      console.info('   - Your Supabase project may be paused or inactive');
-      console.info('   - Network connectivity issues');
-      console.info('   - Please use the diagnostics tool on the login page for detailed troubleshooting');
-    }
-    
     return false;
   }
 };
 
-// Only test connection if configuration is valid
-if (isConfigurationValid()) {
-  // Test connection immediately with shorter timeout for faster feedback
-  testConnection(5000).catch(() => {
-    // Silently handle initial connection test failures to reduce console noise
-    if (import.meta.env.MODE === 'development') {
-      console.info('ℹ️ Initial Supabase connection test failed. Use the diagnostics tool for detailed troubleshooting.');
+// Debounced connection test - only test if we haven't tested recently
+const debouncedConnectionTest = (() => {
+  const DEBOUNCE_TIME = 30000; // 30 seconds
+  
+  return async (timeoutMs?: number) => {
+    const now = Date.now();
+    if (now - lastConnectionCheck < DEBOUNCE_TIME && connectionStatus !== 'unknown') {
+      console.log('🔄 Using cached connection status:', connectionStatus);
+      return connectionStatus === 'connected';
     }
-  });
+    
+    return testConnection(timeoutMs);
+  };
+})();
+
+// Only test connection if configuration is valid and we haven't tested recently
+if (isConfigurationValid()) {
+  // Test connection with longer delay and timeout for initial load
+  setTimeout(() => {
+    debouncedConnectionTest(8000).catch(() => {
+      // Silently handle initial connection test failures
+      if (import.meta.env.MODE === 'development') {
+        console.info('ℹ️ Initial Supabase connection test failed silently');
+      }
+    });
+  }, 1000); // Delay initial test by 1 second
 } else {
   console.warn('⚠️ Supabase configuration is invalid or missing. Please check your .env file.');
   connectionStatus = 'misconfigured';
 }
 
-// Add error handling for auth state changes with better logging
+// Simplified auth state change logging
 supabase.auth.onAuthStateChange((event, session) => {
-  // Only log important events in development to reduce noise
-  if (import.meta.env.MODE === 'development' && ['SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED'].includes(event)) {
-    console.log(`🔐 Auth event: ${event}`, {
-      hasSession: !!session,
-      userId: session?.user?.id
-    });
+  if (import.meta.env.MODE === 'development') {
+    const importantEvents = ['SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED'];
+    if (importantEvents.includes(event)) {
+      console.log(`🔐 Auth: ${event}`, { hasSession: !!session });
+    }
   }
   
-  // Handle token refresh failures
+  // Handle token refresh failures more gracefully
   if (event === 'TOKEN_REFRESHED' && !session) {
-    console.warn('⚠️ Token refresh failed - user may need to re-authenticate');
-    connectionStatus = 'failed';
-    lastError = 'Token refresh failed';
+    console.warn('⚠️ Token refresh failed - session may be invalid');
+    // Don't immediately set connection status to failed
+    // Let the auth context handle this
   }
 });
 
@@ -202,7 +206,7 @@ export const testSupabaseConnection = async (timeoutMs?: number) => {
   if (!isConfigurationValid()) {
     throw new Error('Supabase configuration is invalid or missing');
   }
-  return testConnection(timeoutMs);
+  return debouncedConnectionTest(timeoutMs);
 };
 
 // Export a function to get connection status
@@ -212,7 +216,8 @@ export const getConnectionStatus = () => ({
   attempts: connectionAttempts,
   timeSinceLastCheck: Date.now() - lastConnectionCheck,
   lastError,
-  isConfigured: isConfigurationValid()
+  isConfigured: isConfigurationValid(),
+  isTesting: isTestingConnection
 });
 
 // Export a function to reset connection state
@@ -221,6 +226,7 @@ export const resetConnectionState = () => {
   connectionStatus = 'unknown';
   lastConnectionCheck = 0;
   lastError = null;
+  isTestingConnection = false;
 };
 
 // Export configuration check

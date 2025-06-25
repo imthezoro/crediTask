@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -36,12 +36,56 @@ function AppContent() {
   const { user, isLoading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const navigate = useNavigate();
-  const location = window.location.pathname;
+  const location = useLocation();
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  console.log('AppContent: Rendering with user:', !!user, 'isLoading:', isLoading);
+  console.log('AppContent: Rendering', { 
+    user: !!user, 
+    isLoading, 
+    pathname: location.pathname,
+    hasInitialized 
+  });
 
+  // Handle navigation logic
   useEffect(() => {
-    console.log('AppContent: User effect triggered', { 
+    // Don't do anything while still loading
+    if (isLoading) return;
+
+    // Mark as initialized on first non-loading render
+    if (!hasInitialized) {
+      setHasInitialized(true);
+    }
+
+    const currentPath = location.pathname;
+    const publicRoutes = ['/login', '/signup', '/forgot-password'];
+    const isOnPublicRoute = publicRoutes.includes(currentPath);
+
+    console.log('AppContent: Navigation effect', {
+      user: !!user,
+      currentPath,
+      isOnPublicRoute,
+      hasInitialized
+    });
+
+    // If user is logged in and on a public route, redirect to dashboard
+    if (user && isOnPublicRoute) {
+      console.log('AppContent: Redirecting logged-in user to dashboard');
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
+    // If user is not logged in and not on a public route, redirect to login
+    if (!user && !isOnPublicRoute) {
+      console.log('AppContent: Redirecting logged-out user to login');
+      navigate('/login', { replace: true });
+      return;
+    }
+
+  }, [user, isLoading, location.pathname, navigate, hasInitialized]);
+
+  // Handle onboarding modal
+  useEffect(() => {
+    console.log('AppContent: Onboarding effect', { 
       user: !!user, 
       onboardingCompleted: user?.onboarding_completed 
     });
@@ -50,21 +94,13 @@ function AppContent() {
       console.log('AppContent: User needs onboarding, showing modal');
       setShowOnboarding(true);
     } else if (user && user.onboarding_completed === true) {
-      console.log('AppContent: User has completed onboarding, not showing modal');
+      console.log('AppContent: User has completed onboarding');
+      setShowOnboarding(false);
+    } else if (!user) {
+      // Reset onboarding state when user logs out
       setShowOnboarding(false);
     }
-
-    // Redirect logged-in users away from /login and /signup
-    if (user && (location === '/login' || location === '/signup')) {
-      navigate('/dashboard', { replace: true });
-    }
-    // Redirect logged-out users away from protected routes
-    if (!user && !isLoading &&
-      !['/login', '/signup', '/forgot-password'].includes(location)
-    ) {
-      navigate('/login', { replace: true });
-    }
-  }, [user?.id, user?.onboarding_completed, navigate, location, isLoading]);
+  }, [user?.id, user?.onboarding_completed]);
 
   const handleOnboardingComplete = () => {
     console.log('AppContent: Onboarding completed');
@@ -76,7 +112,7 @@ function AppContent() {
     setShowOnboarding(true);
   };
 
-  // Show loading while checking authentication
+  // Show loading while authentication is being determined
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">

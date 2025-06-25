@@ -19,162 +19,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const clearSession = async () => {
-    console.log('AuthProvider: Clearing session...');
+    console.log('🔄 Clearing session...');
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('⚠️ Error during signOut:', error);
+    }
     setUser(null);
     setSupabaseUser(null);
-    setIsLoading(false);
   };
 
-  const handleAuthError = (error: any) => {
-    console.error('AuthProvider: Auth error:', error);
+  // More selective error handling - only clear session for critical auth errors
+  const shouldClearSession = (error: any) => {
+    if (!error) return false;
     
-    // Check for token-related errors
-    if (error?.message?.includes('refresh_token_not_found') || 
-        error?.message?.includes('Invalid Refresh Token') ||
-        error?.message?.includes('JWT') ||
-        error?.code === 'invalid_grant') {
-      console.log('AuthProvider: Token error detected, clearing session...');
-      clearSession();
-      return true;
-    }
+    const criticalErrors = [
+      'refresh_token_not_found',
+      'Invalid Refresh Token',
+      'invalid_grant',
+      'JWT expired',
+      'Invalid JWT'
+    ];
     
-    return false;
+    return criticalErrors.some(criticalError => 
+      error?.message?.includes(criticalError) || error?.code === criticalError
+    );
   };
 
-  useEffect(() => {
-    console.log('AuthProvider: Initializing...');
-    
-    let mounted = true;
-    
-    const initializeAuth = async () => {
-      try {
-        // Check if Supabase is properly configured first
-        const connectionStatus = getConnectionStatus();
-        if (!connectionStatus.isConfigured) {
-          console.warn('AuthProvider: Supabase not configured, skipping auth initialization');
-          if (mounted) {
-            setIsLoading(false);
-          }
-          return;
-        }
-
-        console.log('AuthProvider: Getting initial session...');
-        
-        // Get initial session without timeout - let it take as long as needed
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-
-        if (error) {
-          console.error('AuthProvider: Session error:', error);
-          // Only clear session if this is a real token error
-          if (!handleAuthError(error)) {
-            setUser(null);
-            setSupabaseUser(null);
-            setIsLoading(false);
-          }
-          return;
-        }
-
-        console.log('AuthProvider: Initial session check', { session: !!data.session });
-        
-        // Handle null session gracefully
-        if (data.session) {
-          setSupabaseUser(data.session.user);
-          console.log('AuthProvider: Found session, fetching profile...');
-          await fetchUserProfile(data.session.user.id);
-        } else {
-          console.log('AuthProvider: No session found');
-          setUser(null);
-          setSupabaseUser(null);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('AuthProvider: Initialization error:', error);
-        if (mounted) {
-          // Only clear session if this is a real token error
-          if (!handleAuthError(error)) {
-            setUser(null);
-            setSupabaseUser(null);
-            setIsLoading(false);
-          }
-        }
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      
-      console.log('AuthProvider: Auth state changed', { event, session: !!session });
-      
-      try {
-        // Handle specific events
-        if (event === 'SIGNED_OUT') {
-          console.log('AuthProvider: User signed out');
-          setUser(null);
-          setSupabaseUser(null);
-          setIsLoading(false);
-          return;
-        }
-        
-        if (event === 'SIGNED_IN') {
-          console.log('AuthProvider: User signed in, fetching profile...');
-          setSupabaseUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchUserProfile(session.user.id);
-          } else {
-            setIsLoading(false);
-          }
-          return;
-        }
-        
-        if (event === 'TOKEN_REFRESHED') {
-          console.log('AuthProvider: Token refreshed');
-          if (!session) {
-            console.log('AuthProvider: Token refresh failed, clearing session');
-            await clearSession();
-            return;
-          }
-        }
-        
-        // Handle other session changes gracefully
-        setSupabaseUser(session?.user ?? null);
-        
-        if (session?.user) {
-          console.log('AuthProvider: Session change - fetching profile...');
-          await fetchUserProfile(session.user.id);
-        } else {
-          console.log('AuthProvider: Session change - clearing user');
-          setUser(null);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('AuthProvider: Auth state change error:', error);
-        if (!handleAuthError(error)) {
-          setIsLoading(false);
-        }
-      }
-    });
-
-    return () => {
-      mounted = false;
-      console.log('AuthProvider: Cleaning up auth subscription');
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    console.log('AuthProvider: Fetching profile for user:', userId);
-    
+  const fetchUserProfile = async (userId: string): Promise<boolean> => {
     try {
-      // Use maybeSingle() instead of single() to handle cases where no user exists
+      console.log('🔄 Fetching user profile for:', userId);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -182,87 +60,149 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (error) {
-        console.error('AuthProvider: Error fetching user profile:', error);
+        console.error('❌ Error fetching user profile:', error);
         
-        // Handle auth errors
-        if (handleAuthError(error)) return;
+        // Only clear session for critical auth errors
+        if (shouldClearSession(error)) {
+          console.log('🔄 Critical auth error, clearing session');
+          await clearSession();
+          return false;
+        }
         
-        throw error;
+        // For other errors, just log and continue
+        console.warn('⚠️ Non-critical error fetching profile, continuing...');
+        return false;
       }
 
-      // If no user profile exists, create one
       if (!data) {
-        console.log('AuthProvider: User not found in users table, creating profile...');
-        
-        const { data: authUser } = await supabase.auth.getUser();
-        if (authUser.user) {
-          const { error: insertError } = await supabase
-            .from('users')
-            .insert([{
-              id: authUser.user.id,
-              email: authUser.user.email || '',
-              name: authUser.user.user_metadata?.name || '',
-              role: 'worker', // Default role
-              rating: 0,
-              wallet_balance: 0,
-              skills: [],
-              tier: 'bronze',
-              onboarding_completed: false,
-            }]);
-          
-          // Handle duplicate key error gracefully (code 23505)
-          if (insertError && insertError.code !== '23505') {
-            console.error('AuthProvider: Error creating user profile:', insertError);
-            throw insertError;
-          } else if (insertError?.code === '23505') {
-            console.log('AuthProvider: User profile already exists (duplicate key), refetching...');
-          } else {
-            console.log('AuthProvider: Created new user profile successfully');
-          }
-          
-          // Retry fetching the profile after creation or if duplicate key error
-          await fetchUserProfile(userId);
-          return;
-        }
-      } else {
-        // User profile exists, set the user data
-        console.log('AuthProvider: Successfully fetched user profile');
-        
-        setUser({
-          id: data.id,
-          role: data.role,
-          name: data.name || '',
-          email: data.email,
-          skills: data.skills || [],
-          rating: data.rating || 0,
-          walletBalance: data.wallet_balance || 0,
-          avatar: data.avatar_url || undefined,
-          tier: data.tier || 'bronze',
-          onboarding_completed: data.onboarding_completed || false,
-        });
+        console.warn('⚠️ No user profile found for ID:', userId);
+        return false;
       }
+
+      const userProfile: User = {
+        id: data.id,
+        role: data.role,
+        name: data.name || '',
+        email: data.email,
+        skills: data.skills || [],
+        rating: data.rating || 0,
+        walletBalance: data.wallet_balance || 0,
+        avatar: data.avatar_url || undefined,
+        tier: data.tier || 'bronze',
+        onboarding_completed: data.onboarding_completed || false,
+      };
+
+      setUser(userProfile);
+      console.log('✅ User profile loaded successfully');
+      return true;
     } catch (error) {
-      console.error('AuthProvider: Error in fetchUserProfile:', error);
-      
-      // Handle auth errors
-      if (!handleAuthError(error)) {
-        // For non-auth errors, still set loading to false
-        setIsLoading(false);
-      }
-    } finally {
-      console.log('AuthProvider: Setting loading to false after profile fetch');
-      setIsLoading(false);
+      console.error('❌ Exception fetching user profile:', error);
+      return false;
     }
   };
 
+  useEffect(() => {
+    let mounted = true;
+
+    const initialize = async () => {
+      console.log('🔄 Initializing auth...');
+      
+      if (!getConnectionStatus().isConfigured) {
+        console.warn('⚠️ Supabase not configured');
+        if (mounted) {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Error getting session:', error);
+          if (shouldClearSession(error)) {
+            await clearSession();
+          }
+          if (mounted) {
+            setIsLoading(false);
+            setIsInitialized(true);
+          }
+          return;
+        }
+
+        if (data.session?.user && mounted) {
+          console.log('✅ Found existing session');
+          setSupabaseUser(data.session.user);
+          
+          // Try to fetch profile, but don't block initialization
+          const profileLoaded = await fetchUserProfile(data.session.user.id);
+          
+          if (mounted) {
+            setIsLoading(false);
+            setIsInitialized(true);
+          }
+        } else {
+          console.log('ℹ️ No existing session found');
+          if (mounted) {
+            setIsLoading(false);
+            setIsInitialized(true);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Exception during initialization:', error);
+        if (mounted) {
+          setIsLoading(false);
+          setIsInitialized(true);
+        }
+      }
+    };
+
+    initialize();
+
+    // Set up auth state listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth event:', event, 'Has session:', !!session);
+      
+      if (!mounted) return;
+
+      if (event === 'SIGNED_OUT') {
+        console.log('🔄 User signed out');
+        setUser(null);
+        setSupabaseUser(null);
+        return;
+      }
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ User signed in');
+        setSupabaseUser(session.user);
+        
+        // Fetch profile in background - don't block the auth flow
+        fetchUserProfile(session.user.id).catch(error => {
+          console.error('❌ Background profile fetch failed:', error);
+        });
+      }
+
+      if (event === 'TOKEN_REFRESHED' && session?.user) {
+        console.log('🔄 Token refreshed');
+        setSupabaseUser(session.user);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const login = async (email: string, password: string): Promise<boolean> => {
-    console.log('AuthProvider: Attempting login for:', email);
-    
     try {
-      // Check if Supabase is configured
-      const connectionStatus = getConnectionStatus();
-      if (!connectionStatus.isConfigured) {
-        console.error('AuthProvider: Supabase not configured');
+      console.log('🔄 Attempting login for:', email);
+      
+      if (!getConnectionStatus().isConfigured) {
+        console.error('❌ Supabase not configured');
         return false;
       }
 
@@ -275,165 +215,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        console.error('AuthProvider: Login error:', error);
-        
-        // Provide more specific error messages
-        if (error.message.includes('Invalid login credentials')) {
-          console.log('AuthProvider: Invalid credentials');
-        } else if (error.message.includes('Email not confirmed')) {
-          console.log('AuthProvider: Email not confirmed');
-        } else {
-          console.log('AuthProvider: Other login error:', error.message);
-        }
-        
+        console.error('❌ Login error:', error);
         return false;
       }
-      
-      if (data.user && data.session) {
-        console.log('AuthProvider: Login successful');
-        // Don't set loading here, let the auth state change handle it
-        return true;
+
+      if (!data.user || !data.session) {
+        console.error('❌ Login failed: No user or session returned');
+        return false;
       }
-      
-      console.log('AuthProvider: Login failed - no user or session returned');
-      return false;
+
+      console.log('✅ Login successful');
+      return true;
     } catch (error) {
-      console.error('AuthProvider: Login failed:', error);
+      console.error('❌ Login exception:', error);
       return false;
     }
   };
 
   const signup = async (name: string, email: string, password: string, role: 'client' | 'worker'): Promise<boolean> => {
-    console.log('AuthProvider: Attempting signup for:', email, 'as', role);
-    
     try {
-      // Check if Supabase is configured
-      const connectionStatus = getConnectionStatus();
-      if (!connectionStatus.isConfigured) {
-        console.error('AuthProvider: Supabase not configured');
-        return false;
-      }
-
-      // Sign up with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      console.log('🔄 Attempting signup for:', email, 'as', role);
+      
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: {
-            name: name.trim()
-          }
-        }
+            name: name.trim(),
+          },
+        },
       });
 
-      if (authError) {
-        console.error('AuthProvider: Signup auth error:', authError);
+      if (error || !data.user) {
+        console.error('❌ Signup error:', error);
         return false;
       }
 
-      if (authData.user) {
-        console.log('AuthProvider: Auth signup successful, creating profile...');
-        
-        // Create user profile
-        const { error: profileError } = await supabase
-          .from('users')
-          .insert([{
-            id: authData.user.id,
-            email: email.trim(),
-            name: name.trim(),
-            role,
-            rating: 0,
-            wallet_balance: role === 'client' ? 5000 : 0,
-            skills: role === 'worker' ? [] : null,
-            tier: role === 'worker' ? 'bronze' : null,
-            onboarding_completed: false,
-          }]);
+      const profile = {
+        id: data.user.id,
+        email: email.trim(),
+        name: name.trim(),
+        role,
+        rating: 0,
+        wallet_balance: role === 'client' ? 5000 : 0,
+        skills: role === 'worker' ? [] : null,
+        tier: role === 'worker' ? 'bronze' : null,
+        onboarding_completed: false,
+      };
 
-        // Handle duplicate key error gracefully (code 23505)
-        if (profileError && profileError.code !== '23505') {
-          console.error('AuthProvider: Profile creation error:', profileError);
-          return false;
-        } else if (profileError?.code === '23505') {
-          console.log('AuthProvider: User profile already exists during signup (duplicate key)');
-        } else {
-          console.log('AuthProvider: Profile created successfully during signup');
-        }
-        
-        console.log('AuthProvider: Signup completed successfully');
-        return true;
-      }
+      const { error: insertError } = await supabase.from('users').insert([profile]);
       
-      console.log('AuthProvider: Signup failed - no user returned');
-      return false;
+      if (insertError && insertError.code !== '23505') {
+        console.error('❌ Profile creation error:', insertError);
+        return false;
+      }
+
+      console.log('✅ Signup successful');
+      return true;
     } catch (error) {
-      console.error('AuthProvider: Signup error:', error);
+      console.error('❌ Signup exception:', error);
       return false;
     }
   };
 
-  const logout = async (): Promise<void> => {
-    console.log('AuthProvider: Logging out...');
-    
-    try {
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('AuthProvider: Logout error:', error);
-      }
-      
-      // Clear local state
-      await clearSession();
-      console.log('AuthProvider: Logout completed');
-    } catch (error) {
-      console.error('AuthProvider: Logout error:', error);
-      // Even if logout fails, clear local state
-      await clearSession();
-    }
+  const logout = async () => {
+    console.log('🔄 Logging out...');
+    await clearSession();
   };
 
   const updateProfile = async (updates: Partial<User>): Promise<boolean> => {
     if (!user) {
-      console.log('AuthProvider: Cannot update profile - no user');
+      console.error('❌ Cannot update profile: No user');
       return false;
     }
 
-    console.log('AuthProvider: Updating profile:', updates);
-
     try {
       const updateData: any = {};
-      
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.skills !== undefined) updateData.skills = updates.skills;
       if (updates.avatar !== undefined) updateData.avatar_url = updates.avatar;
       if (updates.onboarding_completed !== undefined) updateData.onboarding_completed = updates.onboarding_completed;
 
-      const { error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('id', user.id);
-
+      const { error } = await supabase.from('users').update(updateData).eq('id', user.id);
+      
       if (error) {
-        console.error('AuthProvider: Profile update error:', error);
+        console.error('❌ Profile update error:', error);
         return false;
       }
 
+      // Update local state
       setUser({ ...user, ...updates });
-      console.log('AuthProvider: Profile updated successfully');
+      console.log('✅ Profile updated successfully');
       return true;
     } catch (error) {
-      console.error('AuthProvider: Profile update failed:', error);
+      console.error('❌ Profile update exception:', error);
       return false;
     }
   };
 
-  console.log('AuthProvider: Current state', { 
-    user: !!user, 
-    supabaseUser: !!supabaseUser, 
-    isLoading
-  });
-
-  // Show loading state while initializing
-  if (isLoading) {
+  // Show loading screen until initialization is complete
+  if (isLoading || !isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -446,15 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      supabaseUser, 
-      login, 
-      signup, 
-      logout, 
-      isLoading, 
-      updateProfile 
-    }}>
+    <AuthContext.Provider value={{ user, supabaseUser, login, signup, logout, isLoading, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
