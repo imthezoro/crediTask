@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send, DollarSign, Clock, FileText, Loader2, AlertCircle } from 'lucide-react';
+import { X, Send, DollarSign, Clock, FileText, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface TaskApplicationModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface TaskApplicationModalProps {
 
 export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMessage }: TaskApplicationModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     coverLetter: '',
     proposedRate: task?.payout || '',
@@ -22,19 +23,57 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Clear previous messages
+    setSuccessMessage(null);
+    
+    // Validate form
+    if (!formData.coverLetter.trim()) {
+      return; // Error will be shown by required field
+    }
+
+    if (!formData.proposedRate || parseFloat(formData.proposedRate) <= 0) {
+      return; // Error will be shown by validation
+    }
+
     setIsSubmitting(true);
     
     try {
       await onSubmit(task.id, {
-        cover_letter: formData.coverLetter,
+        cover_letter: formData.coverLetter.trim(),
         proposed_rate: parseFloat(formData.proposedRate),
-        estimated_hours: parseInt(formData.estimatedHours) || null,
+        estimated_hours: formData.estimatedHours ? parseInt(formData.estimatedHours) : null,
         delivery_time: parseInt(formData.deliveryTime)
       });
+      
+      // If we get here, the application was successful
+      setSuccessMessage('Application submitted successfully!');
+      
+      // Close modal after a short delay to show success message
+      setTimeout(() => {
+        onClose();
+        setSuccessMessage(null);
+        // Reset form
+        setFormData({
+          coverLetter: '',
+          proposedRate: task?.payout || '',
+          estimatedHours: '',
+          deliveryTime: '7'
+        });
+      }, 1500);
+      
     } catch (error) {
       console.error('Error submitting application:', error);
+      // Error will be handled by the parent component
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      onClose();
+      setSuccessMessage(null);
     }
   };
 
@@ -48,8 +87,9 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
             <p className="text-gray-600 mt-1">{task.title}</p>
           </div>
           <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
             <X className="h-5 w-5" />
           </button>
@@ -57,8 +97,19 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-96">
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start space-x-3">
+              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h4 className="text-sm font-medium text-green-800">Success!</h4>
+                <p className="text-sm text-green-700 mt-1">{successMessage}</p>
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
-          {errorMessage && (
+          {errorMessage && !successMessage && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-3">
               <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
               <div>
@@ -95,7 +146,8 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
                 onChange={(e) => setFormData({...formData, coverLetter: e.target.value})}
                 rows={6}
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                disabled={isSubmitting || !!successMessage}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
                 placeholder="Explain why you're the perfect fit for this task. Highlight your relevant experience and approach..."
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -107,7 +159,7 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Rate ($)
+                  Your Rate ($) *
                 </label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -115,9 +167,12 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
                     type="number"
                     value={formData.proposedRate}
                     onChange={(e) => setFormData({...formData, proposedRate: e.target.value})}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="500"
+                    required
                     min="1"
+                    step="0.01"
+                    disabled={isSubmitting || !!successMessage}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                    placeholder="500"
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
@@ -134,9 +189,10 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
                     type="number"
                     value={formData.estimatedHours}
                     onChange={(e) => setFormData({...formData, estimatedHours: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="40"
                     min="1"
+                    disabled={isSubmitting || !!successMessage}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+                    placeholder="40"
                   />
                 </div>
               )}
@@ -150,7 +206,8 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
               <select
                 value={formData.deliveryTime}
                 onChange={(e) => setFormData({...formData, deliveryTime: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                disabled={isSubmitting || !!successMessage}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="1">1 day</option>
                 <option value="3">3 days</option>
@@ -188,29 +245,32 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
           
           <div className="flex space-x-3">
             <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              onClick={handleClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
             >
-              Cancel
+              {successMessage ? 'Close' : 'Cancel'}
             </button>
             
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !formData.coverLetter || !!errorMessage}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Submitting...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Submit Application</span>
-                </>
-              )}
-            </button>
+            {!successMessage && (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting || !formData.coverLetter.trim() || !formData.proposedRate || parseFloat(formData.proposedRate) <= 0}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    <span>Submit Application</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

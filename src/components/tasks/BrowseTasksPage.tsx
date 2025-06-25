@@ -13,7 +13,8 @@ import {
   Send,
   Loader2,
   AlertCircle,
-  Eye
+  Eye,
+  CheckCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTasks } from '../../hooks/useTasks';
@@ -27,6 +28,8 @@ export function BrowseTasksPage() {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [appliedTasks, setAppliedTasks] = useState<Set<string>>(new Set());
+  const [isApplying, setIsApplying] = useState(false);
   const [filters, setFilters] = useState({
     priceRange: 'all',
     duration: 'all',
@@ -67,10 +70,20 @@ export function BrowseTasksPage() {
   };
 
   const handleApplyToTask = async (taskId: string, proposal: any) => {
-    const success = await applyToTask(taskId, proposal);
-    if (success) {
-      setShowApplicationModal(false);
-      setSelectedTask(null);
+    setIsApplying(true);
+    try {
+      const success = await applyToTask(taskId, proposal);
+      if (success) {
+        setShowApplicationModal(false);
+        setSelectedTask(null);
+        setAppliedTasks(prev => new Set([...prev, taskId]));
+        // Clear any error on success
+        setError(null);
+      }
+    } catch (error) {
+      console.error('Error applying to task:', error);
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -94,6 +107,19 @@ export function BrowseTasksPage() {
     }
   };
 
+  const handleApplyClick = (task: any) => {
+    // Check if user has already applied
+    if (appliedTasks.has(task.id)) {
+      setError('You have already applied to this task.');
+      return;
+    }
+    
+    setSelectedTask(task);
+    setShowApplicationModal(true);
+    // Clear any previous error
+    setError(null);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -102,7 +128,7 @@ export function BrowseTasksPage() {
     );
   }
 
-  if (error) {
+  if (error && !showApplicationModal) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
@@ -110,7 +136,10 @@ export function BrowseTasksPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Tasks</h3>
           <p className="text-gray-600 mb-4">{error}</p>
           <button 
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setError(null);
+              window.location.reload();
+            }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
           >
             Retry
@@ -135,6 +164,24 @@ export function BrowseTasksPage() {
           </span>
         </div>
       </div>
+
+      {/* Error Banner (for application errors) */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <h4 className="text-sm font-medium text-red-800">Error</h4>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <span className="sr-only">Dismiss</span>
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Debug Info */}
       {process.env.NODE_ENV === 'development' && (
@@ -208,106 +255,120 @@ export function BrowseTasksPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {availableTasks.map((task) => (
-            <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
-              <div className="p-6">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{task.title}</h3>
-                    <p className="text-gray-600 text-sm line-clamp-3">{task.description}</p>
+          {availableTasks.map((task) => {
+            const hasApplied = appliedTasks.has(task.id);
+            
+            return (
+              <div key={task.id} className="bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{task.title}</h3>
+                      <p className="text-gray-600 text-sm line-clamp-3">{task.description}</p>
+                    </div>
+                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                      <Heart className="h-5 w-5 text-gray-400" />
+                    </button>
                   </div>
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Heart className="h-5 w-5 text-gray-400" />
-                  </button>
-                </div>
 
-                {/* Task Details */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <DollarSign className="h-4 w-4 mr-2 text-green-600" />
-                    <span className="font-medium">${task.payout}</span>
-                    {task.pricing_type === 'hourly' && <span className="ml-1">/hr</span>}
-                  </div>
-                  
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Clock className="h-4 w-4 mr-2 text-blue-600" />
-                    <span>Weight: {task.weight}/10</span>
-                  </div>
-                  
-                  {task.deadline && (
+                  {/* Task Details */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="h-4 w-4 mr-2 text-red-600" />
-                      <span>Due {task.deadline.toLocaleDateString()}</span>
+                      <DollarSign className="h-4 w-4 mr-2 text-green-600" />
+                      <span className="font-medium">${task.payout}</span>
+                      {task.pricing_type === 'hourly' && <span className="ml-1">/hr</span>}
+                    </div>
+                    
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Clock className="h-4 w-4 mr-2 text-blue-600" />
+                      <span>Weight: {task.weight}/10</span>
+                    </div>
+                    
+                    {task.deadline && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Calendar className="h-4 w-4 mr-2 text-red-600" />
+                        <span>Due {task.deadline.toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Users className="h-4 w-4 mr-2 text-purple-600" />
+                      <span>0 proposals</span>
+                    </div>
+                  </div>
+
+                  {/* Skills Required */}
+                  {task.required_skills && task.required_skills.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Skills Required:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {task.required_skills.slice(0, 4).map((skill) => (
+                          <span
+                            key={skill}
+                            className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-full"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                        {task.required_skills.length > 4 && (
+                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
+                            +{task.required_skills.length - 4} more
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
-                  
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="h-4 w-4 mr-2 text-purple-600" />
-                    <span>0 proposals</span>
-                  </div>
-                </div>
 
-                {/* Skills Required */}
-                {task.required_skills && task.required_skills.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Skills Required:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {task.required_skills.slice(0, 4).map((skill) => (
-                        <span
-                          key={skill}
-                          className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-full"
+                  {/* Client Info */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm font-medium">C</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Client Name</p>
+                        <div className="flex items-center space-x-1">
+                          <Star className="h-3 w-3 text-yellow-400 fill-current" />
+                          <span className="text-xs text-gray-600">4.8 (24 reviews)</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleViewDetails(task)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center space-x-1"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>View Details</span>
+                      </button>
+                      
+                      {hasApplied ? (
+                        <div className="px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-medium flex items-center space-x-1">
+                          <CheckCircle className="h-4 w-4" />
+                          <span>Applied</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleApplyClick(task)}
+                          disabled={isApplying}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {skill}
-                        </span>
-                      ))}
-                      {task.required_skills.length > 4 && (
-                        <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                          +{task.required_skills.length - 4} more
-                        </span>
+                          {isApplying ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                          <span>{isApplying ? 'Applying...' : 'Apply'}</span>
+                        </button>
                       )}
                     </div>
                   </div>
-                )}
-
-                {/* Client Info */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">C</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Client Name</p>
-                      <div className="flex items-center space-x-1">
-                        <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                        <span className="text-xs text-gray-600">4.8 (24 reviews)</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <button 
-                      onClick={() => handleViewDetails(task)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center space-x-1"
-                    >
-                      <Eye className="h-4 w-4" />
-                      <span>View Details</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedTask(task);
-                        setShowApplicationModal(true);
-                      }}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium flex items-center space-x-1"
-                    >
-                      <Send className="h-4 w-4" />
-                      <span>Apply</span>
-                    </button>
-                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
