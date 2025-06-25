@@ -14,7 +14,9 @@ import {
   Loader2,
   Filter,
   Search,
-  AlertCircle
+  AlertCircle,
+  Ban,
+  Shield
 } from 'lucide-react';
 import { useApplicationBuckets } from '../../hooks/useApplicationBuckets';
 import { useAuth } from '../../contexts/AuthContext';
@@ -54,8 +56,43 @@ export function ApplicationBucketsPage() {
     }
   };
 
+  const getApplicationStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getApplicationStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved': return CheckCircle;
+      case 'rejected': return XCircle;
+      case 'pending': return Clock;
+      default: return Clock;
+    }
+  };
+
+  const getApplicationStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pending Review';
+      case 'approved': return 'Approved';
+      case 'rejected': return 'Rejected';
+      default: return 'Unknown';
+    }
+  };
+
   const handleApproveApplication = async (bucketId: string, applicationId: string, workerId: string) => {
     const success = await approveApplication(bucketId, applicationId, workerId);
+    if (success) {
+      setShowApplicationModal(false);
+      setSelectedApplication(null);
+    }
+  };
+
+  const handleRejectApplication = async (applicationId: string) => {
+    const success = await rejectApplication(applicationId);
     if (success) {
       setShowApplicationModal(false);
       setSelectedApplication(null);
@@ -187,6 +224,14 @@ export function ApplicationBucketsPage() {
                         <span>{bucket.totalApplications} applications</span>
                       </div>
                       <div className="flex items-center space-x-1">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span>{bucket.approvedApplications} approved</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <XCircle className="h-4 w-4 text-red-600" />
+                        <span>{bucket.rejectedApplications} rejected</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
                         <Calendar className="h-4 w-4 text-gray-500" />
                         <span>{bucket.createdAt.toLocaleDateString()}</span>
                       </div>
@@ -223,115 +268,121 @@ export function ApplicationBucketsPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {bucket.applications.map((application) => (
-                        <div key={application.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start space-x-4 flex-1">
-                              {/* Worker Avatar */}
-                              <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
-                                {application.worker.avatar ? (
-                                  <img
-                                    src={application.worker.avatar}
-                                    alt={application.worker.name}
-                                    className="w-12 h-12 rounded-full object-cover"
-                                  />
-                                ) : (
-                                  <User className="h-6 w-6 text-white" />
-                                )}
-                              </div>
-                              
-                              {/* Worker Info */}
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                  <h4 className="font-medium text-gray-900">{application.worker.name}</h4>
-                                  <div className="flex items-center space-x-1">
-                                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                                    <span className="text-sm text-gray-600">{application.worker.rating.toFixed(1)}</span>
-                                  </div>
-                                  {application.selected && (
-                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                                      Selected
-                                    </span>
-                                  )}
-                                  {application.reviewed && !application.selected && (
-                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
-                                      Not Selected
-                                    </span>
+                      {bucket.applications.map((application) => {
+                        const StatusIcon = getApplicationStatusIcon(application.status);
+                        return (
+                          <div key={application.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start space-x-4 flex-1">
+                                {/* Worker Avatar */}
+                                <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                  {application.worker.avatar ? (
+                                    <img
+                                      src={application.worker.avatar}
+                                      alt={application.worker.name}
+                                      className="w-12 h-12 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-6 w-6 text-white" />
                                   )}
                                 </div>
                                 
-                                {/* Skills */}
-                                <div className="flex flex-wrap gap-1 mb-2">
-                                  {application.worker.skills.slice(0, 4).map((skill) => (
-                                    <span
-                                      key={skill}
-                                      className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-full"
-                                    >
-                                      {skill}
-                                    </span>
-                                  ))}
-                                  {application.worker.skills.length > 4 && (
-                                    <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                                      +{application.worker.skills.length - 4} more
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                {/* Proposal Info */}
-                                {application.proposal && (
-                                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                {/* Worker Info */}
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-3 mb-2">
+                                    <h4 className="font-medium text-gray-900">{application.worker.name}</h4>
                                     <div className="flex items-center space-x-1">
-                                      <DollarSign className="h-4 w-4" />
-                                      <span>${application.proposal.proposedRate}</span>
+                                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                                      <span className="text-sm text-gray-600">{application.worker.rating.toFixed(1)}</span>
                                     </div>
-                                    {application.proposal.estimatedHours && (
-                                      <div className="flex items-center space-x-1">
-                                        <Clock className="h-4 w-4" />
-                                        <span>{application.proposal.estimatedHours}h</span>
-                                      </div>
+                                    <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center space-x-1 ${getApplicationStatusColor(application.status)}`}>
+                                      <StatusIcon className="h-3 w-3" />
+                                      <span>{getApplicationStatusLabel(application.status)}</span>
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Skills */}
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {application.worker.skills.slice(0, 4).map((skill) => (
+                                      <span
+                                        key={skill}
+                                        className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-full"
+                                      >
+                                        {skill}
+                                      </span>
+                                    ))}
+                                    {application.worker.skills.length > 4 && (
+                                      <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
+                                        +{application.worker.skills.length - 4} more
+                                      </span>
                                     )}
                                   </div>
+                                  
+                                  {/* Proposal Info */}
+                                  {application.proposal && (
+                                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                      <div className="flex items-center space-x-1">
+                                        <DollarSign className="h-4 w-4" />
+                                        <span>${application.proposal.proposedRate}</span>
+                                      </div>
+                                      {application.proposal.estimatedHours && (
+                                        <div className="flex items-center space-x-1">
+                                          <Clock className="h-4 w-4" />
+                                          <span>{application.proposal.estimatedHours}h</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    Applied {application.appliedAt.toLocaleDateString()} at {application.appliedAt.toLocaleTimeString()}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {/* Actions */}
+                              <div className="flex space-x-2 ml-4">
+                                <button
+                                  onClick={() => handleViewApplication(application)}
+                                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center space-x-1"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                  <span>View</span>
+                                </button>
+                                
+                                {/* Only show action buttons for pending applications */}
+                                {application.status === 'pending' && bucket.status !== 'closed' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleApproveApplication(bucket.id, application.id, application.workerId)}
+                                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center space-x-1"
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                      <span>Approve</span>
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => handleRejectApplication(application.id)}
+                                      className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center space-x-1"
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                      <span>Reject</span>
+                                    </button>
+                                  </>
                                 )}
                                 
-                                <p className="text-xs text-gray-500 mt-2">
-                                  Applied {application.appliedAt.toLocaleDateString()} at {application.appliedAt.toLocaleTimeString()}
-                                </p>
+                                {/* Show status for processed applications */}
+                                {application.status !== 'pending' && (
+                                  <div className="flex items-center px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-600">
+                                    <Shield className="h-4 w-4 mr-1" />
+                                    <span>Processed</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            
-                            {/* Actions */}
-                            <div className="flex space-x-2 ml-4">
-                              <button
-                                onClick={() => handleViewApplication(application)}
-                                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium flex items-center space-x-1"
-                              >
-                                <MessageSquare className="h-4 w-4" />
-                                <span>View</span>
-                              </button>
-                              
-                              {bucket.status !== 'closed' && !application.reviewed && (
-                                <>
-                                  <button
-                                    onClick={() => handleApproveApplication(bucket.id, application.id, application.workerId)}
-                                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center space-x-1"
-                                  >
-                                    <CheckCircle className="h-4 w-4" />
-                                    <span>Approve</span>
-                                  </button>
-                                  
-                                  <button
-                                    onClick={() => rejectApplication(application.id)}
-                                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center space-x-1"
-                                  >
-                                    <XCircle className="h-4 w-4" />
-                                    <span>Reject</span>
-                                  </button>
-                                </>
-                              )}
-                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -347,7 +398,13 @@ export function ApplicationBucketsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Application Details</h3>
+                <div className="flex items-center space-x-3">
+                  <h3 className="text-lg font-semibold text-gray-900">Application Details</h3>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center space-x-1 ${getApplicationStatusColor(selectedApplication.status)}`}>
+                    {React.createElement(getApplicationStatusIcon(selectedApplication.status), { className: "h-3 w-3" })}
+                    <span>{getApplicationStatusLabel(selectedApplication.status)}</span>
+                  </span>
+                </div>
                 <button
                   onClick={() => setShowApplicationModal(false)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -436,6 +493,24 @@ export function ApplicationBucketsPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Status Information */}
+                {selectedApplication.status !== 'pending' && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h5 className="font-medium text-gray-900 mb-2">Application Status</h5>
+                    <div className="flex items-center space-x-2">
+                      {React.createElement(getApplicationStatusIcon(selectedApplication.status), { 
+                        className: `h-5 w-5 ${selectedApplication.status === 'approved' ? 'text-green-600' : 'text-red-600'}` 
+                      })}
+                      <span className="text-lg font-medium text-gray-900">
+                        {getApplicationStatusLabel(selectedApplication.status)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      This application has been processed and cannot be modified.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -447,7 +522,9 @@ export function ApplicationBucketsPage() {
                 >
                   Close
                 </button>
-                {!selectedApplication.reviewed && (
+                
+                {/* Only show action buttons for pending applications */}
+                {selectedApplication.status === 'pending' && (
                   <>
                     <button
                       onClick={() => {
@@ -461,10 +538,7 @@ export function ApplicationBucketsPage() {
                       Approve Application
                     </button>
                     <button
-                      onClick={() => {
-                        rejectApplication(selectedApplication.id);
-                        setShowApplicationModal(false);
-                      }}
+                      onClick={() => handleRejectApplication(selectedApplication.id)}
                       className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                     >
                       Reject

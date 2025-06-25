@@ -9,6 +9,8 @@ interface ApplicationBucket {
   clientId: string;
   totalApplications: number;
   reviewedApplications: number;
+  approvedApplications: number;
+  rejectedApplications: number;
   status: 'open' | 'reviewing' | 'closed';
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +32,7 @@ interface TaskApplication {
   taskId: string;
   workerId: string;
   bucketId: string;
+  status: 'pending' | 'approved' | 'rejected';
   selected: boolean;
   reviewed: boolean;
   appliedAt: Date;
@@ -138,6 +141,7 @@ export function useApplicationBuckets() {
             taskId: app.task_id,
             workerId: app.worker_id,
             bucketId: app.bucket_id,
+            status: app.status || 'pending',
             selected: app.selected,
             reviewed: app.reviewed,
             appliedAt: new Date(app.applied_at),
@@ -163,6 +167,8 @@ export function useApplicationBuckets() {
           clientId: bucket.client_id,
           totalApplications: bucket.total_applications,
           reviewedApplications: bucket.reviewed_applications,
+          approvedApplications: bucket.approved_applications || 0,
+          rejectedApplications: bucket.rejected_applications || 0,
           status: bucket.status,
           createdAt: new Date(bucket.created_at),
           updatedAt: new Date(bucket.updated_at),
@@ -205,29 +211,42 @@ export function useApplicationBuckets() {
 
       if (taskError) throw taskError;
 
-      // Mark selected application
+      // Mark selected application as approved
       const { error: appError } = await supabase
         .from('task_applications')
-        .update({ selected: true, reviewed: true })
+        .update({ 
+          status: 'approved',
+          selected: true, 
+          reviewed: true 
+        })
         .eq('id', applicationId);
 
       if (appError) throw appError;
 
-      // Mark other applications as not selected
+      // Mark other applications as rejected
       const { error: otherAppsError } = await supabase
         .from('task_applications')
-        .update({ selected: false, reviewed: true })
+        .update({ 
+          status: 'rejected',
+          selected: false, 
+          reviewed: true 
+        })
         .eq('task_id', bucket.taskId)
         .neq('id', applicationId);
 
       if (otherAppsError) throw otherAppsError;
 
-      // Update bucket status
+      // Update bucket status and counts
+      const approvedCount = 1;
+      const rejectedCount = bucket.totalApplications - 1;
+      
       const { error: bucketError } = await supabase
         .from('application_buckets')
         .update({
           status: 'closed',
-          reviewed_applications: bucket.totalApplications
+          reviewed_applications: bucket.totalApplications,
+          approved_applications: approvedCount,
+          rejected_applications: rejectedCount
         })
         .eq('id', bucketId);
 
@@ -268,10 +287,34 @@ export function useApplicationBuckets() {
     try {
       const { error } = await supabase
         .from('task_applications')
-        .update({ reviewed: true })
+        .update({ 
+          status: 'rejected',
+          reviewed: true,
+          selected: false
+        })
         .eq('id', applicationId);
 
       if (error) throw error;
+
+      // Update bucket counts
+      const application = buckets
+        .flatMap(b => b.applications)
+        .find(app => app.id === applicationId);
+      
+      if (application) {
+        const bucket = buckets.find(b => b.id === application.bucketId);
+        if (bucket) {
+          const { error: bucketError } = await supabase
+            .from('application_buckets')
+            .update({
+              reviewed_applications: bucket.reviewedApplications + 1,
+              rejected_applications: bucket.rejectedApplications + 1
+            })
+            .eq('id', bucket.id);
+
+          if (bucketError) console.error('Error updating bucket counts:', bucketError);
+        }
+      }
 
       await fetchApplicationBuckets();
       return true;
