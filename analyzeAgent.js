@@ -1,21 +1,22 @@
+import OpenAI from 'openai';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { Configuration, OpenAIApi } from 'openai';
-
+console.log('Starting server...');
 dotenv.config();
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-const openai = new OpenAIApi(
-  new Configuration({
+const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
-  })
-);
+});
 
 app.post('/analyze', async (req, res) => {
   try {
+      console.log('Analyze route hit');
+  console.log('Request body:', req.body);
     const { description } = req.body;
     const systemPrompt = `You are a highly skilled technical analyst responsible for collecting clear and complete requirements for software projects. Your goal is to ask thoughtful and structured follow-up questions based on the user's project description to help developers fully understand what needs to be built.
 Return the output only as a JSON file.
@@ -55,7 +56,7 @@ Output your questions as a structured JSON like this:
   ]
 }`;
 
-    const response = await openai.createChatCompletion({
+    const response = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -64,7 +65,7 @@ Output your questions as a structured JSON like this:
       temperature: 0.4,
     });
 
-    const json = JSON.parse(response.data.choices[0].message?.content || '{}');
+    const json = JSON.parse(response.choices[0].message?.content || '{}');
     res.json(json);
   } catch (err) {
     console.error('Error:', err);
@@ -72,5 +73,7 @@ Output your questions as a structured JSON like this:
   }
 });
 
+
 const PORT = process.env.PORT || 5000;
+console.log('About to start listening on port', PORT);
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -16,6 +16,10 @@ const POPULAR_TAGS = [
 export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [requirementQuestions, setRequirementQuestions] = useState<string[]>([]);
+  const [requirementAnswers, setRequirementAnswers] = useState<{[key: string]: string}>({});
+  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -42,6 +46,43 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
     handleInputChange('tags', formData.tags.filter(t => t !== tag));
   };
 
+const analyzeRequirements = async () => {
+  setIsAnalyzing(true);
+  try {
+    const response = await fetch('http://localhost:5000/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        description: `Title: ${formData.title}\n\nDescription: ${formData.description}` 
+      }),
+    });
+    console.log('Response:', response)
+
+    const data = await response.json();
+    
+    if (data.follow_up_questions) {
+      setRequirementQuestions(data.follow_up_questions);
+      const initialAnswers: {[key: string]: string} = {};
+      data.follow_up_questions.forEach((question: string, index: number) => {
+        initialAnswers[`question_${index}`] = '';
+      });
+      setRequirementAnswers(initialAnswers);
+    }
+  } catch (error) {
+    console.error('Error analyzing requirements:', error);
+    setRequirementQuestions([]);
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
+
+const handleRequirementAnswerChange = (questionIndex: number, answer: string) => {
+  setRequirementAnswers(prev => ({
+    ...prev,
+    [`question_${questionIndex}`]: answer
+  }));
+};
+
   const handleSubmit = async () => {
     if (!formData.title || !formData.description || !formData.budget) {
       return;
@@ -49,9 +90,16 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
 
     setIsSubmitting(true);
     try {
+      // Combine requirement answers with form data
+      const detailedDescription = `${formData.description}\n\nRequirements Details:\n${
+        requirementQuestions.map((question, index) => 
+          `${question}\nAnswer: ${requirementAnswers[`question_${index}`] || 'Not answered'}`
+        ).join('\n\n')
+      }`;
+
       const project = await createProject({
         title: formData.title,
-        description: formData.description,
+        description: detailedDescription,
         budget: parseFloat(formData.budget),
         tags: formData.tags,
       });
@@ -67,6 +115,8 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
           splitMode: 'manual'
         });
         setCurrentStep(1);
+        setRequirementQuestions([]);
+        setRequirementAnswers({});
       }
     } catch (error) {
       console.error('Error creating project:', error);
@@ -75,11 +125,14 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
     }
   };
 
-  const nextStep = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
+const nextStep = async () => {
+  if (currentStep === 1) {
+    await analyzeRequirements();
+  }
+  if (currentStep < 4) {
+    setCurrentStep(currentStep + 1);
+  }
+};
 
   const prevStep = () => {
     if (currentStep > 1) {
@@ -92,7 +145,7 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
       case 1:
         return formData.title && formData.description;
       case 2:
-        return true; // Requirements form is optional for now
+        return true; // Requirements form is optional
       case 3:
         return formData.budget && parseFloat(formData.budget) > 0;
       case 4:
@@ -183,30 +236,55 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
           )}
 
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <div className="flex items-center space-x-3 mb-6">
-                <Wand2 className="h-6 w-6 text-indigo-600" />
-                <h3 className="text-lg font-semibold">Requirements Form</h3>
-              </div>
+  <div className="space-y-6">
+    <div className="flex items-center space-x-3 mb-6">
+      <Wand2 className="h-6 w-6 text-indigo-600" />
+      <h3 className="text-lg font-semibold">Requirements Form</h3>
+    </div>
 
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                <div className="flex items-center space-x-2">
-                  <Wand2 className="h-5 w-5 text-indigo-600" />
-                  <span className="text-sm font-medium text-indigo-900">AI-Powered Requirements</span>
-                </div>
-                <p className="text-sm text-indigo-700 mt-2">
-                  Our AI will analyze your project description and generate a detailed requirements form automatically. This helps ensure all necessary details are captured for better task creation.
-                </p>
-              </div>
+    {isAnalyzing ? (
+      <div className="text-center py-8">
+        <div className="inline-flex items-center space-x-2 text-indigo-600">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Analyzing your project and generating requirements...</span>
+        </div>
+      </div>
+    ) : requirementQuestions.length > 0 ? (
+      <div className="space-y-4">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Wand2 className="h-5 w-5 text-indigo-600" />
+            <span className="text-sm font-medium text-indigo-900">AI-Generated Requirements</span>
+          </div>
+          <p className="text-sm text-indigo-700 mt-2">
+            Based on your project description, here are some important questions to help clarify your requirements:
+          </p>
+        </div>
 
-              <div className="text-center py-8">
-                <div className="inline-flex items-center space-x-2 text-gray-500">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>AI requirements generation will be available soon...</span>
-                </div>
-              </div>
-            </div>
-          )}
+        {requirementQuestions.map((question, index) => (
+          <div key={index} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {index + 1}. {question}
+            </label>
+            <textarea
+              value={requirementAnswers[`question_${index}`] || ''}
+              onChange={(e) => handleRequirementAnswerChange(index, e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              placeholder="Please provide your answer..."
+            />
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="text-center py-8">
+        <div className="text-gray-500">
+          <p>No requirements questions generated. You can proceed to the next step.</p>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
           {currentStep === 3 && (
             <div className="space-y-6">
@@ -346,12 +424,12 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
             
             {currentStep < 4 ? (
               <button
-                onClick={nextStep}
-                disabled={!canProceed()}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
+  onClick={nextStep}
+  disabled={!canProceed() || isAnalyzing}
+  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+>
+  {isAnalyzing ? 'Analyzing...' : 'Next'}
+</button>
             ) : (
               <button
                 onClick={handleSubmit}
