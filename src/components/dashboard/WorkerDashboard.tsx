@@ -24,7 +24,7 @@ const stats = [
 
 export function WorkerDashboard() {
   const { user } = useAuth();
-  const { tasks, isLoading, claimTask } = useTasks();
+  const { tasks, isLoading, claimTask, error, refetch } = useTasks();
 
   const myTasks = tasks.filter(task => task.assigneeId === user?.id);
   const availableTasks = tasks.filter(task => task.status === 'open' && !task.assigneeId);
@@ -50,8 +50,48 @@ export function WorkerDashboard() {
   };
 
   const handleClaimTask = async (taskId: string) => {
-    await claimTask(taskId);
+    console.log('WorkerDashboard: Attempting to claim task:', taskId);
+    
+    try {
+      const success = await claimTask(taskId);
+      console.log('WorkerDashboard: Claim result:', success);
+      
+      if (success) {
+        console.log('WorkerDashboard: Task claimed successfully, refetching data...');
+        // Refetch the tasks to get updated data
+        await refetch();
+      } else {
+        console.error('WorkerDashboard: Failed to claim task');
+        // Show error message to user
+        alert('Failed to claim task. Please try again.');
+      }
+    } catch (error) {
+      console.error('WorkerDashboard: Error claiming task:', error);
+      alert('An error occurred while claiming the task. Please try again.');
+    }
   };
+
+  const isTaskClaimed = (task: any) => {
+    return task.assigneeId === user?.id;
+  };
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="text-red-800 font-medium">Error loading dashboard</h3>
+          <p className="text-red-600 text-sm mt-1">{error}</p>
+          <button 
+            onClick={refetch}
+            className="mt-2 text-red-600 hover:text-red-800 text-sm underline"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -206,12 +246,19 @@ export function WorkerDashboard() {
                   </div>
 
                   <div className="ml-6">
-                    <button 
-                      onClick={() => handleClaimTask(task.id)}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                    >
-                      Claim Task
-                    </button>
+                    {isTaskClaimed(task) ? (
+                      <span className="bg-green-100 text-green-800 px-4 py-2 rounded-lg text-sm font-medium">
+                        Claimed
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => handleClaimTask(task.id)}
+                        disabled={isLoading}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoading ? 'Claiming...' : 'Claim Task'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

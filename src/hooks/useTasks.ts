@@ -43,10 +43,9 @@ export function useTasks(projectId?: string) {
         // If projectId is specified, get tasks for that specific project
         query = query.eq('project_id', projectId);
       } else if (user.role === 'worker') {
-        // For workers browsing tasks, show all open tasks without assignees
-        query = query
-          .eq('status', 'open')
-          .is('assignee_id', null);
+        // For workers, show both available tasks and their assigned tasks
+        // Fixed: Use proper OR condition for worker queries
+        query = query.or(`and(status.eq.open,assignee_id.is.null),assignee_id.eq.${user.id}`);
       } else if (user.role === 'client') {
         // For clients, show tasks from their projects
         const { data: projectIds, error: projectError } = await supabase
@@ -76,7 +75,7 @@ export function useTasks(projectId?: string) {
         throw error;
       }
 
-      console.log('useTasks: Fetched tasks:', data?.length || 0);
+      console.log('useTasks: Raw data from database:', data);
 
       const formattedTasks: Task[] = (data || []).map(task => ({
         id: task.id,
@@ -95,8 +94,8 @@ export function useTasks(projectId?: string) {
         auto_assign: task.auto_assign
       }));
 
+      console.log('useTasks: Formatted tasks:', formattedTasks);
       setTasks(formattedTasks);
-      console.log('useTasks: Successfully set tasks:', formattedTasks.length);
     } catch (err) {
       console.error('useTasks: Error in fetchTasks:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -105,37 +104,76 @@ export function useTasks(projectId?: string) {
     }
   };
 
-  const updateTaskStatus = async (taskId: string, status: Task['status'], assigneeId?: string) => {
+const updateTaskStatus = async (taskId: string, status: Task['status'], assigneeId?: string) => {
     try {
-      console.log('useTasks: Updating task status:', taskId, status, assigneeId);
+      console.log('useTasks: Updating task status:', { taskId, status, assigneeId });
       
-      const updates: any = { status };
+      const updates: any = { 
+        status,
+        updated_at: new Date().toISOString()
+      };
+      
       if (assigneeId !== undefined) {
         updates.assignee_id = assigneeId;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tasks')
         .update(updates)
-        .eq('id', taskId);
+        .eq('id', taskId)
+        .select(`
+          *,
+          projects (
+            title,
+            client_id
+          ),
+          assignee:users!tasks_assignee_id_fkey (
+            name,
+            avatar_url
+          )
+        `);
+
+      // Check if the update was successful
+      if (!data || data.length === 0) {
+        throw new Error('Task not found or permission denied');
+      }
 
       if (error) {
         console.error('useTasks: Error updating task:', error);
         throw error;
       }
 
+      console.log('useTasks: Task updated successfully:', data[0]);
+
       // Create notification for status change
       const task = tasks.find(t => t.id === taskId);
       if (task && assigneeId && createNotification) {
-        await createNotification(
-          assigneeId,
-          'Task Assigned',
-          `You have been assigned to task: ${task.title}`,
-          'info'
-        );
+        try {
+          await createNotification(
+            assigneeId,
+            'Task Assigned',
+            `You have been assigned to task: ${task.title}`,
+            'info'
+          );
+          console.log('useTasks: Notification sent successfully');
+        } catch (notificationError) {
+          console.error('useTasks: Error sending notification:', notificationError);
+          // Don't fail the task update for notification errors
+        }
       }
 
-      await fetchTasks(); // Refresh the list
+      // Update local state immediately for better UX
+      setTasks(prevTasks => 
+        prevTasks.map(t => 
+          t.id === taskId 
+            ? { ...t, status, assigneeId: assigneeId || t.assigneeId }
+            : t
+        )
+      );
+
+      // Also refetch to ensure consistency
+      await fetchTasks();
+      
       return true;
     } catch (err) {
       console.error('useTasks: Error in updateTaskStatus:', err);
@@ -144,10 +182,57 @@ export function useTasks(projectId?: string) {
     }
   };
 
+
   const claimTask = async (taskId: string) => {
-    if (!user) return false;
+    if (!user) {
+      console.error('useTasks: No user found for task claiming');
+      setError('You must be logged in to claim tasks');
+      return false;
+    }
+
     console.log('useTasks: Claiming task:', taskId, 'for user:', user.id);
-    return updateTaskStatus(taskId, 'assigned', user.id);
+    
+    // First, verify the task exists and is available
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) {
+      console.error('useTasks: Task not found in local state:', taskId);
+      setError('Task not found');
+      return false;
+    }
+
+    if (task.status !== 'open' || task.assigneeId) {
+      console.error('useTasks: Task is not available for claiming:', task);
+      setError('Task is no longer available');
+      return false;
+    }
+
+    // Double-check in database
+    try {
+      const { data: currentTask, error: fetchError } = await supabase
+        .from('tasks')
+        .select('id, status, assignee_id')
+        .eq('id', taskId)
+        .single();
+
+      if (fetchError) {
+        console.error('useTasks: Error fetching current task state:', fetchError);
+        setError('Failed to verify task availability');
+        return false;
+      }
+
+      if (currentTask.status !== 'open' || currentTask.assignee_id) {
+        console.error('useTasks: Task is not available in database:', currentTask);
+        setError('Task is no longer available');
+        return false;
+      }
+
+      console.log('useTasks: Task is available, proceeding with claim');
+      return await updateTaskStatus(taskId, 'assigned', user.id);
+    } catch (err) {
+      console.error('useTasks: Error in claimTask verification:', err);
+      setError('Failed to claim task');
+      return false;
+    }
   };
 
   const applyToTask = async (taskId: string, proposal: any) => {

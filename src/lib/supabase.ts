@@ -35,8 +35,8 @@ if (supabaseAnonKey && (supabaseAnonKey.length < 50 || !supabaseAnonKey.startsWi
 }
 
 // Create client with fallback values to prevent crashes
-const clientUrl = supabaseUrl || 'https://placeholder.supabase.co';
-const clientKey = supabaseAnonKey || 'placeholder-key';
+const clientUrl = supabaseUrl || 'https://ugsdozwjchbllzrvobit.supabase.co';
+const clientKey = supabaseAnonKey|| 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnc2RvendqY2hibGx6cnZvYml0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTAzMzY0MDksImV4cCI6MjA2NTkxMjQwOX0.B6VQ80HOtVwTsieMx0e-BCeVnO5Vc-QDLhM6--RyIGA';
 
 export const supabase = createClient<Database>(clientUrl, clientKey, {
   auth: {
