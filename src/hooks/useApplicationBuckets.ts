@@ -337,24 +337,6 @@ export function useApplicationBuckets() {
     }
   };
 
-  const markBucketAsReviewing = async (bucketId: string) => {
-    try {
-      const { error } = await supabase
-        .from('application_buckets')
-        .update({ status: 'reviewing' })
-        .eq('id', bucketId);
-
-      if (error) throw error;
-
-      await fetchApplicationBuckets();
-      return true;
-    } catch (err) {
-      console.error('Error updating bucket status:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update bucket status');
-      return false;
-    }
-  };
-
   const fetchSingleApplicationStatus = async (applicationId: string) => {
     try {
       const { data, error } = await supabase
@@ -417,7 +399,6 @@ export function useApplicationBuckets() {
     error,
     approveApplication,
     rejectApplication,
-    markBucketAsReviewing,
     refetch: fetchApplicationBuckets,
     fetchSingleApplicationStatus
   };
