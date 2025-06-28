@@ -12,7 +12,7 @@ interface Project {
   client_id: string;
   createdAt: Date;
   tasks?: any[];
-  requirements?: { question: string; answer: string }[];
+  requirements_form?: { question: string; answer: string }[];
 }
 
 interface CreateProjectData {
@@ -20,7 +20,7 @@ interface CreateProjectData {
   description: string;
   budget: number;
   tags: string[];
-  requirements?: { question: string; answer: string }[];
+  requirements_form?: { question: string; answer: string }[];
 }
 
 export function useProjects() {
@@ -64,7 +64,7 @@ export function useProjects() {
         title: project.title,
         description: project.description,
         budget: project.budget,
-        requirements: project.requirements || [],
+        requirements_form: project.requirements_form || [],
         status: project.status,
         tags: project.tags || [],
         client_id: project.client_id,
@@ -111,7 +111,7 @@ export function useProjects() {
           title: data.title,
           description: data.description,
           budget: data.budget,
-        requirements: data.requirements || [],
+        requirements_form: data.requirements_form || [],
           status: data.status,
           tags: data.tags || [],
           client_id: data.client_id,
@@ -152,7 +152,7 @@ export function useProjects() {
           title: data.title,
           description: data.description,
           budget: data.budget,
-          requirements: data.requirements || [],
+          requirements_form: data.requirements_form || [],
           status: data.status,
           tags: data.tags || [],
           client_id: data.client_id,
