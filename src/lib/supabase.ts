@@ -110,8 +110,8 @@ const testConnection = async (timeoutMs: number = 12000) => {
     
     // Use a simple query that's less likely to cause issues
     const { error } = await Promise.race([
-      supabase.rpc('ping').then(() => ({ error: null })).catch(err => ({ error: err })),
-      new Promise<{ error: Error }>((_, reject) => 
+      supabase.rpc('ping').then(() => ({ error: null })),
+      new Promise<{ error: Error }>((_, reject) =>
         setTimeout(() => reject(new Error(`Connection timeout after ${timeoutMs / 1000} seconds`)), timeoutMs)
       )
     ]);
