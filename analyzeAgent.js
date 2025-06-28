@@ -37,6 +37,22 @@ app.post('/test', (req, res) => {
 });
 });
 
+app.post('/taskcreation', (req, res) => {
+  console.log('Task creation route hit')
+  res.json(
+  { 
+    "task_id1": {"title":"task tile",
+       "description":"task description", 
+       "estimated_number_of_hours": "5", 
+       "budget": "1", 
+       "dependency": "2", 
+       "success_criteria": "2"}, 
+});
+});
+
+
+
+
 
 app.post('/analyze', async (req, res) => {
   try {

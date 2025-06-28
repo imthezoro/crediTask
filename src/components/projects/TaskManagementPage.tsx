@@ -40,6 +40,7 @@ interface Project {
   title: string;
   description: string;
   budget: number;
+  requirements_form: [];
 }
 
 export function TaskManagementPage() {
@@ -123,65 +124,47 @@ export function TaskManagementPage() {
     }
   };
 
-  const generateAiSuggestions = async () => {
-    if (!project) return;
+const generateAiSuggestions = async () => {
+  if (!project) return;
 
-    setIsGeneratingAi(true);
-    
-    // Simulate AI task generation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const suggestions: Task[] = [
-      {
-        title: 'Frontend Development',
-        description: 'Develop the user interface using React and Tailwind CSS',
-        weight: 8,
-        payout: Math.max(100, Math.round(project.budget * 0.4)),
-        pricing_type: 'fixed',
-        required_skills: ['React', 'JavaScript', 'CSS', 'HTML'],
-        status: 'open',
-        auto_assign: false,
-        application_window_minutes: 60
-      },
-      {
-        title: 'Backend API Development',
-        description: 'Create REST API endpoints and database integration',
-        weight: 7,
-        payout: Math.max(100, Math.round(project.budget * 0.3)),
-        pricing_type: 'fixed',
-        required_skills: ['Node.js', 'Express', 'Database', 'API'],
-        status: 'open',
-        auto_assign: false,
-        application_window_minutes: 60
-      },
-      {
-        title: 'UI/UX Design',
-        description: 'Design user interface mockups and user experience flow',
-        weight: 5,
-        payout: Math.max(100, Math.round(project.budget * 0.2)),
-        pricing_type: 'fixed',
-        required_skills: ['Figma', 'UI Design', 'UX Design'],
-        status: 'open',
-        auto_assign: false,
-        application_window_minutes: 60
-      },
-      {
-        title: 'Testing & QA',
-        description: 'Comprehensive testing and quality assurance',
-        weight: 3,
-        payout: Math.max(100, Math.round(project.budget * 0.1)),
-        pricing_type: 'fixed',
-        required_skills: ['Testing', 'QA', 'Bug Testing'],
-        status: 'open',
-        auto_assign: false,
-        application_window_minutes: 60
-      }
-    ];
+  setIsGeneratingAi(true);
+
+  try {
+    const response = await fetch('http://localhost:5000/taskcreation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: project.title,
+        description: project.description,
+        budget: project.budget,
+        completion_date: new Date().toISOString() // replace with actual if available
+      })
+    });
+
+    const data = await response.json();
+
+    const suggestions: Task[] = Object.entries(data).map(([key, task]: any) => ({
+      title: task.title,
+      description: task.description,
+      weight: 1,
+      payout: parseFloat(task.budget) || 100,
+      pricing_type: 'fixed',
+      required_skills: [], // optionally parsed from description
+      status: 'open',
+      auto_assign: false,
+      application_window_minutes: 60,
+      estimated_hours: parseFloat(task.estimated_number_of_hours) || 0
+    }));
 
     setAiSuggestions(suggestions);
     setShowAiSuggestions(true);
+  } catch (err) {
+    console.error('AI task generation failed:', err);
+  } finally {
     setIsGeneratingAi(false);
-  };
+  }
+};
+
 
   const createTask = async (taskData: Task) => {
     try {
@@ -282,20 +265,35 @@ export function TaskManagementPage() {
     }
   };
 
-  const handleAcceptAiSuggestion = async (suggestion: Task) => {
+const handleAcceptAiSuggestion = async (suggestion: Task) => {
+  // Prevent duplicates based on title
+  const alreadyExists = tasks.some(task => task.title === suggestion.title);
+  if (alreadyExists) return;
+
+  const success = await createTask(suggestion);
+  if (success) {
+    await fetchTasks();
+    setAiSuggestions(prev => prev.filter(s => s.title !== suggestion.title));
+  }
+};
+
+
+const handleAcceptAllAiSuggestions = async () => {
+  const newSuggestions = aiSuggestions.filter(
+    suggestion => !tasks.some(task => task.title === suggestion.title)
+  );
+
+  for (const suggestion of newSuggestions) {
     const success = await createTask(suggestion);
     if (success) {
-      setAiSuggestions(prev => prev.filter(s => s !== suggestion));
+      await fetchTasks();
     }
-  };
+  }
 
-  const handleAcceptAllAiSuggestions = async () => {
-    for (const suggestion of aiSuggestions) {
-      await createTask(suggestion);
-    }
-    setShowAiSuggestions(false);
-    setAiSuggestions([]);
-  };
+  setShowAiSuggestions(false);
+  setAiSuggestions([]);
+};
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
