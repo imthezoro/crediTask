@@ -64,12 +64,35 @@ export function ChatPage() {
   }, [messages]);
 
   const fetchChatRooms = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('fetchChatRooms: No user found');
+      return;
+    }
 
     try {
       setIsLoading(true);
-      
-      // Get chat rooms where user is a participant
+      console.log('fetchChatRooms: Fetching chat_participants for user', user.id);
+
+      // Get chat room IDs where user is a participant
+      const { data: participantData, error: participantError } = await supabase
+        .from('chat_participants')
+        .select('chat_room_id')
+        .eq('user_id', user.id);
+
+      if (participantError) {
+        console.error('fetchChatRooms: Error fetching chat_participants:', participantError);
+        return;
+      }
+      const roomIds = participantData?.map(p => p.chat_room_id) || [];
+      console.log('fetchChatRooms: User is participant in room IDs:', roomIds);
+
+      if (roomIds.length === 0) {
+        setChatRooms([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Get chat rooms
       const { data: roomsData, error: roomsError } = await supabase
         .from('chat_rooms')
         .select(`
@@ -78,22 +101,16 @@ export function ChatPage() {
             title
           )
         `)
-        .in('id', 
-          // Subquery to get room IDs where user is a participant
-          await supabase
-            .from('chat_participants')
-            .select('chat_room_id')
-            .eq('user_id', user.id)
-            .then(({ data }) => data?.map(p => p.chat_room_id) || [])
-        )
+        .in('id', roomIds)
         .order('created_at', { ascending: false });
 
       if (roomsError) {
-        console.error('Error fetching chat rooms:', roomsError);
+        console.error('fetchChatRooms: Error fetching chat_rooms:', roomsError);
         return;
       }
+      console.log('fetchChatRooms: Fetched chat_rooms:', roomsData);
 
-      // Get participant counts for each room
+      // Get participant counts and last message for each room
       const roomsWithCounts = await Promise.all(
         (roomsData || []).map(async (room) => {
           const { count } = await supabase
@@ -101,14 +118,13 @@ export function ChatPage() {
             .select('*', { count: 'exact', head: true })
             .eq('chat_room_id', room.id);
 
-          // Get last message
           const { data: lastMessage } = await supabase
-            .from('chat_room_messages')
-            .select('content, created_at')
+            .from('chat_messages')
+            .select('message, sent_at')
             .eq('chat_room_id', room.id)
-            .order('created_at', { ascending: false })
+            .order('sent_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           return {
             id: room.id,
@@ -120,23 +136,26 @@ export function ChatPage() {
             project_id: room.project_id,
             created_at: room.created_at,
             participant_count: count || 0,
-            last_message: lastMessage?.content || 'No messages yet',
-            last_message_time: lastMessage?.created_at ? 
-              new Date(lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+            last_message: lastMessage?.message || 'No messages yet',
+            last_message_time: lastMessage?.sent_at ? 
+              new Date(lastMessage.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
               '',
             project_title: room.projects?.title
           };
         })
       );
 
+      console.log('fetchChatRooms: Final roomsWithCounts:', roomsWithCounts);
+
       setChatRooms(roomsWithCounts);
-      
+
       // Auto-select first room if none selected
       if (roomsWithCounts.length > 0 && !selectedRoom) {
         setSelectedRoom(roomsWithCounts[0]);
+        console.log('fetchChatRooms: Auto-selected first room:', roomsWithCounts[0]);
       }
     } catch (error) {
-      console.error('Error fetching chat rooms:', error);
+      console.error('fetchChatRooms: Error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -147,7 +166,7 @@ export function ChatPage() {
       setIsLoadingMessages(true);
       
       const { data: messagesData, error: messagesError } = await supabase
-        .from('chat_room_messages')
+        .from('chat_messages')
         .select(`
           *,
           users (
@@ -155,7 +174,7 @@ export function ChatPage() {
           )
         `)
         .eq('chat_room_id', roomId)
-        .order('created_at', { ascending: true });
+        .order('sent_at', { ascending: true });
 
       if (messagesError) {
         console.error('Error fetching messages:', messagesError);
@@ -166,9 +185,9 @@ export function ChatPage() {
         id: msg.id,
         sender_id: msg.sender_id,
         sender_name: msg.sender_id === user?.id ? 'You' : (msg.users?.name || 'Unknown'),
-        content: msg.content,
+        content: msg.message,
         message_type: msg.message_type || 'text',
-        created_at: new Date(msg.created_at),
+        created_at: new Date(msg.sent_at),
         file_url: msg.file_url
       }));
 
@@ -186,12 +205,11 @@ export function ChatPage() {
 
     try {
       const { error } = await supabase
-        .from('chat_room_messages')
+        .from('chat_messages')
         .insert({
           chat_room_id: selectedRoom.id,
           sender_id: user.id,
-          content: newMessage.trim(),
-          message_type: 'text'
+          message: newMessage.trim(),
         });
 
       if (error) {
@@ -233,6 +251,15 @@ export function ChatPage() {
     room.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (room.project_title && room.project_title.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  console.log('ChatPage: Rendering', {
+    chatRooms,
+    selectedRoom,
+    messages,
+    isLoading,
+    isLoadingMessages,
+    user
+  });
 
   if (isLoading) {
     return (
