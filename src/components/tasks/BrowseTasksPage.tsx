@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTasks } from '../../hooks/useTasks';
 import { TaskApplicationModal } from './TaskApplicationModal';
 import { TaskDetailsModal } from './TaskDetailsModal';
+import { supabase } from '../../lib/supabase';
 
 export function BrowseTasksPage() {
   const { user } = useAuth();
@@ -36,6 +37,27 @@ export function BrowseTasksPage() {
     skills: [] as string[],
     tier: 'all'
   });
+
+  // Fetch applied tasks from database
+  useEffect(() => {
+    const fetchAppliedTasks = async () => {
+      const { data, error } = await supabase
+        .from("task_applications")
+        .select("task_id")
+        .eq("worker_id", user?.id); // Make sure user is available
+
+      if (error) {
+        console.error("Error fetching applied tasks:", error);
+      } else {
+        const appliedTaskIds = new Set(data?.map(app => app.task_id) || []);
+        setAppliedTasks(appliedTaskIds);
+      }
+    };
+
+    if (user?.id) {
+      fetchAppliedTasks();
+    }
+  }, [user?.id]);
 
   console.log('BrowseTasksPage: Rendering with tasks:', tasks.length, 'isLoading:', isLoading, 'error:', error);
 

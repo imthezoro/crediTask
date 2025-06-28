@@ -437,12 +437,20 @@ const applyToTask = async (taskId: string, proposal: any) => {
       
       // Fallback: try direct update
       try {
-        await supabase
+        const { data: currentBucket } = await supabase
           .from('application_buckets')
-          .update({
-            total_applications: supabase.sql`total_applications + 1`
-          })
-          .eq('id', bucket.id);
+          .select('total_applications')
+          .eq('id', bucket.id)
+          .single();
+        
+        if (currentBucket) {
+          await supabase
+            .from('application_buckets')
+            .update({
+              total_applications: (currentBucket.total_applications || 0) + 1
+            })
+            .eq('id', bucket.id);
+        }
       } catch (fallbackError) {
         console.error('useTasks: Fallback bucket update also failed:', fallbackError);
       }
