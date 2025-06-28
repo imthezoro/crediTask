@@ -23,7 +23,15 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export function ApplicationBucketsPage() {
   const { user } = useAuth();
-  const { buckets, isLoading, error, approveApplication, rejectApplication, markBucketAsReviewing } = useApplicationBuckets();
+  const { 
+    buckets, 
+    isLoading, 
+    error, 
+    approveApplication, 
+    rejectApplication, 
+    markBucketAsReviewing,
+    fetchSingleApplicationStatus 
+  } = useApplicationBuckets();
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -83,6 +91,30 @@ export function ApplicationBucketsPage() {
     }
   };
 
+  const handleViewApplication = async (application: any) => {
+    // Show loading state
+    setSelectedApplication({
+      ...application,
+      isLoading: true
+    });
+    setShowApplicationModal(true);
+
+    // Fetch fresh data from database
+    const freshApplication = await fetchSingleApplicationStatus(application.id);
+    
+    if (freshApplication) {
+      const updatedApplication = {
+        ...freshApplication,
+        isLoading: false
+      };
+      setSelectedApplication(updatedApplication);
+    } else {
+      // Fallback to cached data if fetch fails
+      const fallbackApplication = {...application, isLoading: false};
+      setSelectedApplication(fallbackApplication);
+    }
+  };
+
   const handleApproveApplication = async (bucketId: string, applicationId: string, workerId: string) => {
     const success = await approveApplication(bucketId, applicationId, workerId);
     if (success) {
@@ -97,11 +129,6 @@ export function ApplicationBucketsPage() {
       setShowApplicationModal(false);
       setSelectedApplication(null);
     }
-  };
-
-  const handleViewApplication = (application: any) => {
-    setSelectedApplication(application);
-    setShowApplicationModal(true);
   };
 
   if (isLoading) {
@@ -414,139 +441,157 @@ export function ApplicationBucketsPage() {
               </div>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-96">
-              <div className="space-y-6">
-                {/* Worker Info */}
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
-                    {selectedApplication.worker.avatar ? (
-                      <img
-                        src={selectedApplication.worker.avatar}
-                        alt={selectedApplication.worker.name}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="h-8 w-8 text-white" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-semibold text-gray-900">{selectedApplication.worker.name}</h4>
-                    <p className="text-gray-600">{selectedApplication.worker.email}</p>
-                    <div className="flex items-center space-x-1 mt-1">
-                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                      <span className="text-sm text-gray-600">{selectedApplication.worker.rating.toFixed(1)} rating</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cover Letter */}
-                {selectedApplication.proposal && (
-                  <div>
-                    <h5 className="font-medium text-gray-900 mb-2">Cover Letter</h5>
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-gray-700 whitespace-pre-wrap">{selectedApplication.proposal.coverLetter}</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Skills */}
-                <div>
-                  <h5 className="font-medium text-gray-900 mb-2">Skills</h5>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedApplication.worker.skills.map((skill: string) => (
-                      <span
-                        key={skill}
-                        className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-full"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Proposal Details */}
-                {selectedApplication.proposal && (
-                  <div>
-                    <h5 className="font-medium text-gray-900 mb-2">Proposal Details</h5>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-green-50 rounded-lg p-4">
-                        <div className="flex items-center space-x-2">
-                          <DollarSign className="h-5 w-5 text-green-600" />
-                          <span className="font-medium text-green-900">Proposed Rate</span>
+            {selectedApplication.isLoading ? (
+              <div className="p-6 flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                <span className="ml-2 text-gray-600">Loading latest status...</span>
+              </div>
+            ) : (
+              <>
+                <div className="p-6 overflow-y-auto max-h-96">
+                  <div className="space-y-6">
+                    {/* Worker Info */}
+                    <div className="flex items-center space-x-4">
+                      <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
+                        {selectedApplication.worker.avatar ? (
+                          <img
+                            src={selectedApplication.worker.avatar}
+                            alt={selectedApplication.worker.name}
+                            className="w-16 h-16 rounded-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-8 w-8 text-white" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-semibold text-gray-900">{selectedApplication.worker.name}</h4>
+                        <p className="text-gray-600">{selectedApplication.worker.email}</p>
+                        <div className="flex items-center space-x-1 mt-1">
+                          <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                          <span className="text-sm text-gray-600">{selectedApplication.worker.rating.toFixed(1)} rating</span>
                         </div>
-                        <p className="text-2xl font-bold text-green-900 mt-1">
-                          ${selectedApplication.proposal.proposedRate}
+                      </div>
+                    </div>
+
+                    {/* Cover Letter */}
+                    {selectedApplication.proposal && (
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Cover Letter</h5>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <p className="text-gray-700 whitespace-pre-wrap">{selectedApplication.proposal.coverLetter}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Skills */}
+                    <div>
+                      <h5 className="font-medium text-gray-900 mb-2">Skills</h5>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedApplication.worker.skills.map((skill: string) => (
+                          <span
+                            key={skill}
+                            className="px-3 py-1 text-sm bg-indigo-100 text-indigo-700 rounded-full"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Proposal Details */}
+                    {selectedApplication.proposal && (
+                      <div>
+                        <h5 className="font-medium text-gray-900 mb-2">Proposal Details</h5>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-green-50 rounded-lg p-4">
+                            <div className="flex items-center space-x-2">
+                              <DollarSign className="h-5 w-5 text-green-600" />
+                              <span className="font-medium text-green-900">Proposed Rate</span>
+                            </div>
+                            <p className="text-2xl font-bold text-green-900 mt-1">
+                              ${selectedApplication.proposal.proposedRate}
+                            </p>
+                          </div>
+                          
+                          {selectedApplication.proposal.estimatedHours && (
+                            <div className="bg-blue-50 rounded-lg p-4">
+                              <div className="flex items-center space-x-2">
+                                <Clock className="h-5 w-5 text-blue-600" />
+                                <span className="font-medium text-blue-900">Estimated Hours</span>
+                              </div>
+                              <p className="text-2xl font-bold text-blue-900 mt-1">
+                                {selectedApplication.proposal.estimatedHours}h
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Status Information */}
+                    {selectedApplication.status !== 'pending' && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h5 className="font-medium text-gray-900 mb-2">Application Status</h5>
+                        <div className="flex items-center space-x-2">
+                          {React.createElement(getApplicationStatusIcon(selectedApplication.status), { 
+                            className: `h-5 w-5 ${selectedApplication.status === 'approved' ? 'text-green-600' : 'text-red-600'}` 
+                          })}
+                          <span className="text-lg font-medium text-gray-900">
+                            {getApplicationStatusLabel(selectedApplication.status)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          This application has been processed and cannot be modified.
                         </p>
                       </div>
-                      
-                      {selectedApplication.proposal.estimatedHours && (
-                        <div className="bg-blue-50 rounded-lg p-4">
-                          <div className="flex items-center space-x-2">
-                            <Clock className="h-5 w-5 text-blue-600" />
-                            <span className="font-medium text-blue-900">Estimated Hours</span>
-                          </div>
-                          <p className="text-2xl font-bold text-blue-900 mt-1">
-                            {selectedApplication.proposal.estimatedHours}h
-                          </p>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
-                )}
-
-                {/* Status Information */}
-                {selectedApplication.status !== 'pending' && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h5 className="font-medium text-gray-900 mb-2">Application Status</h5>
-                    <div className="flex items-center space-x-2">
-                      {React.createElement(getApplicationStatusIcon(selectedApplication.status), { 
-                        className: `h-5 w-5 ${selectedApplication.status === 'approved' ? 'text-green-600' : 'text-red-600'}` 
-                      })}
-                      <span className="text-lg font-medium text-gray-900">
-                        {getApplicationStatusLabel(selectedApplication.status)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      This application has been processed and cannot be modified.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 bg-gray-50">
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowApplicationModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Close
-                </button>
+                </div>
                 
-                {/* Only show action buttons for pending applications */}
-                {selectedApplication.status === 'pending' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        const bucket = buckets.find(b => b.applications.some(a => a.id === selectedApplication.id));
-                        if (bucket) {
-                          handleApproveApplication(bucket.id, selectedApplication.id, selectedApplication.workerId);
-                        }
-                      }}
-                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      Approve Application
-                    </button>
-                    <button
-                      onClick={() => handleRejectApplication(selectedApplication.id)}
-                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      Reject
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+                <div className="p-6 border-t border-gray-200 bg-gray-50">
+                  {(() => {
+                    return (
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => setShowApplicationModal(false)}
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          Close
+                        </button>
+                        
+                        {/* Only show action buttons for pending applications */}
+                        {selectedApplication.status === 'pending' ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                const bucket = buckets.find(b => b.applications.some(a => a.id === selectedApplication.id));
+                                if (bucket) {
+                                  handleApproveApplication(bucket.id, selectedApplication.id, selectedApplication.workerId);
+                                }
+                              }}
+                              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                              Approve Application
+                            </button>
+                            <button
+                              onClick={() => handleRejectApplication(selectedApplication.id)}
+                              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        ) : (
+                          /* Show status for processed applications */
+                          <div className="flex-1 px-4 py-2 bg-gray-200 text-gray-600 rounded-lg text-center font-medium cursor-not-allowed">
+                            {selectedApplication.status === 'approved' ? 'Application Approved' : 'Application Rejected'}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -200,6 +200,17 @@ export function useApplicationBuckets() {
       const bucket = buckets.find(b => b.id === bucketId);
       if (!bucket) throw new Error('Bucket not found');
 
+      // Check if the application exists before updating
+      const { data: existingApp, error: checkError } = await supabase
+        .from('task_applications')
+        .select('*')
+        .eq('id', applicationId)
+        .single();
+
+      if (checkError) {
+        throw new Error('Application not found in database');
+      }
+
       // Update task assignment
       const { error: taskError } = await supabase
         .from('tasks')
@@ -212,14 +223,15 @@ export function useApplicationBuckets() {
       if (taskError) throw taskError;
 
       // Mark selected application as approved
-      const { error: appError } = await supabase
+      const { data: updateData, error: appError } = await supabase
         .from('task_applications')
         .update({ 
           status: 'approved',
           selected: true, 
           reviewed: true 
         })
-        .eq('id', applicationId);
+        .eq('id', applicationId)
+        .select();
 
       if (appError) throw appError;
 
@@ -343,6 +355,62 @@ export function useApplicationBuckets() {
     }
   };
 
+  const fetchSingleApplicationStatus = async (applicationId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('task_applications')
+        .select(`
+          *,
+          users!task_applications_worker_id_fkey (
+            name,
+            email,
+            skills,
+            rating,
+            avatar_url
+          )
+        `)
+        .eq('id', applicationId)
+        .single();
+
+      if (error) throw error;
+
+      // Also get the proposal data
+      const { data: proposalData } = await supabase
+        .from('proposals')
+        .select('*')
+        .eq('task_id', data.task_id)
+        .eq('worker_id', data.worker_id)
+        .single();
+
+      const result = {
+        id: data.id,
+        taskId: data.task_id,
+        workerId: data.worker_id,
+        bucketId: data.bucket_id,
+        status: data.status || 'pending',
+        selected: data.selected,
+        reviewed: data.reviewed,
+        appliedAt: new Date(data.applied_at),
+        worker: {
+          name: data.users?.name || '',
+          email: data.users?.email || '',
+          skills: data.users?.skills || [],
+          rating: data.users?.rating || 0,
+          avatar: data.users?.avatar_url
+        },
+        proposal: proposalData ? {
+          coverLetter: proposalData.cover_letter,
+          proposedRate: proposalData.proposed_rate,
+          estimatedHours: proposalData.estimated_hours
+        } : undefined
+      };
+
+      return result;
+    } catch (error) {
+      return null;
+    }
+  };
+
   return {
     buckets,
     isLoading,
@@ -350,6 +418,7 @@ export function useApplicationBuckets() {
     approveApplication,
     rejectApplication,
     markBucketAsReviewing,
-    refetch: fetchApplicationBuckets
+    refetch: fetchApplicationBuckets,
+    fetchSingleApplicationStatus
   };
 }
