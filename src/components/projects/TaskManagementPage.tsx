@@ -340,8 +340,9 @@ const handleAcceptAllAiSuggestions = async () => {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
-            <p className="text-gray-600 mt-1">{project.title}</p>
+            {/* <h1 className="text-3xl font-bold text-gray-900">Task Management</h1> */}
+<h2 className="text-3xl font-bold text-gray-900">{project.title}</h2>
+<p className="text-gray-600 mt-1 whitespace-pre-line break-words">{project.description}</p>
           </div>
         </div>
         

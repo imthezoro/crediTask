@@ -92,11 +92,8 @@ const handleRequirementAnswerChange = (questionIndex: number, answer: string) =>
     setIsSubmitting(true);
     try {
       // Combine requirement answers with form data
-      const detailedDescription = `${formData.description}\n\nRequirements Details:\n${
-        requirementQuestions.map((question, index) => 
-          `${question}\nAnswer: ${requirementAnswers[`question_${index}`] || 'Not answered'}`
-        ).join('\n\n')
-      }`;
+      const detailedDescription = formData.description;
+
 
       const project = await createProject({
         title: formData.title,
