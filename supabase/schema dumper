@@ -1,0 +1,1 @@
+Db schema dumber cli : supabase db dump --db-url "postgresql://postgres:[password for db]@@db.ugsdozwjchbllzrvobit.supabase.co:5432/postgres" -f my_supabase_schema.sql   
