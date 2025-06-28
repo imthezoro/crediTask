@@ -49,14 +49,14 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
 const analyzeRequirements = async () => {
   setIsAnalyzing(true);
   try {
-    const response = await fetch('http://localhost:5000/analyze', {
+    const response = await fetch('http://localhost:5000/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         description: `Title: ${formData.title}\n\nDescription: ${formData.description}` 
       }),
     });
-    console.log('Response:', response)
+    console.log('Response from analyze requirement gathering:', response)
 
     const data = await response.json();
     
@@ -66,6 +66,7 @@ const analyzeRequirements = async () => {
       data.follow_up_questions.forEach((question: string, index: number) => {
         initialAnswers[`question_${index}`] = '';
       });
+      console.log('Initial answers:', initialAnswers);
       setRequirementAnswers(initialAnswers);
     }
   } catch (error) {
@@ -102,6 +103,11 @@ const handleRequirementAnswerChange = (questionIndex: number, answer: string) =>
         description: detailedDescription,
         budget: parseFloat(formData.budget),
         tags: formData.tags,
+        requirements_form: requirementQuestions.map((q, i) => ({
+    question: q,
+    answer: requirementAnswers[`question_${i}`] || ''
+  }))
+
       });
 
       if (project) {

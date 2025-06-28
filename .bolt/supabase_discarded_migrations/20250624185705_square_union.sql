@@ -262,7 +262,7 @@ BEGIN
   RAISE NOTICE 'PASS: Direct chat has correct number of participants';
   
   -- Test 2: Create test project and task
-  INSERT INTO projects (id, client_id, title, description, budget, status)
+  INSERT INTO projects (id, client_id, title, description, budget, requirements_form, status)
   VALUES (gen_random_uuid(), test_user1_id, 'Test Project', 'Test Description', 1000, 'open')
   RETURNING id INTO test_project_id;
   
