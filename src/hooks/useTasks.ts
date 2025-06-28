@@ -235,206 +235,242 @@ const updateTaskStatus = async (taskId: string, status: Task['status'], assignee
     }
   };
 
-  const applyToTask = async (taskId: string, proposal: any) => {
-    if (!user) {
-      setError('You must be logged in to apply to tasks.');
+ // Fixed applyToTask function for useTasks hook
+const applyToTask = async (taskId: string, proposal: any) => {
+  if (!user) {
+    setError('You must be logged in to apply to tasks.');
+    return false;
+  }
+
+  try {
+    console.log('useTasks: Applying to task:', taskId, 'by user:', user.id);
+    setError(null); // Clear any previous errors
+    
+    // Validate required proposal fields
+    if (!proposal.cover_letter || proposal.cover_letter.trim().length === 0) {
+      setError('Cover letter is required.');
       return false;
     }
 
-    try {
-      console.log('useTasks: Applying to task:', taskId, 'by user:', user.id);
-      setError(null); // Clear any previous errors
-      
-      // Validate required proposal fields
-      if (!proposal.cover_letter || proposal.cover_letter.trim().length === 0) {
-        setError('Cover letter is required.');
-        return false;
-      }
+    if (!proposal.proposed_rate || proposal.proposed_rate <= 0) {
+      setError('A valid proposed rate is required.');
+      return false;
+    }
 
-      if (!proposal.proposed_rate || proposal.proposed_rate <= 0) {
-        setError('A valid proposed rate is required.');
-        return false;
-      }
+    // Get task details for validation and notifications
+    const { data: taskData, error: taskError } = await supabase
+      .from('tasks')
+      .select(`
+        *,
+        projects (
+          client_id,
+          title
+        )
+      `)
+      .eq('id', taskId)
+      .single();
 
-      // Get task details for validation and notifications
-      const { data: taskData, error: taskError } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          projects (
-            client_id,
-            title
-          )
-        `)
-        .eq('id', taskId)
-        .single();
+    if (taskError) {
+      console.error('useTasks: Error fetching task details:', taskError);
+      setError('Failed to fetch task details. Please try again.');
+      return false;
+    }
 
-      if (taskError) {
-        console.error('useTasks: Error fetching task details:', taskError);
-        setError('Failed to fetch task details. Please try again.');
-        return false;
-      }
+    if (!taskData) {
+      setError('Task not found.');
+      return false;
+    }
 
-      if (!taskData) {
-        setError('Task not found.');
-        return false;
-      }
+    // Check if task is still available
+    if (taskData.status !== 'open' || taskData.assignee_id) {
+      setError('This task is no longer available for applications.');
+      return false;
+    }
 
-      // Check if task is still available
-      if (taskData.status !== 'open' || taskData.assignee_id) {
-        setError('This task is no longer available for applications.');
-        return false;
-      }
+    // Check if user has already applied
+    const { data: existingApplication, error: appCheckError } = await supabase
+      .from('task_applications')
+      .select('id')
+      .eq('task_id', taskId)
+      .eq('worker_id', user.id)
+      .limit(1);
 
-      // Check if user has already applied
-      const { data: existingApplication, error: appCheckError } = await supabase
-        .from('task_applications')
-        .select('id')
-        .eq('task_id', taskId)
-        .eq('worker_id', user.id)
-        .limit(1);
+    if (appCheckError) {
+      console.error('useTasks: Error checking existing application:', appCheckError);
+      setError('Failed to check existing applications. Please try again.');
+      return false;
+    }
 
-      if (appCheckError) {
-        console.error('useTasks: Error checking existing application:', appCheckError);
-        setError('Failed to check existing applications. Please try again.');
-        return false;
-      }
+    if (existingApplication && existingApplication.length > 0) {
+      setError('You have already applied to this task.');
+      return false;
+    }
 
-      if (existingApplication && existingApplication.length > 0) {
-        setError('You have already applied to this task.');
-        return false;
-      }
+    // Check if user has already submitted a proposal
+    const { data: existingProposal, error: proposalCheckError } = await supabase
+      .from('proposals')
+      .select('id')
+      .eq('task_id', taskId)
+      .eq('worker_id', user.id)
+      .limit(1);
 
-      // Check if user has already submitted a proposal
-      const { data: existingProposal, error: proposalCheckError } = await supabase
-        .from('proposals')
-        .select('id')
-        .eq('task_id', taskId)
-        .eq('worker_id', user.id)
-        .limit(1);
+    if (proposalCheckError) {
+      console.error('useTasks: Error checking existing proposal:', proposalCheckError);
+      setError('Failed to check existing proposals. Please try again.');
+      return false;
+    }
 
-      if (proposalCheckError) {
-        console.error('useTasks: Error checking existing proposal:', proposalCheckError);
-        setError('Failed to check existing proposals. Please try again.');
-        return false;
-      }
+    if (existingProposal && existingProposal.length > 0) {
+      setError('You have already submitted a proposal for this task.');
+      return false;
+    }
 
-      if (existingProposal && existingProposal.length > 0) {
-        setError('You have already submitted a proposal for this task.');
-        return false;
-      }
+    // FIXED: Get or create application bucket with proper error handling
+    let bucket = null;
+    
+    // First, try to get existing bucket (use .maybeSingle() instead of .single())
+    const { data: existingBucket, error: bucketFetchError } = await supabase
+      .from('application_buckets')
+      .select('id')
+      .eq('task_id', taskId)
+      .maybeSingle(); // This won't throw an error if no rows found
 
-      // Get or create application bucket
-      let { data: bucket, error: bucketError } = await supabase
-        .from('application_buckets')
-        .select('id')
-        .eq('task_id', taskId)
-        .single();
+    if (bucketFetchError) {
+      console.error('useTasks: Error fetching application bucket:', bucketFetchError);
+      setError('Failed to process application. Please try again.');
+      return false;
+    }
 
-      if (bucketError && bucketError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('useTasks: Error fetching application bucket:', bucketError);
-        setError('Failed to process application. Please try again.');
-        return false;
-      }
-
+    if (existingBucket) {
+      bucket = existingBucket;
+      console.log('useTasks: Using existing bucket:', bucket.id);
+    } else {
       // Create bucket if it doesn't exist
-      if (!bucket) {
-        const { data: newBucket, error: createBucketError } = await supabase
-          .from('application_buckets')
-          .insert({
-            project_id: taskData.project_id,
-            task_id: taskId,
-            client_id: taskData.projects.client_id,
-            total_applications: 0,
-            reviewed_applications: 0,
-            approved_applications: 0,
-            rejected_applications: 0,
-            status: 'open'
-          })
-          .select('id')
-          .single();
-
-        if (createBucketError) {
-          console.error('useTasks: Error creating application bucket:', createBucketError);
-          setError('Failed to create application bucket. Please try again.');
-          return false;
-        }
-
-        bucket = newBucket;
-      }
-
-      // Insert proposal first
-      const { error: proposalError } = await supabase
-        .from('proposals')
-        .insert({
-          task_id: taskId,
-          worker_id: user.id,
-          cover_letter: proposal.cover_letter.trim(),
-          proposed_rate: proposal.proposed_rate,
-          estimated_hours: proposal.estimated_hours || null,
-          status: 'pending'
-        });
-
-      if (proposalError) {
-        console.error('useTasks: Error creating proposal:', proposalError);
-        setError('Failed to submit proposal. Please try again.');
-        return false;
-      }
-
-      // Insert task application
-      const { error: applicationError } = await supabase
-        .from('task_applications')
-        .insert({
-          task_id: taskId,
-          worker_id: user.id,
-          bucket_id: bucket.id,
-          status: 'pending',
-          selected: false,
-          reviewed: false
-        });
-
-      if (applicationError) {
-        console.error('useTasks: Error creating application:', applicationError);
-        setError('Failed to submit application. Please try again.');
-        return false;
-      }
-
-      // Update bucket application count
-      const { error: updateBucketError } = await supabase
+      console.log('useTasks: Creating new application bucket for task:', taskId);
+      
+      const { data: newBucket, error: createBucketError } = await supabase
         .from('application_buckets')
-        .update({
-          total_applications: supabase.sql`total_applications + 1`
+        .insert({
+          project_id: taskData.project_id,
+          task_id: taskId,
+          client_id: taskData.projects.client_id,
+          total_applications: 0,
+          reviewed_applications: 0,
+          approved_applications: 0,
+          rejected_applications: 0,
+          status: 'open'
         })
-        .eq('id', bucket.id);
+        .select('id')
+        .single();
 
-      if (updateBucketError) {
-        console.error('useTasks: Error updating bucket count:', updateBucketError);
-        // Don't fail the application for this, just log it
-      }
-
-      // Create notification for client
-      if (taskData.projects?.client_id && createNotification) {
-        try {
-          await createNotification(
-            taskData.projects.client_id,
-            'New Application Received',
-            `${user.name} submitted an application for "${taskData.title}"`,
-            'info'
-          );
-        } catch (notificationError) {
-          console.error('useTasks: Error creating notification:', notificationError);
-          // Don't fail the application for notification errors
+      if (createBucketError) {
+        console.error('useTasks: Error creating application bucket:', createBucketError);
+        
+        // More specific error handling for RLS policy violations
+        if (createBucketError.code === '42501') {
+          setError('Permission denied. You may not have the required permissions to apply to this task.');
+        } else {
+          setError('Failed to create application bucket. Please try again.');
         }
+        return false;
       }
 
-      console.log('useTasks: Successfully applied to task');
-      return true;
-    } catch (err) {
-      console.error('useTasks: Error in applyToTask:', err);
-      setError(err instanceof Error ? err.message : 'Failed to apply to task. Please try again.');
+      bucket = newBucket;
+      console.log('useTasks: Created new bucket:', bucket.id);
+    }
+
+    // Insert proposal first
+    const { error: proposalError } = await supabase
+      .from('proposals')
+      .insert({
+        task_id: taskId,
+        worker_id: user.id,
+        cover_letter: proposal.cover_letter.trim(),
+        proposed_rate: proposal.proposed_rate,
+        estimated_hours: proposal.estimated_hours || null,
+        status: 'pending'
+      });
+
+    if (proposalError) {
+      console.error('useTasks: Error creating proposal:', proposalError);
+      
+      // Handle specific RLS errors
+      if (proposalError.code === '42501') {
+        setError('Permission denied. You may not have the required permissions to submit proposals.');
+      } else {
+        setError('Failed to submit proposal. Please try again.');
+      }
       return false;
     }
-  };
+
+    // Insert task application
+    const { error: applicationError } = await supabase
+      .from('task_applications')
+      .insert({
+        task_id: taskId,
+        worker_id: user.id,
+        bucket_id: bucket.id,
+        status: 'pending',
+        selected: false,
+        reviewed: false
+      });
+
+    if (applicationError) {
+      console.error('useTasks: Error creating application:', applicationError);
+      
+      // Handle specific RLS errors
+      if (applicationError.code === '42501') {
+        setError('Permission denied. You may not have the required permissions to submit applications.');
+      } else {
+        setError('Failed to submit application. Please try again.');
+      }
+      return false;
+    }
+
+    // Update bucket application count using RPC function (safer than direct SQL)
+    const { error: updateBucketError } = await supabase
+      .rpc('increment_bucket_applications', { bucket_id: bucket.id });
+
+    if (updateBucketError) {
+      console.error('useTasks: Error updating bucket count:', updateBucketError);
+      // Don't fail the application for this, just log it
+      
+      // Fallback: try direct update
+      try {
+        await supabase
+          .from('application_buckets')
+          .update({
+            total_applications: supabase.sql`total_applications + 1`
+          })
+          .eq('id', bucket.id);
+      } catch (fallbackError) {
+        console.error('useTasks: Fallback bucket update also failed:', fallbackError);
+      }
+    }
+
+    // Create notification for client
+    if (taskData.projects?.client_id && createNotification) {
+      try {
+        await createNotification(
+          taskData.projects.client_id,
+          'New Application Received',
+          `${user.name} submitted an application for "${taskData.title}"`,
+          'info'
+        );
+      } catch (notificationError) {
+        console.error('useTasks: Error creating notification:', notificationError);
+        // Don't fail the application for notification errors
+      }
+    }
+
+    console.log('useTasks: Successfully applied to task');
+    return true;
+  } catch (err) {
+    console.error('useTasks: Error in applyToTask:', err);
+    setError(err instanceof Error ? err.message : 'Failed to apply to task. Please try again.');
+    return false;
+  }
+};
 
   return {
     tasks,
