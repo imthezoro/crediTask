@@ -28,6 +28,9 @@ export function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(null);
+  const { deleteProject } = useProjects();
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -123,7 +126,6 @@ export function ProjectsPage() {
             </button>
           </div>
         </div>
-
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -193,18 +195,42 @@ export function ProjectsPage() {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate">{project.title}</h3>
+<h3 className="text-lg font-semibold text-gray-900 line-clamp-1 break-words">{project.title}</h3>
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status)}`}>
                         {getStatusLabel(project.status)}
                       </span>
                     </div>
-                    <p className="text-gray-600 text-sm line-clamp-2">{project.description}</p>
+<p className="text-gray-600 text-sm line-clamp-2 break-words">{project.description}</p>
                   </div>
                   
                   <div className="relative">
-                    <button className="p-1 hover:bg-gray-100 rounded-lg">
-                      <MoreVertical className="h-4 w-4 text-gray-400" />
-                    </button>
+                    <div className="relative">
+  <button
+    onClick={() => setOpenMenuProjectId(openMenuProjectId === project.id ? null : project.id)}
+    className="p-1 hover:bg-gray-100 rounded-lg"
+  >
+    <MoreVertical className="h-4 w-4 text-gray-400" />
+  </button>
+
+  {openMenuProjectId === project.id && (
+    <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-md z-10">
+      <button
+        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+        onClick={async () => {
+  await deleteProject(project.id);
+  setOpenMenuProjectId(null);
+  window.location.reload(); 
+}}
+
+
+      >
+        <Archive className="h-4 w-4 text-gray-500" />
+        Archive
+      </button>
+    </div>
+  )}
+</div>
+
                   </div>
                 </div>
 
