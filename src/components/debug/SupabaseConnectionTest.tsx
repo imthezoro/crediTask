@@ -118,7 +118,7 @@ export function SupabaseConnectionTest() {
           message: 'Missing environment variables',
           details: `URL: ${config.hasUrl ? 'Present' : 'Missing'}, Key: ${config.hasKey ? 'Present' : 'Missing'}`
         };
-      }
+      } 
       
       if (!config.urlValid || !config.keyValid) {
         return {
@@ -126,9 +126,9 @@ export function SupabaseConnectionTest() {
           message: 'Invalid environment variables format',
           details: `URL Valid: ${config.urlValid}, Key Valid: ${config.keyValid}`
         };
-      }
+      } 
 
-      return {
+      return { 
         success: true,
         message: 'Environment variables are properly configured'
       };

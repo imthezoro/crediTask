@@ -64,7 +64,7 @@ export function TaskApplicationModal({ isOpen, onClose, task, onSubmit, errorMes
       
     } catch (error) {
       console.error('Error submitting application:', error);
-      // Error will be handled by the parent component
+      // Error will be handled by the parent component //kp
     } finally {
       setIsSubmitting(false);
     }
