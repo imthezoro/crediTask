@@ -371,7 +371,7 @@ BEGIN
     
     SELECT id INTO test_user1_id FROM users WHERE role = 'client' LIMIT 1;
     
-    INSERT INTO projects (id, client_id, title, description, budget, status)
+    INSERT INTO projects (id, client_id, title, description, budget,requirements_form, status)
     VALUES (gen_random_uuid(), test_user1_id, 'Test Validation Project', 'Test project for chat validation', 1000, 'open')
     RETURNING id INTO test_project_id;
     
