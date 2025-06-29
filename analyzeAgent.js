@@ -39,7 +39,7 @@ app.post('/test', (req, res) => {
 });
 });
 
-app.post('/taskcreation', (req, res) => {
+app.post('/test_taskcreation', (req, res) => {
   console.log('Task creation route hit')
   console.log('Request body:', req.body);
   res.json({
@@ -80,7 +80,7 @@ app.post('/taskcreation', (req, res) => {
 });
 
 
-app.post('/test_taskcreation', async (req, res) => {
+app.post('/taskcreation', async (req, res) => {
   try {
   console.log('Task creation route hit')
   console.log('Request body:', req.body);
@@ -98,6 +98,8 @@ Use the following format strictly:
     "dependency": "If any, mention the task_id this task depends on. Otherwise use null or empty string.",
     "success_criteria": "Clear metric or deliverable to verify successful task completion",
     "detailed_tasks": "A numbered or step-by-step breakdown of how this task should be performed"
+    "priority": "Priority of the task. Higher number means higher priority. 0 is the highest priority.",
+    "required_skills": ["List of skills required to complete this task"]
   },
   ...
 }
