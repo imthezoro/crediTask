@@ -99,7 +99,7 @@ export function Layout({ children, onShowOnboarding }: LayoutProps) {
               <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
                 <Briefcase className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">FreelanceFlow</span>
+              <span className="text-xl font-bold text-gray-900">Fractile</span>
             </button>
           </div>
 

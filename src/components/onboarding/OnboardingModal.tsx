@@ -21,7 +21,7 @@ interface OnboardingModalProps {
 
 const clientSteps = [
   {
-    title: 'Welcome to FreelanceFlow!',
+    title: 'Welcome to Fractile!',
     description: 'Let\'s get you started with posting your first project and finding the perfect freelancers.',
     icon: Briefcase,
     content: (
@@ -107,7 +107,7 @@ const clientSteps = [
 
 const workerSteps = [
   {
-    title: 'Welcome to FreelanceFlow!',
+    title: 'Welcome to Fractile!',
     description: 'Let\'s help you find amazing projects and start earning with your skills.',
     icon: Search,
     content: (

@@ -319,7 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading FreelanceFlow...</p>
+          <p className="text-gray-600 text-lg">Loading Fractile...</p>
           <p className="text-gray-500 text-sm mt-2">Initializing your workspace</p>
         </div>
       </div>
