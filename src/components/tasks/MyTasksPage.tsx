@@ -17,7 +17,7 @@ import { TaskSubmissionModal } from './TaskSubmissionModal';
 
 export function MyTasksPage() {
   const { user } = useAuth();
-  const { tasks, isLoading } = useTasks();
+  const { tasks, isLoading, refetch } = useTasks();
   const [activeTab, setActiveTab] = useState('assigned');
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
@@ -249,6 +249,9 @@ export function MyTasksPage() {
           setSelectedTask(null);
         }}
         task={selectedTask}
+        onSubmissionSuccess={() => {
+          refetch();
+        }}
       />
     </div>
   );

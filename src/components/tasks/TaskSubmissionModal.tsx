@@ -1,17 +1,22 @@
 import React, { useState } from 'react';
 import { X, Upload, FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface TaskSubmissionModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: any;
+  onSubmissionSuccess?: () => void;
 }
 
-export function TaskSubmissionModal({ isOpen, onClose, task }: TaskSubmissionModalProps) {
+export function TaskSubmissionModal({ isOpen, onClose, task, onSubmissionSuccess }: TaskSubmissionModalProps) {
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     comments: '',
-    files: [] as string[],
+    fileLinks: [''],
     links: ['']
   });
 
@@ -20,16 +25,126 @@ export function TaskSubmissionModal({ isOpen, onClose, task }: TaskSubmissionMod
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
     
     try {
-      // TODO: Implement submission logic
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      // Validate form data
+      if (!formData.comments.trim()) {
+        setError('Please provide a work description');
+        return;
+      }
+
+      // Check if at least one file link is provided
+      const validFileLinks = formData.fileLinks.filter(link => link.trim() !== '');
+      if (validFileLinks.length === 0) {
+        setError('Please provide at least one file link');
+        return;
+      }
+
+      const validLinks = formData.links.filter(link => link.trim() !== '');
+
+      // Combine all links (file links + other links)
+      const allLinks = [...validFileLinks, ...validLinks];
+
+      // Create submission record
+      const { data: submission, error: submissionError } = await supabase
+        .from('submissions')
+        .insert({
+          task_id: task.id,
+          worker_id: user!.id,
+          files: allLinks,
+          comments: formData.comments.trim(),
+          verified_by: null,
+          outcome: 'pending'
+        })
+        .select()
+        .single();
+
+      if (submissionError) {
+        console.error('Error creating submission:', submissionError);
+        
+        // Handle specific RLS errors
+        if (submissionError.code === '42501') {
+          setError('Permission denied. You may not have the required permissions to submit work.');
+        } else if (submissionError.code === '23505') {
+          setError('You have already submitted work for this task.');
+        } else {
+          setError('Failed to submit work. Please try again.');
+        }
+        return;
+      }
+
+      // Update task status to 'submitted'
+      const { error: taskUpdateError } = await supabase
+        .from('tasks')
+        .update({ status: 'submitted' })
+        .eq('id', task.id);
+
+      if (taskUpdateError) {
+        console.error('Error updating task status:', taskUpdateError);
+        // Don't fail the submission if task update fails, just log it
+      }
+
+      // Create notification for client
+      try {
+        const clientId = task.projects?.client_id;
+        if (clientId) {
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: clientId,
+              title: 'New Task Submission',
+              message: `${user!.name} submitted work for "${task.title}"`,
+              type: 'info'
+            });
+        }
+      } catch (notificationError) {
+        console.error('Error creating notification:', notificationError);
+        // Don't fail the submission for notification errors
+      }
+
+      // Reset form
+      setFormData({
+        comments: '',
+        fileLinks: [''],
+        links: ['']
+      });
+
+      // Close modal and trigger refresh
       onClose();
+      if (onSubmissionSuccess) {
+        onSubmissionSuccess();
+      }
     } catch (error) {
       console.error('Error submitting task:', error);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const addFileLinkField = () => {
+    setFormData({
+      ...formData,
+      fileLinks: [...formData.fileLinks, '']
+    });
+  };
+
+  const updateFileLink = (index: number, value: string) => {
+    const newFileLinks = [...formData.fileLinks];
+    newFileLinks[index] = value;
+    setFormData({
+      ...formData,
+      fileLinks: newFileLinks
+    });
+  };
+
+  const removeFileLink = (index: number) => {
+    const newFileLinks = formData.fileLinks.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      fileLinks: newFileLinks.length > 0 ? newFileLinks : ['']
+    });
   };
 
   const addLinkField = () => {
@@ -97,30 +212,53 @@ export function TaskSubmissionModal({ isOpen, onClose, task }: TaskSubmissionMod
               />
             </div>
 
-            {/* File Upload */}
+            {/* File Links */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Files & Attachments
+                File Links (Google Drive, Dropbox, etc.) *
               </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 mb-2">Drag and drop files here, or click to browse</p>
+              <div className="space-y-2">
+                {formData.fileLinks.map((link, index) => (
+                  <div key={index} className="flex space-x-2">
+                    <div className="flex-1 relative">
+                      <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="url"
+                        value={link}
+                        onChange={(e) => updateFileLink(index, e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="https://drive.google.com/file/d/..."
+                        required={index === 0}
+                      />
+                    </div>
+                    {formData.fileLinks.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeFileLink(index)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
                 <button
                   type="button"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                  onClick={addFileLinkField}
+                  className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
                 >
-                  Choose Files
+                  + Add another file link
                 </button>
-                <p className="text-xs text-gray-500 mt-2">
-                  Supported formats: PDF, DOC, DOCX, ZIP, PNG, JPG (Max 10MB each)
-                </p>
               </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Provide links to your work files (Google Drive, Dropbox, GitHub, etc.)
+              </p>
             </div>
 
-            {/* Links */}
+            {/* Additional Links */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Links (GitHub, Live Demo, etc.)
+                Additional Links (Live Demo, Documentation, etc.)
               </label>
               <div className="space-y-2">
                 {formData.links.map((link, index) => (
@@ -156,6 +294,13 @@ export function TaskSubmissionModal({ isOpen, onClose, task }: TaskSubmissionMod
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
+
             {/* Submission Guidelines */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-2">Submission Guidelines</h4>
@@ -180,13 +325,14 @@ export function TaskSubmissionModal({ isOpen, onClose, task }: TaskSubmissionMod
             <button
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              disabled={isSubmitting}
             >
-              Save Draft
+              Cancel
             </button>
             
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !formData.comments}
+              disabled={isSubmitting || !formData.comments.trim() || !formData.fileLinks[0].trim()}
               className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
             >
               {isSubmitting ? (
