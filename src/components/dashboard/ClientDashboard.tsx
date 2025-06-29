@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Plus, 
@@ -14,18 +14,50 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useProjects } from '../../hooks/useProjects';
 import { CreateProjectModal } from '../projects/CreateProjectModal';
-
-const stats = [
-  { name: 'Active Projects', value: '2', icon: FolderOpen, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-  { name: 'Total Spent', value: '$12,500', icon: DollarSign, color: 'text-green-600', bg: 'bg-green-50' },
-  { name: 'Tasks Completed', value: '14', icon: CheckCircle, color: 'text-amber-600', bg: 'bg-amber-50' },
-  { name: 'Success Rate', value: '94%', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50' }
-];
+import { supabase } from '../../lib/supabase';
 
 export function ClientDashboard() {
   const { user } = useAuth();
   const { projects, isLoading } = useProjects();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [stats, setStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?.id) return;
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const { data, error } = await supabase.rpc('get_project_stats', { client_id: user.id });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setStats(data[0]);
+        } else {
+          setStats({
+            total_projects: 0,
+            active_projects: 0,
+            completed_projects: 0,
+            total_spent: 0,
+            tasks_completed: 0,
+          });
+        }
+      } catch (err: any) {
+        setStatsError('Failed to load dashboard stats');
+        setStats({
+          total_projects: 0,
+          active_projects: 0,
+          completed_projects: 0,
+          total_spent: 0,
+          tasks_completed: 0,
+        });
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    if (user?.id) fetchStats();
+  }, [user?.id]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -53,6 +85,10 @@ export function ClientDashboard() {
     return Math.round((completedTasks / tasks.length) * 100);
   };
 
+  const successRate = stats && stats.tasks_completed && stats.total_projects
+    ? Math.round((stats.tasks_completed / (stats.total_projects || 1)) * 100)
+    : 0;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -72,19 +108,62 @@ export function ClientDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <div key={stat.name} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">{stat.value}</p>
-              </div>
-              <div className={`${stat.bg} ${stat.color} p-3 rounded-lg`}>
-                <stat.icon className="h-6 w-6" />
+        {statsLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-center min-h-[100px]">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            </div>
+          ))
+        ) : statsError ? (
+          <div className="col-span-4 text-center text-red-500">{statsError}</div>
+        ) : (
+          <>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Projects</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.active_projects}</p>
+                </div>
+                <div className="bg-indigo-50 text-indigo-600 p-3 rounded-lg">
+                  <FolderOpen className="h-6 w-6" />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Spent</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">${stats.total_spent?.toLocaleString()}</p>
+                </div>
+                <div className="bg-green-50 text-green-600 p-3 rounded-lg">
+                  <DollarSign className="h-6 w-6" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Tasks Completed</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.tasks_completed}</p>
+                </div>
+                <div className="bg-amber-50 text-amber-600 p-3 rounded-lg">
+                  <CheckCircle className="h-6 w-6" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Success Rate</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{successRate}%</p>
+                </div>
+                <div className="bg-purple-50 text-purple-600 p-3 rounded-lg">
+                  <TrendingUp className="h-6 w-6" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Recent Projects */}
