@@ -24,6 +24,7 @@ interface ChatRoom {
   last_message?: string;
   last_message_time?: string;
   project_title?: string;
+  participants: { id: string; name: string }[];
 }
 
 interface ChatMessage {
@@ -50,6 +51,7 @@ export function ChatPage() {
   useEffect(() => {
     if (user) {
       fetchChatRooms();
+      console.log("user",user);
     }
   }, [user]);
 
@@ -126,6 +128,44 @@ export function ChatPage() {
             .limit(1)
             .maybeSingle();
 
+          // Fetch participants (user id and name)
+          // For each user_id, get name from users table and store it
+          const { data: participantsData } = await supabase
+            .from('chat_participants')
+            .select('user_id')
+            .eq('chat_room_id', room.id);
+
+          let participantsWithNames: { id: string; name: string }[] = [];
+          if (participantsData && participantsData.length > 0) {
+            const userIds = participantsData
+              .map((p: any) => p.user_id)
+              .filter((id: string) => id !== user?.id);
+            console.log("userIds",userIds);
+            // For each user id in userIds, fetch the user name from the users table
+            let usersData: { id: string; name: string }[] = [];
+            // Fetch all user names in a single query instead of one-by-one
+            if (userIds.length > 0) {
+              const { data: usersDataResult } = await supabase
+              
+                .from('users')
+                .select('id, name')
+                .in('id', userIds);
+                console.log("usersDataResult",usersDataResult);
+              usersData = usersDataResult || [];
+            }
+            console.log("usersData",usersData);
+
+            participantsWithNames = usersData;
+          }
+
+          // Format participants as array of { id, name }
+          const participants = (participantsWithNames || [])
+            .filter((p: any) => p.user_id !== user?.id)
+            .map((p: any) => ({
+              id: p.user_id,
+              name: p.users?.name || 'Unknown'
+            }));
+
           return {
             id: room.id,
             name: room.name || (room.is_group ? 
@@ -140,14 +180,19 @@ export function ChatPage() {
             last_message_time: lastMessage?.sent_at ? 
               new Date(lastMessage.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
               '',
-            project_title: room.projects?.title
+            project_title: room.projects?.title,
+            participants
           };
         })
       );
 
       console.log('fetchChatRooms: Final roomsWithCounts:', roomsWithCounts);
+      console.log("here",selectedRoom);
 
       setChatRooms(roomsWithCounts);
+      if (selectedRoom) {
+        fetchMessages(selectedRoom.id);
+      }
 
       // Auto-select first room if none selected
       if (roomsWithCounts.length > 0 && !selectedRoom) {
@@ -320,7 +365,14 @@ export function ChatPage() {
                     ) : (
                       <Users className="h-4 w-4 text-gray-400" />
                     )}
-                    <span className="font-medium text-gray-900 truncate">{room.name}</span>
+                    <span className="font-medium text-gray-900 truncate">
+                      {room.is_group
+                        ? room.name
+                        : room.participants
+                            .filter((p) => p.id !== user?.id)
+                            .map((p) => p.name)
+                            .join(', ') || 'Direct Chat'}
+                    </span>
                   </div>
                 </div>
                 
