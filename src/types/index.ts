@@ -39,6 +39,10 @@ export interface Task {
   estimated_hours?: number;
   required_skills?: string[];
   auto_assign?: boolean;
+  detailed_description?: string;
+  priority?: number;
+  success_criteria?: string;
+  budget?: number;
 }
 
 export interface Submission {

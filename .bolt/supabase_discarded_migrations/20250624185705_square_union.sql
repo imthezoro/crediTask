@@ -303,7 +303,7 @@ BEGIN
   RAISE NOTICE 'PASS: add_user_to_chat prevents duplicates';
   
   -- Test 6: Create task and test handle_task_assignment
-  INSERT INTO tasks (id, project_id, title, description, weight, payout, assignee_id, status)
+  INSERT INTO tasks (id, project_id, title, description, weight, payout, assignee_id, status, success_criteria, detailed_tasks, priority)
   VALUES (gen_random_uuid(), test_project_id, 'Test Task', 'Test Task Description', 5, 100, test_user2_id, 'assigned')
   RETURNING id INTO test_task_id;
   

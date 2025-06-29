@@ -33,6 +33,7 @@ interface Task {
   success_criteria: string,
   priority?: number,
   detailed_tasks: string,
+  budget: number,
   status: 'open' | 'assigned' | 'submitted' | 'approved' | 'rejected';
   auto_assign: boolean;
   application_window_minutes: number;
@@ -71,6 +72,7 @@ export function TaskManagementPage() {
     detailed_tasks: '',
     priority: 0,
     status: 'open',
+    budget: 0,
     auto_assign: false,
     application_window_minutes: 60
   });
@@ -122,6 +124,7 @@ export function TaskManagementPage() {
         detailed_tasks: task.detailed_tasks,
         priority: task.priority,
         status: task.status,
+        budget: task.budget,
         auto_assign: task.auto_assign || false,
         application_window_minutes: task.application_window_minutes || 60
       }));
@@ -165,6 +168,7 @@ const generateAiSuggestions = async () => {
       required_skills: task.required_skills, // optionally parsed from description
       success_criteria: task.success_criteria,
       detailed_tasks: task.detailed_tasks,
+      budget: parseFloat(task.budget) || 100,
       priority: task.priority,
       status: 'open',
       auto_assign: false,
@@ -203,7 +207,11 @@ const generateAiSuggestions = async () => {
           hourly_rate: validatedTaskData.hourly_rate,
           estimated_hours: validatedTaskData.estimated_hours,
           required_skills: validatedTaskData.required_skills,
+          success_criteria: validatedTaskData.success_criteria,
+          detailed_tasks: validatedTaskData.detailed_tasks,
+          priority: validatedTaskData.priority,
           status: validatedTaskData.status,
+          budget: validatedTaskData.budget,
           auto_assign: validatedTaskData.auto_assign,
           application_window_minutes: validatedTaskData.application_window_minutes
         })
@@ -279,7 +287,8 @@ const generateAiSuggestions = async () => {
         priority: 0,
         status: 'open',
         auto_assign: false,
-        application_window_minutes: 60
+        application_window_minutes: 60,
+        budget: 0,
       });
     }
   };

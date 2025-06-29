@@ -1,3 +1,5 @@
+import { NumberDomain } from "recharts/types/util/types";
+
 export interface Database {
   public: {
     Tables: {
@@ -91,6 +93,11 @@ export interface Database {
           deadline: string | null;
           created_at: string;
           updated_at: string;
+          priority: number,
+          required_skills: string[],
+          success_criteria: string,
+          detailed_tasks: string,
+          budget: number,
         };
         Insert: {
           id?: string;
@@ -105,6 +112,11 @@ export interface Database {
           deadline?: string | null;
           created_at?: string;
           updated_at?: string;
+          priority: number,
+          required_skills: string[],
+          success_criteria: string,
+          detailed_tasks: string,
+          budget: number,
         };
         Update: {
           id?: string;
@@ -119,6 +131,12 @@ export interface Database {
           deadline?: string | null;
           created_at?: string;
           updated_at?: string;
+          priority: number,
+          required_skills: string[],
+          success_criteria: string,
+          detailed_tasks: string,
+          budget: number,
+
         };
       };
       submissions: {

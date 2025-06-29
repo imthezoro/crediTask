@@ -91,7 +91,11 @@ export function useTasks(projectId?: string) {
         hourly_rate: task.hourly_rate,
         estimated_hours: task.estimated_hours,
         required_skills: task.required_skills || [],
-        auto_assign: task.auto_assign
+        auto_assign: task.auto_assign,
+        success_criteria: task.success_criteria,
+        detailed_tasks: task.detailed_tasks,
+        budget: task.budget,
+        priority: task.priority,
       }));
 
       console.log('useTasks: Formatted tasks:', formattedTasks);
