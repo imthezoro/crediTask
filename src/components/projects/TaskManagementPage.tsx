@@ -40,6 +40,7 @@ interface Project {
   title: string;
   description: string;
   budget: number;
+  tags: [],
   requirements_form: [];
 }
 
@@ -128,6 +129,7 @@ const generateAiSuggestions = async () => {
   if (!project) return;
 
   setIsGeneratingAi(true);
+  console.log(project)
 
   try {
     const response = await fetch('http://localhost:5000/taskcreation', {
@@ -137,6 +139,8 @@ const generateAiSuggestions = async () => {
         title: project.title,
         description: project.description,
         budget: project.budget,
+        requirements_form: project.requirements_form,
+        tags: project.tags,
         completion_date: new Date().toISOString() // replace with actual if available
       })
     });

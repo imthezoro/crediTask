@@ -13,7 +13,6 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Add test route HERE:
 app.post('/test', (req, res) => {
   console.log('Test route hit!');
   const json_test = {"Response": {
@@ -32,13 +31,17 @@ app.post('/test', (req, res) => {
 }};
   res.json({
   "follow_up_questions": [
-    'test question 1?',
-    'test question 2?'  ]
+    'What is the main problem this platform is aiming to solve for agents, homeowners, and potential buyers or renters?',
+    'Who are the primary users of this platform? Are they real estate agents, homeowners, or potential buyers and renters?',
+    'What are the key features of the platform? For example, should there be a feature to schedule property viewings or to directly contact the agent or homeowner?',
+    'What actions should users be able to perform on the platform? For instance, should they be able to save their favourite properties or share listings on social media?'
+  ]
 });
 });
 
-app.post('/taskcreation', (req, res) => {
+app.post('/test_taskcreation', (req, res) => {
   console.log('Task creation route hit')
+  console.log('Request body:', req.body);
   res.json(
   { 
     "task_id1": {"title":"task tile",
@@ -51,12 +54,65 @@ app.post('/taskcreation', (req, res) => {
 });
 
 
+app.post('/taskcreation', async (req, res) => {
+  try {
+  console.log('Task creation route hit')
+  console.log('Request body:', req.body);
+  const project = req.body;
+    const systemPrompt = `
+You are a task decomposition expert. Your job is to break down a given project into smaller, independent, parallel-executable tasks that together complete the overall project. Each task should be focused, unambiguous, and contain key metadata needed for planning and tracking.
 
+Use the following format strictly:
+{
+  "task_id1": {
+    "title": "Short clear task title",
+    "description": "Detailed explanation of the task and what it accomplishes",
+    "estimated_number_of_hours": "Estimated number of hours to complete this task",
+    "budget": "Weighted budget allocated for this task based on effort (in USD)",
+    "dependency": "If any, mention the task_id this task depends on. Otherwise use null or empty string.",
+    "success_criteria": "Clear metric or deliverable to verify successful task completion",
+    "detailed_tasks": "A numbered or step-by-step breakdown of how this task should be performed"
+  },
+  ...
+}
+
+Respond only with a valid JSON object following this format. Do not include any explanations or extra text.
+
+Here is the project information:
+
+- **Title**: ${project.title}
+- **Description**: ${project.description}
+- **Budget**: $${project.budget}
+- **Completion Date**: ${project.completion_date}
+- **Tags / Tech Stack**: ${project.tags.join(', ')}
+
+- **Requirement Answers**:
+${project.requirements_form.map((item, i) => `${i + 1}. ${item.question}\nAnswer: ${item.answer}`).join('\n\n')}
+
+Start the task breakdown now.
+`;
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Project Description:` },
+      ],
+      temperature: 0.4,
+    });
+
+    const json = JSON.parse(response.choices[0].message?.content || '{}');
+    console.log('Response:', json);
+    res.json(json);
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Failed to analyze description' });
+  }
+});
 
 
 app.post('/analyze', async (req, res) => {
   try {
-      console.log('Analyze route hit');
+  console.log('Analyze route hit');
   console.log('Request body:', req.body);
     const { description } = req.body;
     const systemPrompt = `You are a highly skilled technical analyst responsible for collecting clear and complete requirements for software projects. Your goal is to ask thoughtful and structured follow-up questions based on the user's project description to help developers fully understand what needs to be built.
