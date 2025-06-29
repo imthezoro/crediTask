@@ -19,6 +19,39 @@ export function LoginForm() {
     }
   }, [user, isLoading, navigate]);
 
+  // Parallax background animation
+  useEffect(() => {
+    let animationFrameId: number;
+    let y = 0;
+    const speed = 0.1; // Adjust for slower/faster scroll
+    const animate = () => {
+      y += speed;
+      const bg = document.getElementById('login-bg');
+      if (bg) {
+        bg.style.backgroundPosition = `center ${y}px`;
+      }
+      animationFrameId = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
+  // Try to play music after user interaction
+  useEffect(() => {
+    const audio = document.getElementById('login-audio') as HTMLAudioElement | null;
+    if (!audio) return;
+    audio.volume = 0.5;
+    const tryPlay = () => {
+      audio.play().catch(() => {});
+    };
+    window.addEventListener('click', tryPlay);
+    window.addEventListener('keydown', tryPlay);
+    return () => {
+      window.removeEventListener('click', tryPlay);
+      window.removeEventListener('keydown', tryPlay);
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -44,8 +77,14 @@ export function LoginForm() {
   // Show loading while checking if user is already authenticated
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-amber-50 px-4">
-        <div className="text-center">
+      <div id="login-bg" className="min-h-screen flex items-center justify-center px-4" style={{
+        backgroundImage: 'url(https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1500&q=80)',
+        backgroundSize: 'cover',
+        backgroundAttachment: 'fixed',
+        backgroundRepeat: 'no-repeat',
+        transition: 'background-position 0.2s',
+      }}>
+        <div className="text-center bg-white bg-opacity-40 backdrop-blur-md rounded-xl p-8 shadow-2xl">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
           <p className="text-gray-600">Checking authentication...</p>
         </div>
@@ -59,11 +98,26 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-amber-50 px-4">
+    <div id="login-bg" className="min-h-screen flex items-center justify-center px-4" style={{
+      backgroundImage: 'url(https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1500&q=80)',
+      backgroundSize: 'cover',
+      backgroundAttachment: 'fixed',
+      backgroundRepeat: 'no-repeat',
+      transition: 'background-position 0.2s',
+    }}>
+      {/* Peaceful background music */}
+      <audio
+        id="login-audio"
+        src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b5b5b4e7.mp3"
+        autoPlay
+        loop
+        style={{ display: 'none' }}
+        title="Peaceful background music"
+      />
       <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
+        <div className="text-center bg-white bg-opacity-40 backdrop-blur-md rounded-2xl p-8 shadow-2xl animate-fade-in">
           <div className="flex justify-center">
-            <div className="h-12 w-12 rounded-xl bg-indigo-600 flex items-center justify-center">
+            <div className="h-12 w-12 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg">
               <Briefcase className="h-7 w-7 text-white" />
             </div>
           </div>
@@ -72,8 +126,7 @@ export function LoginForm() {
             Sign in to your Fractile account
           </p>
         </div>
-
-        <div className="bg-white py-8 px-6 shadow-xl rounded-2xl border border-gray-100">
+        <div className="bg-white bg-opacity-60 backdrop-blur-lg rounded-2xl p-8 shadow-2xl animate-fade-in-up">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
