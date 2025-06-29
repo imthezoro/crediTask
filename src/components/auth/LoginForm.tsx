@@ -19,16 +19,32 @@ export function LoginForm() {
     }
   }, [user, isLoading, navigate]);
 
-  // Parallax background animation
+  // Parallax background animation (now smooth zoom in and out)
   useEffect(() => {
     let animationFrameId: number;
-    let y = 0;
-    const speed = 0.1; // Adjust for slower/faster scroll
+    let scale = 1;
+    const minScale = 1;
+    const maxScale = 1.25; // Maximum zoom (e.g., 125%)
+    let zoomingIn = true;
+    const speed = 0.0004; // Slower for a smoother effect
     const animate = () => {
-      y += speed;
+      if (zoomingIn) {
+        scale += speed;
+        if (scale >= maxScale) {
+          scale = maxScale;
+          zoomingIn = false;
+        }
+      } else {
+        scale -= speed;
+        if (scale <= minScale) {
+          scale = minScale;
+          zoomingIn = true;
+        }
+      }
       const bg = document.getElementById('login-bg');
       if (bg) {
-        bg.style.backgroundPosition = `center ${y}px`;
+        bg.style.backgroundSize = `${scale * 100}%`;
+        bg.style.backgroundPosition = 'center center';
       }
       animationFrameId = requestAnimationFrame(animate);
     };
@@ -121,7 +137,7 @@ export function LoginForm() {
               <Briefcase className="h-7 w-7 text-white" />
             </div>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h2>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Welcome</h2>
           <p className="mt-2 text-sm text-gray-600">
             Sign in to your Fractile account
           </p>
