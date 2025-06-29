@@ -175,7 +175,8 @@ export function TaskManagementPage() {
         title: project.title,
         description: project.description,
         budget: project.budget,
-        completion_date: new Date().toISOString() // replace with actual if available
+        requirements_form: project.requirements_form, 
+        tags: project.tags,
       })
     });
 
