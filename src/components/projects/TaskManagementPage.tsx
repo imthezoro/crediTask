@@ -30,6 +30,9 @@ interface Task {
   hourly_rate?: number;
   estimated_hours?: number;
   required_skills: string[];
+  success_criteria: string,
+  priority?: number,
+  detailed_tasks: string,
   status: 'open' | 'assigned' | 'submitted' | 'approved' | 'rejected';
   auto_assign: boolean;
   application_window_minutes: number;
@@ -64,6 +67,9 @@ export function TaskManagementPage() {
     payout: 0,
     pricing_type: 'fixed',
     required_skills: [],
+    success_criteria: '',
+    detailed_tasks: '',
+    priority: 0,
     status: 'open',
     auto_assign: false,
     application_window_minutes: 60
@@ -112,6 +118,9 @@ export function TaskManagementPage() {
         hourly_rate: task.hourly_rate,
         estimated_hours: task.estimated_hours,
         required_skills: task.required_skills || [],
+        success_criteria: task.success_criteria,
+        detailed_tasks: task.detailed_tasks,
+        priority: task.priority,
         status: task.status,
         auto_assign: task.auto_assign || false,
         application_window_minutes: task.application_window_minutes || 60
@@ -153,7 +162,10 @@ const generateAiSuggestions = async () => {
       weight: 1,
       payout: parseFloat(task.budget) || 100,
       pricing_type: 'fixed',
-      required_skills: [], // optionally parsed from description
+      required_skills: task.required_skills, // optionally parsed from description
+      success_criteria: task.success_criteria,
+      detailed_tasks: task.detailed_tasks,
+      priority: task.priority,
       status: 'open',
       auto_assign: false,
       application_window_minutes: 60,
@@ -262,6 +274,9 @@ const generateAiSuggestions = async () => {
         payout: 0,
         pricing_type: 'fixed',
         required_skills: [],
+        success_criteria: '',
+        detailed_tasks: '',
+        priority: 0,
         status: 'open',
         auto_assign: false,
         application_window_minutes: 60
@@ -288,15 +303,14 @@ const handleAcceptAllAiSuggestions = async () => {
   );
 
   for (const suggestion of newSuggestions) {
-    const success = await createTask(suggestion);
-    if (success) {
-      await fetchTasks();
-    }
+    await createTask(suggestion);
   }
 
+  await fetchTasks(); // ✅ Refresh task list once after all
   setShowAiSuggestions(false);
   setAiSuggestions([]);
 };
+
 
 
   const getStatusColor = (status: string) => {
@@ -428,7 +442,18 @@ const handleAcceptAllAiSuggestions = async () => {
                   <h4 className="font-medium text-gray-900">{suggestion.title}</h4>
                   <span className="text-sm font-medium text-green-600">${suggestion.payout}</span>
                 </div>
-                <p className="text-sm text-gray-600 mb-3">{suggestion.description}</p>
+<div className="text-sm text-gray-700 space-y-2 mb-3">
+  <p><strong>Description:</strong> {suggestion.description}</p>
+  <p><strong>Estimated Hours:</strong> {suggestion.estimated_hours}</p>
+  <p><strong>Success Criteria:</strong> {suggestion.success_criteria}</p>
+  <p><strong>Detailed Tasks:</strong> {suggestion.detailed_tasks}</p>
+  <p><strong>Priority:</strong> P{suggestion.priority}</p>\
+  {suggestion.required_skills?.length > 0 && (
+    <p>
+      <strong>Skills:</strong> {suggestion.required_skills.join(', ')}
+    </p>
+  )}
+</div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 text-sm text-gray-500">
                     <Clock className="h-4 w-4" />
@@ -488,6 +513,9 @@ const handleAcceptAllAiSuggestions = async () => {
                       <div className="flex items-center text-sm text-gray-600">
                         <DollarSign className="h-4 w-4 mr-1 text-green-600" />
                         <span className="font-medium">${task.payout}</span>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                          <span className="font-medium">Priority: P{task.priority ?? 3}</span>
                       </div>
                       <div className="flex items-center text-sm text-gray-600">
                         <Clock className="h-4 w-4 mr-1 text-blue-600" />

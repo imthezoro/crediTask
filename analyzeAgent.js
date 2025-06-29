@@ -39,22 +39,48 @@ app.post('/test', (req, res) => {
 });
 });
 
-app.post('/test_taskcreation', (req, res) => {
+app.post('/taskcreation', (req, res) => {
   console.log('Task creation route hit')
   console.log('Request body:', req.body);
-  res.json(
-  { 
-    "task_id1": {"title":"task tile",
-       "description":"task description", 
-       "estimated_number_of_hours": "5", 
-       "budget": "1", 
-       "dependency": "2", 
-       "success_criteria": "2"}, 
+  res.json({
+  task_1: {
+    title: 'User Interface Design',
+    description: 'Design the UI for homepage, search, listing, and profile pages.',
+    estimated_number_of_hours: '80',
+    budget: '1000',
+    dependency: '',
+    priority: 0,
+    success_criteria: 'Interactive Figma prototype covering all major screens',
+    detailed_tasks: '1. Create wireframes\n2. Design mockups\n3. Add interactivity\n4. Review with stakeholders',
+    required_skills: ['UI Design', 'Figma', 'Prototyping']
+  },
+  task_2: {
+    title: 'Backend API Development',
+    description: 'Develop RESTful APIs for user management and listings.',
+    estimated_number_of_hours: '120',
+    budget: '1200',
+    dependency: '',
+    priority: 1,
+    success_criteria: 'All API endpoints pass integration tests',
+    detailed_tasks: '1. Set up DB schema\n2. Implement endpoints\n3. Write unit tests\n4. Setup CI/CD',
+    required_skills: ['Node.js', 'Express', 'PostgreSQL']
+  },
+  task_3: {
+    title: 'Authentication System',
+    description: 'Implement user signup, login, and session management.',
+    estimated_number_of_hours: '60',
+    budget: '800',
+    dependency: 'task_2',
+    priority: 2,
+    success_criteria: 'Working login/signup with JWT and session handling',
+    detailed_tasks: '1. Build auth endpoints\n2. Add JWT middleware\n3. Connect frontend\n4. Validate flows',
+    required_skills: ['Auth', 'JWT', 'API Integration']
+  }
 });
 });
 
 
-app.post('/taskcreation', async (req, res) => {
+app.post('/test_taskcreation', async (req, res) => {
   try {
   console.log('Task creation route hit')
   console.log('Request body:', req.body);
