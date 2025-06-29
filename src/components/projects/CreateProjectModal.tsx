@@ -109,6 +109,7 @@ const handleRequirementAnswerChange = (questionIndex: number, answer: string) =>
 
       if (project) {
         onClose();
+        window.location.reload();
         // Reset form
         setFormData({
           title: '',

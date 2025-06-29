@@ -18,6 +18,7 @@ import { ProfilePage } from './components/profile/ProfilePage';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { ApplicationBucketsPage } from './components/applications/ApplicationBucketsPage';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
+import { autoAssignCron } from './services/autoAssignCron';
 
 function DashboardRouter() {
   const { user } = useAuth();
@@ -100,6 +101,24 @@ function AppContent() {
       // Reset onboarding state when user logs out
       setShowOnboarding(false);
     }
+  }, [user?.id, user?.onboarding_completed]);
+
+  // Handle auto-assign cron service
+  useEffect(() => {
+    if (user && user.onboarding_completed !== false) {
+      // Start cron when user is authenticated and has completed onboarding
+      console.log('AppContent: Starting auto-assign cron service');
+      autoAssignCron.start();
+    } else {
+      // Stop cron when user logs out or hasn't completed onboarding
+      console.log('AppContent: Stopping auto-assign cron service');
+      autoAssignCron.stop();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      autoAssignCron.stop();
+    };
   }, [user?.id, user?.onboarding_completed]);
 
   const handleOnboardingComplete = () => {

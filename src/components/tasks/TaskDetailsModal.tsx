@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   DollarSign, 
@@ -11,6 +11,8 @@ import {
   Tag,
   Send
 } from 'lucide-react';
+import { AutoAssignmentTimer } from './AutoAssignmentTimer';
+import { supabase } from '../../lib/supabase';
 
 interface TaskDetailsModalProps {
   isOpen: boolean;
@@ -19,12 +21,79 @@ interface TaskDetailsModalProps {
   onApply: () => void;
 }
 
+interface TimerData {
+  id: string;
+  application_window_minutes: number;
+  window_end: string;
+  status: 'active' | 'completed' | 'cancelled';
+  extensions_count: number;
+  max_extensions: number;
+}
+
 export function TaskDetailsModal({ isOpen, onClose, task, onApply }: TaskDetailsModalProps) {
+  const [timerData, setTimerData] = useState<TimerData | null>(null);
+  const [isLoadingTimer, setIsLoadingTimer] = useState(false);
+
+  // Load timer data if task has auto-assignment
+  useEffect(() => {
+    const loadTimerData = async () => {
+      if (!task?.auto_assign) {
+        setTimerData(null);
+        return;
+      }
+
+      setIsLoadingTimer(true);
+      try {
+        const { data, error } = await supabase
+          .from('auto_assignment_timers')
+          .select('*')
+          .eq('task_id', task.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+          console.error('Error loading timer data:', error);
+        }
+
+        setTimerData(data);
+      } catch (error) {
+        console.error('Error loading timer data:', error);
+      } finally {
+        setIsLoadingTimer(false);
+      }
+    };
+
+    if (isOpen && task) {
+      loadTimerData();
+    }
+  }, [isOpen, task?.id, task?.auto_assign]);
+
+  const handleTimerUpdate = () => {
+    // Refresh timer data
+    if (task?.auto_assign) {
+      const loadTimerData = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('auto_assignment_timers')
+            .select('*')
+            .eq('task_id', task.id)
+            .single();
+
+          if (!error) {
+            setTimerData(data);
+          }
+        } catch (error) {
+          console.error('Error refreshing timer data:', error);
+        }
+      };
+      loadTimerData();
+    }
+  };
+
   if (!isOpen || !task) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
           <div className="flex-1">
@@ -60,6 +129,21 @@ export function TaskDetailsModal({ isOpen, onClose, task, onApply }: TaskDetails
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Auto-Assignment Timer */}
+              {task.auto_assign && timerData && (
+                <div className="mb-6">
+                  <AutoAssignmentTimer
+                    taskId={task.id}
+                    applicationWindowMinutes={timerData.application_window_minutes}
+                    windowEnd={timerData.window_end}
+                    status={timerData.status}
+                    extensionsCount={timerData.extensions_count}
+                    maxExtensions={timerData.max_extensions}
+                    onTimerUpdate={handleTimerUpdate}
+                  />
+                </div>
+              )}
+
               {/* Description */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">Task Description</h3>

@@ -14,10 +14,12 @@ import {
   Loader2,
   Settings,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { CompactTimer } from '../tasks/CompactTimer';
 
 interface Task {
   id?: string;
@@ -37,6 +39,15 @@ interface Task {
   status: 'open' | 'assigned' | 'submitted' | 'approved' | 'rejected';
   auto_assign: boolean;
   application_window_minutes: number;
+}
+
+interface TimerData {
+  id: string;
+  application_window_minutes: number;
+  window_end: string;
+  status: 'active' | 'completed' | 'cancelled';
+  extensions_count: number;
+  max_extensions: number;
 }
 
 interface Project {
@@ -60,6 +71,7 @@ export function TaskManagementPage() {
   const [aiSuggestions, setAiSuggestions] = useState<Task[]>([]);
   const [showAiSuggestions, setShowAiSuggestions] = useState(false);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [timerData, setTimerData] = useState<Record<string, TimerData>>({});
 
   const [newTask, setNewTask] = useState<Task>({
     title: '',
@@ -100,6 +112,8 @@ export function TaskManagementPage() {
   };
 
   const fetchTasks = async () => {
+    if (!projectId) return;
+
     try {
       const { data, error } = await supabase
         .from('tasks')
@@ -109,7 +123,18 @@ export function TaskManagementPage() {
 
       if (error) throw error;
 
-      const formattedTasks = data.map(task => ({
+      const tasksWithDates = data.map(task => ({
+        ...task,
+        deadline: task.deadline ? new Date(task.deadline) : undefined,
+        pricing_type: task.pricing_type,
+        hourly_rate: task.hourly_rate,
+        estimated_hours: task.estimated_hours,
+        required_skills: task.required_skills || [],
+        status: task.status,
+        auto_assign: task.auto_assign || false,
+        application_window_minutes: task.application_window_minutes || 60
+      }));
+        const formattedTasks = data.map(task => ({
         id: task.id,
         title: task.title,
         description: task.description,
@@ -137,11 +162,10 @@ export function TaskManagementPage() {
     }
   };
 
-const generateAiSuggestions = async () => {
-  if (!project) return;
+  const generateAiSuggestions = async () => {
+    if (!project) return;
 
   setIsGeneratingAi(true);
-  console.log(project)
 
   try {
     const response = await fetch('http://localhost:5000/taskcreation', {
@@ -151,13 +175,11 @@ const generateAiSuggestions = async () => {
         title: project.title,
         description: project.description,
         budget: project.budget,
-        requirements_form: project.requirements_form,
-        tags: project.tags,
         completion_date: new Date().toISOString() // replace with actual if available
       })
     });
 
-    const data = await response.json();
+      const data = await response.json();
 
     const suggestions: Task[] = Object.entries(data).map(([key, task]: any) => ({
       title: task.title,
@@ -176,15 +198,14 @@ const generateAiSuggestions = async () => {
       estimated_hours: parseFloat(task.estimated_number_of_hours) || 0
     }));
 
-    setAiSuggestions(suggestions);
-    setShowAiSuggestions(true);
-  } catch (err) {
-    console.error('AI task generation failed:', err);
-  } finally {
-    setIsGeneratingAi(false);
-  }
-};
-
+      setAiSuggestions(suggestions);
+      setShowAiSuggestions(true);
+    } catch (err) {
+      console.error('AI task generation failed:', err);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   const createTask = async (taskData: Task) => {
     try {
@@ -293,33 +314,33 @@ const generateAiSuggestions = async () => {
     }
   };
 
-const handleAcceptAiSuggestion = async (suggestion: Task) => {
-  // Prevent duplicates based on title
-  const alreadyExists = tasks.some(task => task.title === suggestion.title);
-  if (alreadyExists) return;
+  const handleAcceptAiSuggestion = async (suggestion: Task) => {
+    // Prevent duplicates based on title
+    const alreadyExists = tasks.some(task => task.title === suggestion.title);
+    if (alreadyExists) return;
 
-  const success = await createTask(suggestion);
-  if (success) {
-    await fetchTasks();
-    setAiSuggestions(prev => prev.filter(s => s.title !== suggestion.title));
-  }
-};
+    const success = await createTask(suggestion);
+    if (success) {
+      await fetchTasks();
+      setAiSuggestions(prev => prev.filter(s => s.title !== suggestion.title));
+    }
+  };
 
-
-const handleAcceptAllAiSuggestions = async () => {
-  const newSuggestions = aiSuggestions.filter(
-    suggestion => !tasks.some(task => task.title === suggestion.title)
-  );
+  const handleAcceptAllAiSuggestions = async () => {
+    const newSuggestions = aiSuggestions.filter(
+      suggestion => !tasks.some(task => task.title === suggestion.title)
+    );
 
   for (const suggestion of newSuggestions) {
-    await createTask(suggestion);
+    const success = await createTask(suggestion);
+    if (success) {
+      await fetchTasks();
+    }
   }
 
-  await fetchTasks(); // ✅ Refresh task list once after all
   setShowAiSuggestions(false);
   setAiSuggestions([]);
 };
-
 
 
   const getStatusColor = (status: string) => {
@@ -367,9 +388,8 @@ const handleAcceptAllAiSuggestions = async () => {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            {/* <h1 className="text-3xl font-bold text-gray-900">Task Management</h1> */}
-<h2 className="text-3xl font-bold text-gray-900">{project.title}</h2>
-<p className="text-gray-600 mt-1 whitespace-pre-line break-words">{project.description}</p>
+            <h2 className="text-3xl font-bold text-gray-900">{project.title}</h2>
+            <p className="text-gray-600 mt-1 whitespace-pre-line break-words">{project.description}</p>
           </div>
         </div>
         
@@ -540,15 +560,16 @@ const handleAcceptAllAiSuggestions = async () => {
                       </div>
                     </div>
 
-                    {task.auto_assign && (
-                      <div className="mt-3 p-3 bg-purple-50 rounded-lg">
-                        <div className="flex items-center space-x-2 text-sm">
-                          <Settings className="h-4 w-4 text-purple-600" />
-                          <span className="text-purple-800 font-medium">Auto-Assignment Enabled</span>
-                        </div>
-                        <p className="text-purple-700 text-xs mt-1">
-                          Application window: {task.application_window_minutes} minutes
-                        </p>
+                    {task.auto_assign && timerData[task.id!] && (
+                      <div className="mt-3">
+                        <CompactTimer
+                          taskId={task.id!}
+                          applicationWindowMinutes={timerData[task.id!].application_window_minutes}
+                          windowEnd={timerData[task.id!].window_end}
+                          status={timerData[task.id!].status}
+                          extensionsCount={timerData[task.id!].extensions_count}
+                          maxExtensions={timerData[task.id!].max_extensions}
+                        />
                       </div>
                     )}
 
@@ -705,15 +726,24 @@ const handleAcceptAllAiSuggestions = async () => {
                           setNewTask({...newTask, auto_assign: !newTask.auto_assign});
                         }
                       }}
-                      className="flex items-center space-x-2"
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        (editingTask ? editingTask.auto_assign : newTask.auto_assign)
+                          ? 'bg-indigo-600'
+                          : 'bg-gray-200'
+                      }`}
                     >
-                      {(editingTask ? editingTask.auto_assign : newTask.auto_assign) ? (
-                        <ToggleRight className="h-6 w-6 text-indigo-600" />
-                      ) : (
-                        <ToggleLeft className="h-6 w-6 text-gray-400" />
-                      )}
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          (editingTask ? editingTask.auto_assign : newTask.auto_assign)
+                            ? 'translate-x-6'
+                            : 'translate-x-1'
+                        }`}
+                      />
                     </button>
                   </div>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Automatically assign the task to the best worker after the application window closes.
+                  </p>
                   
                   {(editingTask ? editingTask.auto_assign : newTask.auto_assign) && (
                     <div>
