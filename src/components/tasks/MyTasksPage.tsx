@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTasks } from '../../hooks/useTasks';
 import { TaskSubmissionModal } from './TaskSubmissionModal';
+import { Toast } from '../ui/Toast';
 
 export function MyTasksPage() {
   const { user } = useAuth();
@@ -21,6 +22,7 @@ export function MyTasksPage() {
   const [activeTab, setActiveTab] = useState('assigned');
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   // Filter tasks by user and status
   const myTasks = tasks.filter(task => task.assigneeId === user?.id);
@@ -60,6 +62,11 @@ export function MyTasksPage() {
   ];
 
   const currentTasks = tasksByStatus[activeTab as keyof typeof tasksByStatus];
+
+  const handleSubmissionSuccess = () => {
+    refetch();
+    setShowToast(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -249,10 +256,18 @@ export function MyTasksPage() {
           setSelectedTask(null);
         }}
         task={selectedTask}
-        onSubmissionSuccess={() => {
-          refetch();
-        }}
+        onSubmissionSuccess={handleSubmissionSuccess}
       />
+
+      {/* Success Toast */}
+      {showToast && (
+        <Toast
+          message="🎉 Work submitted successfully! Task is now under review."
+          type="success"
+          duration={2000}
+          onClose={() => setShowToast(false)}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { X, Upload, FileText, Link as LinkIcon, Loader2, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -115,6 +115,7 @@ export function TaskSubmissionModal({ isOpen, onClose, task, onSubmissionSuccess
       if (onSubmissionSuccess) {
         onSubmissionSuccess();
       }
+
     } catch (error) {
       console.error('Error submitting task:', error);
       setError('An unexpected error occurred. Please try again.');
