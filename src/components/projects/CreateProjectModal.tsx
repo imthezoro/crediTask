@@ -400,7 +400,6 @@ const nextStep = async () => {
               {formData.splitMode === 'ai' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                   <p className="text-sm text-amber-800">
-                    <strong>Note:</strong> AI task splitting will be available in the next update. For now, you can create tasks manually after project creation.
                   </p>
                 </div>
               )}

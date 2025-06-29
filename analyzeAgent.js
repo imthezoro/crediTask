@@ -105,25 +105,25 @@ Use the following format strictly:
 }
 
 Respond only with a valid JSON object following this format. Do not include any explanations or extra text.
-
+Start the task breakdown now.
+`;
+const content = `
 Here is the project information:
 
 - **Title**: ${project.title}
 - **Description**: ${project.description}
 - **Budget**: $${project.budget}
-- **Completion Date**: ${project.completion_date}
-- **Tags / Tech Stack**: ${project.tags.join(', ')}
+- **Tags / Tech Stack**: ${project.tags}
 
 - **Requirement Answers**:
-${project.requirements_form.map((item, i) => `${i + 1}. ${item.question}\nAnswer: ${item.answer}`).join('\n\n')}
-
-Start the task breakdown now.
+${project.requirements_form}
 `;
+
     const response = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Project Description:` },
+        { role: 'user', content: content },
       ],
       temperature: 0.4,
     });
