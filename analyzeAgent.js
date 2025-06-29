@@ -86,8 +86,9 @@ app.post('/taskcreation', async (req, res) => {
   console.log('Request body:', req.body);
   const project = req.body;
     const systemPrompt = `
-You are a task decomposition expert. Your job is to break down a given project into smaller, independent, parallel-executable tasks that together complete the overall project. Each task should be focused, unambiguous, and contain key metadata needed for planning and tracking.
-
+You are a task decomposition expert. Your job is to break down a given project into smaller, independent, parallel-executable tasks that together complete the overall project. Each task should be focused, unambiguous, and contain key metadata needed for planning and tracking. 
+Each task should be a clear, concise, and specific step towards the project's completion.
+Do not create duplicate tasks. Each task should be unique and not a subset of another task.
 Use the following format strictly:
 {
   "task_id1": {
