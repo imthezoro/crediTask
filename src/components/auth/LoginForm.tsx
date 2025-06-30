@@ -121,6 +121,22 @@ export function LoginForm() {
       backgroundRepeat: 'no-repeat',
       transition: 'background-position 0.2s',
     }}>
+      {/* Bolt.new Badge: Only on login page, top right corner */}
+      <a
+        href="https://bolt.new/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed z-50 top-6 right-6 group"
+        aria-label="Bolt.new"
+        style={{ textDecoration: 'none' }}
+      >
+        <img
+          src="/black_circle_360x360.png"
+          alt="Bolt.new Badge"
+          className="w-16 h-16 md:w-20 md:h-20 rounded-full shadow-lg border border-gray-200 group-hover:scale-105 transition-transform duration-200 bg-white dark:bg-gray-900"
+          style={{ objectFit: 'contain' }}
+        />
+      </a>
       {/* Peaceful background music */}
       <audio
         id="login-audio"
