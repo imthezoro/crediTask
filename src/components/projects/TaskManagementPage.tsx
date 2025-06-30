@@ -59,11 +59,6 @@ interface Project {
   requirements_form: [];
 }
 
-const TASK_CREATION_URL =
-  process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5000/taskcreation'
-    : '/.netlify/functions/taskcreation';
-
 export function TaskManagementPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -170,39 +165,39 @@ export function TaskManagementPage() {
   const generateAiSuggestions = async () => {
     if (!project) return;
 
-    setIsGeneratingAi(true);
+  setIsGeneratingAi(true);
 
-    try {
-      const response = await fetch(TASK_CREATION_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: project.title,
-          description: project.description,
-          budget: project.budget,
-          requirements_form: project.requirements_form, 
-          tags: project.tags,
-        })
-      });
+  try {
+    const response = await fetch('http://localhost:5000/taskcreation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: project.title,
+        description: project.description,
+        budget: project.budget,
+        requirements_form: project.requirements_form, 
+        tags: project.tags,
+      })
+    });
 
       const data = await response.json();
 
-      const suggestions: Task[] = Object.entries(data).map(([key, task]: any) => ({
-        title: task.title,
-        description: task.description,
-        weight: 1,
-        payout: parseFloat(task.budget) || 100,
-        pricing_type: 'fixed',
-        required_skills: task.required_skills, // optionally parsed from description
-        success_criteria: task.success_criteria,
-        detailed_tasks: task.detailed_tasks,
-        budget: parseFloat(task.budget) || 100,
-        priority: task.priority,
-        status: 'open',
-        auto_assign: false,
-        application_window_minutes: 60,
-        estimated_hours: parseFloat(task.estimated_number_of_hours) || 0
-      }));
+    const suggestions: Task[] = Object.entries(data).map(([key, task]: any) => ({
+      title: task.title,
+      description: task.description,
+      weight: 1,
+      payout: parseFloat(task.budget) || 100,
+      pricing_type: 'fixed',
+      required_skills: task.required_skills, // optionally parsed from description
+      success_criteria: task.success_criteria,
+      detailed_tasks: task.detailed_tasks,
+      budget: parseFloat(task.budget) || 100,
+      priority: task.priority,
+      status: 'open',
+      auto_assign: false,
+      application_window_minutes: 60,
+      estimated_hours: parseFloat(task.estimated_number_of_hours) || 0
+    }));
 
       setAiSuggestions(suggestions);
       setShowAiSuggestions(true);

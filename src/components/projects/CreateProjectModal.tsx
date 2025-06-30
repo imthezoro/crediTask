@@ -13,11 +13,6 @@ const POPULAR_TAGS = [
   'Data Analysis', 'Machine Learning', 'DevOps', 'Testing'
 ];
 
-const ANALYZE_URL =
-  process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5000/analyze'
-    : '/.netlify/functions/analyzeAgent';
-
 export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,7 +49,7 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
 const analyzeRequirements = async () => {
   setIsAnalyzing(true);
   try {
-    const response = await fetch(ANALYZE_URL, {
+    const response = await fetch('http://localhost:5000/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
