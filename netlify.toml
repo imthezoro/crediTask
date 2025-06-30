@@ -1,0 +1,7 @@
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+[dev]
+  functions = "netlify/functions"
+  publish = "dist" 
