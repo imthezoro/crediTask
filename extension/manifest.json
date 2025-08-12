@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "PromptOK",
+  "version": "1.0.0",
+  "description": "Clarify and enhance prompts across LLM sites",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+
+
