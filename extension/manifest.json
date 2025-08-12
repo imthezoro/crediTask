@@ -3,6 +3,9 @@
   "name": "PromptOK",
   "version": "1.0.0",
   "description": "Clarify and enhance prompts across LLM sites",
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:*; style-src 'self'; img-src 'self' data:;"
+  },
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
