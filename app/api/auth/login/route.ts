@@ -7,10 +7,17 @@ import { corsJson, corsEmpty } from '@/lib/cors';
 const LoginSchema = z.object({ email: z.string().email(), password: z.string().min(6) });
 
 export async function POST(req: NextRequest) {
+  // Parse and validate request body with a 400 response on failure
+  let email: string, password: string;
   try {
-    const json = await req.json();
-    const { email, password } = LoginSchema.parse(json);
+    const body = await req.json();
+    ({ email, password } = LoginSchema.parse(body));
+  } catch {
+    return corsJson({ error: 'Invalid request' }, { status: 400 });
+  }
 
+  // Handle authentication with proper error reporting
+  try {
     if (env.devMockMode) {
       // Accept any credentials and return a mock token
       return corsJson({ access_token: 'mock-token', user: { id: 'mock-user-id', email } });

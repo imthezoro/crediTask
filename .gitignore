@@ -54,3 +54,5 @@ coverage/
 *~
 tmp/
 temp/
+
+*.tsbuildinfo
