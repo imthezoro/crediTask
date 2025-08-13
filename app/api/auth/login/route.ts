@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     return corsJson({ access_token: data.session.access_token, user: data.user });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('/api/auth/login error', error);
     return corsJson({ error: 'Internal Server Error' }, { status: 500 });
   }

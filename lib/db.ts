@@ -1,14 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env';
+import { supabaseAdmin } from './supabaseAdmin';
 
 const supabase = (() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) {
-    return null as any;
+    return null as unknown as ReturnType<typeof createClient>;
   }
   return createClient(url, anon);
 })();
+
+const adminConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 export type PromptSession = {
   id: string;
@@ -25,7 +28,7 @@ export async function recordPromptSession(args: {
   enhancedPrompt: string | null;
   site: string;
 }) {
-  if (env.devMockMode || !supabase) {
+  if (env.devMockMode || (!adminConfigured && !supabase)) {
     memorySessions.unshift({
       id: cryptoRandomId(),
       user_id: args.userId,
@@ -37,25 +40,43 @@ export async function recordPromptSession(args: {
     if (memorySessions.length > 100) memorySessions.pop();
     return;
   }
-  await supabase.from('prompt_sessions').insert({
-    user_id: args.userId,
-    original_prompt: args.originalPrompt,
-    enhanced_prompt: args.enhancedPrompt,
-    site: args.site,
-  });
+  if (adminConfigured) {
+    await (supabaseAdmin as ReturnType<typeof createClient>).from('prompt_sessions').insert({
+      user_id: args.userId,
+      original_prompt: args.originalPrompt,
+      enhanced_prompt: args.enhancedPrompt,
+      site: args.site,
+    });
+  } else if (supremeSafe(supabase)) {
+    await supabase!.from('prompt_sessions').insert({
+      user_id: args.userId,
+      original_prompt: args.originalPrompt,
+      enhanced_prompt: args.enhancedPrompt,
+      site: args.site,
+    });
+  }
 }
 
 export async function listPromptSessions(userId: string): Promise<PromptSession[]> {
-  if (env.devMockMode || !supabase) {
+  if (env.devMockMode || (!adminConfigured && !supabase)) {
     return memorySessions.filter((s) => s.user_id === userId);
   }
-  const { data } = await supabase
+  if (adminConfigured) {
+    const { data } = await (supabaseAdmin as ReturnType<typeof createClient>)
+      .from('prompt_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    return (data as unknown as PromptSession[]) || [];
+  }
+  const { data } = await supabase!
     .from('prompt_sessions')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(20);
-  return data || [];
+  return (data as unknown as PromptSession[]) || [];
 }
 
 // In-memory fallback
@@ -71,5 +92,7 @@ function cryptoRandomId(): string {
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
+
+function supremeSafe<T>(client: T | null): client is T { return Boolean(client); }
 
 

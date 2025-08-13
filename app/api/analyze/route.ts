@@ -31,12 +31,12 @@ export async function POST(req: NextRequest) {
 
     const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
           content:
-            'Analyze this prompt for ambiguity. Return 3 multiple choice questions to clarify intent. Format as strict JSON: {"questions":[{"id":string,"text":string,"options":[{"value":string,"label":string}]}]}',
+            'Analyze the user prompt for ambiguity and missing details. Return exactly 3 multiple-choice questions. Strict JSON only:\n{"questions":[{"id":string,"text":string,"options":[{"value":string,"label":string}],"category":"tone|length|audience|format|objective"}]}',
         },
         { role: 'user', content: prompt },
       ],
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(content);
-    } catch (e) {
+    } catch {
       parsed = { questions: [] };
     }
     const body = JSON.stringify(parsed);
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     });
 
     return corsJson(JSON.parse(body));
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('/api/analyze error', error);
     return corsJson({ error: 'Internal Server Error' }, { status: 500 });
   }

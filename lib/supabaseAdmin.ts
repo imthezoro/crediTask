@@ -7,9 +7,9 @@ export const supabaseAdmin = (() => {
     // Create a dummy that errors when used
     return {
       auth: {
-        signInWithPassword: async () => ({ data: null, error: new Error('Supabase admin not configured') }),
+        signInWithPassword: async (): Promise<{ data: null; error: Error }> => ({ data: null, error: new Error('Supabase admin not configured') }),
       },
-    } as any;
+    } as unknown as ReturnType<typeof createClient>;
   }
   return createClient(url, serviceKey);
 })();

@@ -1,9 +1,9 @@
 import { Redis } from '@upstash/redis';
-import { env } from './env';
+// no env imports required here
 
 let client: Redis | null = null;
 
-const memory: Record<string, any> = {};
+const memory: Record<string, unknown> = {};
 
 function ensureClient(): Redis | null {
   if (client) return client;
@@ -29,7 +29,11 @@ export const redis = {
       }
       return;
     }
-    return c.set(key, value as any, opts as any);
+    const normalized = (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value === null)
+      ? String(value)
+      : JSON.stringify(value);
+    const setOptions = opts?.ex ? { ex: opts.ex } : undefined;
+    return c.set(key, normalized, setOptions as unknown as never);
   },
   async incr(key: string): Promise<number> {
     const c = ensureClient();
