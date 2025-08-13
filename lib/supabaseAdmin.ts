@@ -11,7 +11,10 @@ export const supabaseAdmin = (() => {
       },
     } as unknown as ReturnType<typeof createClient>;
   }
-  return createClient(url, serviceKey);
+  return createClient(url, serviceKey, {
+    global: { headers: { apikey: serviceKey } },
+    auth: { persistSession: false },
+  });
 })();
 
 

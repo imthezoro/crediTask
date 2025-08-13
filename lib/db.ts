@@ -8,7 +8,7 @@ const supabase = (() => {
   if (!url || !anon) {
     return null as unknown as ReturnType<typeof createClient>;
   }
-  return createClient(url, anon);
+  return createClient(url, anon, { global: { headers: { apikey: anon } }, auth: { persistSession: false } });
 })();
 
 const adminConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);

@@ -15,7 +15,7 @@ async function getUserFromToken(accessToken: string | undefined | null): Promise
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      global: { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, Authorization: `Bearer ${accessToken}` } },
       auth: { persistSession: false },
     }
   );
