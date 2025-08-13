@@ -1,8 +1,10 @@
 .promptok-overlay { position: fixed; bottom: 16px; right: 16px; z-index: 2147483647; }
-.promptok-card { background: white; border: 1px solid #e5e7eb; box-shadow: 0 10px 15px rgba(0,0,0,0.1); padding: 12px; border-radius: 8px; width: 280px; }
-.promptok-card h4 { margin: 0 0 8px; font-size: 14px; }
-.promptok-card label { display: block; font-size: 13px; margin: 6px 0; }
+.promptok-card { background: #1f2937; color: #f9fafb; border: 1px solid #374151; box-shadow: 0 10px 15px rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; width: 280px; }
+.promptok-card h4 { margin: 0 0 8px; font-size: 14px; color: #f9fafb; }
+.promptok-card label { display: block; font-size: 13px; margin: 6px 0; color: inherit; }
 .promptok-actions { display: flex; gap: 8px; margin-top: 8px; }
-.promptok-actions button { flex: 1; padding: 6px 8px; }
+.promptok-actions button { flex: 1; padding: 6px 8px; background: #4b5563; color: #f9fafb; border: 1px solid #6b7280; border-radius: 6px; cursor: pointer; }
+.promptok-actions button:hover { background: #6b7280; }
+.promptok-card input[type="radio"] { accent-color: #3b82f6; }
 
 
