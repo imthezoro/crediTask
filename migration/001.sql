@@ -13,3 +13,12 @@ create table prompt_sessions (
   site text,
   created_at timestamptz default now()
 );
+
+-- RLS
+alter table public.prompt_sessions enable row level security;
+create policy "user can insert own sessions"
+  on public.prompt_sessions for insert
+  with check (auth.uid() = user_id);
+create policy "user can read own sessions"
+  on public.prompt_sessions for select
+  using (auth.uid() = user_id);
