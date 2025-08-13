@@ -48,8 +48,8 @@ async function enhancePrompt() {
   const prompt = input.value || input.textContent || '';
   const site = location.host;
   try {
-    const { access_token, api_base } = await chrome.storage.local.get(['access_token', 'api_base']);
-    const base = api_base || 'https://promptok.vercel.app';
+    const { access_token } = await chrome.storage.local.get(['access_token']);
+    const base = (window.promptokConfig && (await window.promptokConfig.getApiBase())) || 'https://promptok.vercel.app';
     const res = await fetch(`${base}/api/analyze`, {
       method: 'POST',
       headers: {

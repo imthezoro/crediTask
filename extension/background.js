@@ -7,10 +7,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     chrome.storage.local.set({ access_token: message.token }).then(() => sendResponse({ ok: true }));
     return true;
   }
-  if (message.type === 'SET_API_BASE') {
-    chrome.storage.local.set({ api_base: message.apiBase }).then(() => sendResponse({ ok: true }));
-    return true;
-  }
 });
 
 

@@ -4,40 +4,47 @@ import { env } from '@/lib/env';
 import { corsJson, corsHeaders } from '@/lib/cors';
 import { createClient } from '@supabase/supabase-js';
 
-const LoginSchema = z.object({ email: z.string().email(), password: z.string().min(6) });
+const SignupSchema = z.object({ email: z.string().email(), password: z.string().min(6) });
 
 export async function POST(req: NextRequest) {
-  // Parse and validate request body with a 400 response on failure
+  // Parse and validate request body
   let email: string, password: string;
   try {
     const body = await req.json();
-    ({ email, password } = LoginSchema.parse(body));
+    ({ email, password } = SignupSchema.parse(body));
   } catch {
     return corsJson({ error: 'Invalid request' }, { status: 400 });
   }
 
-  // Handle authentication with proper error reporting
   try {
     if (env.devMockMode) {
-      // Accept any credentials and return a mock token
-      return corsJson({ access_token: 'mock-token', user: { id: 'mock-user-id', email } });
+      return corsJson({ access_token: 'mock-token', user: { id: 'mock-user-id', email }, message: 'Mock signup successful' });
     }
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !anon) {
       return corsJson({ error: 'Supabase not configured' }, { status: 500 });
     }
+
     const supabase = createClient(url, anon, {
       global: { headers: { apikey: anon } },
       auth: { persistSession: false },
     });
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data?.session || !data.user) {
-      return corsJson({ error: error?.message || 'Invalid credentials' }, { status: 401 });
+
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      return corsJson({ error: error.message }, { status: 400 });
     }
-    return corsJson({ access_token: data.session.access_token, user: data.user });
+
+    // If email confirmations are enabled, session may be null
+    if (data?.session && data.user) {
+      return corsJson({ access_token: data.session.access_token, user: data.user });
+    }
+
+    return corsJson({ user: data?.user || null, message: 'Signup successful. Please check your email to confirm your account.' });
   } catch (error: unknown) {
-    console.error('/api/auth/login error', error);
+    console.error('/api/auth/signup error', error);
     return corsJson({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
