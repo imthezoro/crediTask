@@ -306,6 +306,28 @@ function setupObserver() {
   });
 }
 
+// Storage wrapper with fallback
+const storage = {
+  get: async (key) => {
+    if (chrome.storage && chrome.storage.local) {
+      const result = await chrome.storage.local.get(key);
+      return result[key];
+    } else if (window.localStorage) {
+      return JSON.parse(localStorage.getItem(key));
+    }
+    return null;
+  },
+  set: async (key, value) => {
+    if (chrome.storage && chrome.storage.local) {
+      return chrome.storage.local.set({ [key]: value });
+    } else if (window.localStorage) {
+      localStorage.setItem(key, JSON.stringify(value));
+      return Promise.resolve();
+    }
+    return Promise.reject('No storage available');
+  }
+};
+
 // Initialize only once when the page loads
 const input = new SimplePromptDetector().detect();
 if (input) {

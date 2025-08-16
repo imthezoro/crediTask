@@ -2,21 +2,50 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>PromptOK Login</title>
+    <title>PromptOK</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h3>Sign in</h3>
-    <input id="email" type="email" placeholder="email" />
-    <input id="password" type="password" placeholder="password" />
-    <div style="display:flex; gap: 8px;">
-      <button id="login">Login</button>
-      <button id="signup" type="button">Sign up</button>
+    <div class="container">
+      <!-- Login View -->
+      <div id="loginView" class="view">
+        <div class="logo">PromptOK</div>
+        
+        <div class="form-group">
+          <input id="email" type="email" placeholder="Email address" class="input" />
+          <input id="password" type="password" placeholder="Password" class="input" />
+        </div>
+        
+        <button id="login" class="btn btn-primary">Sign In</button>
+        <button id="showSignup" class="btn btn-text">Don't have an account? <span>Sign up</span></button>
+        
+        <div class="status" id="status"></div>
+      </div>
+
+      <!-- Signup View -->
+      <div id="signupView" class="view" style="display: none;">
+        <div class="logo">PromptOK</div>
+        
+        <div class="form-group">
+          <div class="name-fields">
+            <input id="firstName" type="text" placeholder="First name" class="input" />
+            <input id="lastName" type="text" placeholder="Last name" class="input" />
+          </div>
+          <input id="signupEmail" type="email" placeholder="Email address" class="input" />
+          <input id="signupPassword" type="password" placeholder="Create password" class="input" />
+          <input id="confirmPassword" type="password" placeholder="Confirm password" class="input" />
+        </div>
+        
+        <button id="signup" class="btn btn-primary">Create Account</button>
+        <button id="showLogin" class="btn btn-text">Already have an account? <span>Sign in</span></button>
+        
+        <div class="status" id="signupStatus"></div>
+      </div>
     </div>
-    <div class="status" id="status"></div>
+    
     <script src="config.js"></script>
     <script src="popup.js"></script>
   </body>
-  </html>
+</html>
 
 
