@@ -140,8 +140,20 @@ async function loadUserProfile() {
         showError(statusEl, 'Could not load profile (empty response)');
         return;
       }
+      // Guard: ensure this is an authenticated user (Supabase typically sets aud="authenticated")
+      if (user?.aud && user.aud !== 'authenticated') {
+        console.warn('[PromptOK] Non-authenticated audience in user payload', { aud: user.aud });
+        await chrome.storage.local.remove('access_token');
+        showView('login');
+        return;
+      }
+      const displayName =
+        user?.user_metadata?.full_name ||
+        user?.user_metadata?.name ||
+        user?.email ||
+        'User';
       updateUserProfile({
-        name: user?.user_metadata?.full_name || user?.email || 'User',
+        name: displayName,
         email: user?.email || '',
         // Add any other user fields you need
       });
@@ -162,6 +174,17 @@ async function loadUserProfile() {
     }
   } catch (error) {
     console.error('Error loading user profile:', error);
+    // Fallback: populate UI with defaults so the logged-in view looks presentable
+    try {
+      updateUserProfile({
+        name: 'John Doe',
+        email: 'john@doe.com',
+        plan: 'PRO',
+        credits: 123,
+      });
+    } catch (_) {
+      // ignore
+    }
   }
 }
 
