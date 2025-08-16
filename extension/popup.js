@@ -29,26 +29,15 @@ async function handleLogin(e) {
     const data = await res.json().catch(() => ({}));
     
     if (res.ok && data.access_token) {
-      // Store the token and user data in local storage
-      await chrome.storage.local.set({ 
-        token: data.access_token,
-        user: data.user || { email, name: email.split('@')[0] }
-      });
+      // Store the token in local storage with consistent key
+      await chrome.storage.local.set({ access_token: data.access_token });
       
-      // Update UI immediately with available data
-      if (data.user) {
-        updateUserProfile(data.user);
-      } else {
-        // Fallback to basic user info if full profile not returned
-        updateUserProfile({ email, name: email.split('@')[0] });
-      }
-      
-      // Show the logged-in view
-      showView('loggedIn');
+      // Show success message
       showSuccess(statusEl, 'Login successful!');
       
-      // Load full profile in the background
-      setTimeout(() => loadUserProfile(), 100);
+      // Load user profile and update UI
+      await loadUserProfile();
+      showView('loggedIn');
       
       // Notify the background script about the login
       chrome.runtime.sendMessage({ 
@@ -98,16 +87,21 @@ const userEmailEl = document.getElementById('userEmail');
 
 // Check authentication status when popup loads
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Popup loaded, checking auth status...');
   try {
     // Check if user is already authenticated
-    const { token } = await chrome.storage.local.get('token');
+    const result = await chrome.storage.local.get('access_token');
+    console.log('Storage result:', result);
+    const access_token = result.access_token;
     
-    if (token) {
+    if (access_token) {
+      console.log('Found access token, showing logged in view');
       // User is logged in, show the logged-in view
       showView('loggedIn');
       // Fetch and display user profile
       await loadUserProfile();
     } else {
+      console.log('No access token found, showing login view');
       // User is not logged in, show login view by default
       showView('login');
     }
@@ -123,40 +117,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Load user profile data
 async function loadUserProfile() {
   try {
-    const { token, user: cachedUser } = await chrome.storage.local.get(['token', 'user']);
-    if (!token) {
-      showView('login');
-      return;
-    }
+    const { access_token } = await chrome.storage.local.get('access_token');
+    if (!access_token) return;
     
-    // Show cached user data immediately if available
-    if (cachedUser) {
-      updateUserProfile(cachedUser);
-    }
-    
-    // Fetch fresh data from the server
     const base = 'http://localhost:3000';
     const res = await fetch(`${base}/api/auth/me`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${access_token}`,
         'Content-Type': 'application/json'
-      },
-      credentials: 'include'
+      }
     });
     
     if (res.ok) {
       const userData = await res.json();
-      // Update local storage with fresh user data
-      await chrome.storage.local.set({ user: userData });
       updateUserProfile(userData);
-    } else if (res.status === 401) {
+    } else {
       // If token is invalid, clear it and show login
-      await chrome.storage.local.remove(['token', 'user']);
+      await chrome.storage.local.remove('access_token');
       showView('login');
     }
   } catch (error) {
     console.error('Error loading user profile:', error);
-    // Don't log out on network errors, keep using cached data
   }
 }
 
@@ -194,7 +175,7 @@ function updateUserProfile(userData) {
 async function handleLogout() {
   try {
     // Clear the token from storage
-    await chrome.storage.local.remove('token');
+    await chrome.storage.local.remove('access_token');
     // Show login view
     showView('login');
   } catch (error) {
@@ -243,49 +224,36 @@ function initEventListeners() {
 
 // Toggle between views
 function showView(view) {
-  // Get all view elements
-  const views = {
-    login: loginView,
-    signup: signupView,
-    loggedIn: loggedInView
-  };
-  
-  // Hide all views first with animation
-  Object.values(views).forEach(viewEl => {
-    if (viewEl) {
-      viewEl.style.display = 'none';
-      viewEl.style.opacity = '0';
-      viewEl.style.transition = 'opacity 0.2s ease';
-    }
-  });
+  // Hide all views first
+  if (loginView) loginView.style.display = 'none';
+  if (signupView) signupView.style.display = 'none';
+  if (loggedInView) loggedInView.style.display = 'none';
   
   // Clear status messages
-  [statusEl, signupStatusEl].forEach(el => {
-    if (el) {
-      el.textContent = '';
-      el.className = 'status';
-    }
-  });
-  
-  // Show the requested view with animation
-  const targetView = views[view] || loginView;
-  if (targetView) {
-    targetView.style.display = 'flex';
-    // Force reflow before starting the animation
-    void targetView.offsetHeight;
-    targetView.style.opacity = '1';
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.className = 'status';
   }
   
-  // If showing loggedIn view, ensure we have the latest data
-  if (view === 'loggedIn') {
-    loadUserProfile().catch(console.error);
+  if (signupStatusEl) {
+    signupStatusEl.textContent = '';
+    signupStatusEl.className = 'status';
   }
   
-  // Adjust popup size based on content
-  setTimeout(() => {
-    const height = targetView ? targetView.scrollHeight + 40 : 400; // Add some padding
-    document.body.style.height = `${Math.min(Math.max(height, 300), 600)}px`;
-  }, 50);
+  // Show the requested view
+  switch(view) {
+    case 'login':
+      if (loginView) loginView.style.display = 'block';
+      break;
+    case 'signup':
+      if (signupView) signupView.style.display = 'block';
+      break;
+    case 'loggedIn':
+      if (loggedInView) loggedInView.style.display = 'block';
+      break;
+    default:
+      if (loginView) loginView.style.display = 'block';
+  }
 }
 
 // Create ripple effect

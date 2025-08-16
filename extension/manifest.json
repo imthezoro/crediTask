@@ -28,6 +28,16 @@
       "js": ["dashboard-auth.js"],
       "run_at": "document_start"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "css/*",
+        "fonts/*",
+        "popup.html"
+      ],
+      "matches": ["<all_urls>"]
+    }
   ]
 }
 
