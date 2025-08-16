@@ -19,7 +19,9 @@ async function handleLogin(e) {
   try {
     setLoading(loginForm, true);
     
-    const base = 'http://localhost:3000';
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
     const res = await fetch(`${base}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,12 +96,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('Storage result:', result);
     const access_token = result.access_token;
     
+    // Parameterize portal links immediately
+    setPortalLinksBase().catch(console.warn);
+
     if (access_token) {
       console.log('Found access token, showing logged in view');
       // User is logged in, show the logged-in view
       showView('loggedIn');
       // Fetch and display user profile
+      startProfileSkeleton();
       await loadUserProfile();
+      stopProfileSkeleton();
     } else {
       console.log('No access token found, showing login view');
       // User is not logged in, show login view by default
@@ -157,6 +164,8 @@ async function loadUserProfile() {
         email: user?.email || '',
         // Add any other user fields you need
       });
+      // Update avatar initials based on name/email
+      setAvatarInitials(displayName, user?.email || '');
     } else {
       const bodyText = await res.text().catch(() => '');
       console.error('[PromptOK] Supabase /auth/v1/user failed', {
@@ -182,6 +191,7 @@ async function loadUserProfile() {
         plan: 'PRO',
         credits: 123,
       });
+      setAvatarInitials('John Doe', 'john@doe.com');
     } catch (_) {
       // ignore
     }
@@ -215,6 +225,68 @@ function updateUserProfile(userData) {
     if (creditCount) {
       creditCount.textContent = userData.credits;
     }
+  }
+  // Also refresh initials if possible
+  setAvatarInitials(userData.name || userData.firstName || userData.lastName || '', userData.email || '');
+}
+
+// Compute and set avatar initials
+function computeInitials(name, email) {
+  const src = (name || '').trim() || (email || '').trim();
+  if (!src) return 'U';
+  const parts = src.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  // For single word or email
+  const word = src.includes('@') ? src.split('@')[0] : src;
+  const letters = word.replace(/[^a-zA-Z]/g, '');
+  if (letters.length >= 2) return (letters[0] + letters[1]).toUpperCase();
+  if (letters.length === 1) return letters[0].toUpperCase();
+  return 'U';
+}
+
+function setAvatarInitials(name, email) {
+  const el = document.querySelector('.user-avatar .initials');
+  if (!el) return;
+  el.textContent = computeInitials(name, email);
+}
+
+// Skeleton toggles for profile and nav
+function startProfileSkeleton() {
+  const avatar = document.querySelector('.user-avatar');
+  const name = document.getElementById('userName');
+  const email = document.getElementById('userEmail');
+  const navItems = document.querySelectorAll('.nav-item');
+  avatar && avatar.classList.add('skeleton', 'skeleton-avatar');
+  name && name.classList.add('skeleton', 'skeleton-line', 'lg');
+  email && email.classList.add('skeleton', 'skeleton-line');
+  navItems.forEach(a => a.classList.add('skeleton', 'skeleton-nav'));
+}
+
+function stopProfileSkeleton() {
+  const avatar = document.querySelector('.user-avatar');
+  const name = document.getElementById('userName');
+  const email = document.getElementById('userEmail');
+  const navItems = document.querySelectorAll('.nav-item');
+  avatar && avatar.classList.remove('skeleton', 'skeleton-avatar');
+  name && name.classList.remove('skeleton', 'skeleton-line', 'lg');
+  email && email.classList.remove('skeleton', 'skeleton-line');
+  navItems.forEach(a => a.classList.remove('skeleton', 'skeleton-nav'));
+}
+
+// Parameterize portal links (dashboard/billing/profile)
+async function setPortalLinksBase() {
+  try {
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
+    const dash = document.getElementById('linkDashboard');
+    const bill = document.getElementById('linkBilling');
+    const prof = document.getElementById('linkProfile');
+    if (dash) dash.href = `${base}/dashboard`;
+    if (bill) bill.href = `${base}/billing`;
+    if (prof) prof.href = `${base}/profile`;
+  } catch (e) {
+    console.warn('Failed to set portal links base', e);
   }
 }
 
@@ -412,7 +484,9 @@ async function handleSignup(e) {
   try {
     setLoading(signupForm, true);
     
-    const base = 'http://localhost:3000';
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
     const res = await fetch(`${base}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -438,8 +512,15 @@ async function handleSignup(e) {
         showSuccess(signupStatusEl, 'Account created! Redirecting...');
         
         // Open dashboard after a short delay
-        setTimeout(() => {
-          chrome.tabs.create({ url: 'http://localhost:3000/dashboard' });
+        setTimeout(async () => {
+          try {
+            const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+              ? await window.promptokConfig.getApiBase()
+              : 'http://localhost:3000';
+            chrome.tabs.create({ url: `${base}/dashboard` });
+          } catch (_e) {
+            chrome.tabs.create({ url: 'http://localhost:3000/dashboard' });
+          }
           window.close();
         }, 1000);
       } else {
