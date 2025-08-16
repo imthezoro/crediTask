@@ -22,3 +22,5 @@ create policy "user can insert own sessions"
 create policy "user can read own sessions"
   on public.prompt_sessions for select
   using (auth.uid() = user_id);
+
+alter table public.user_profiles enable row level security;
