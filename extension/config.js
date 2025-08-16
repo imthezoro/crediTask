@@ -5,6 +5,11 @@
   const DETECTION_TTL_MS = 300000; // 5 minutes
   let inFlightDetectionPromise = null;
 
+  // Supabase configuration (from .env)
+  // Replace with your actual environment values
+  const SUPABASE_URL = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+
   async function detectLocalServerAlive() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 700);
@@ -63,6 +68,8 @@
     getApiBase,
     DEFAULT_LOCAL_BASE: DEFAULT_LOCAL_BASE,
     DEFAULT_PRODUCTION_BASE: DEFAULT_PRODUCTION_BASE,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
   };
 })();
 

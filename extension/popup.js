@@ -120,21 +120,45 @@ async function loadUserProfile() {
     const { access_token } = await chrome.storage.local.get('access_token');
     if (!access_token) return;
     
-    const base = 'http://localhost:3000';
-    const res = await fetch(`${base}/api/auth/me`, {
+    const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.promptokConfig || {};
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      throw new Error('Supabase configuration missing');
+    }
+    console.debug('[PromptOK] Supabase user endpoint:', `${SUPABASE_URL}/auth/v1/user`);
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: {
         'Authorization': `Bearer ${access_token}`,
-        'Content-Type': 'application/json'
+        'apikey': SUPABASE_ANON_KEY,
       }
     });
     
     if (res.ok) {
-      const userData = await res.json();
-      updateUserProfile(userData);
+      const payload = await res.json().catch(() => null);
+      const user = payload?.user ?? payload; // Support both { user } and raw user
+      if (!user) {
+        console.error('[PromptOK] Supabase /auth/v1/user returned no user object', payload);
+        showError(statusEl, 'Could not load profile (empty response)');
+        return;
+      }
+      updateUserProfile({
+        name: user?.user_metadata?.full_name || user?.email || 'User',
+        email: user?.email || '',
+        // Add any other user fields you need
+      });
     } else {
+      const bodyText = await res.text().catch(() => '');
+      console.error('[PromptOK] Supabase /auth/v1/user failed', {
+        status: res.status,
+        statusText: res.statusText,
+        body: bodyText?.slice(0, 500),
+      });
       // If token is invalid, clear it and show login
-      await chrome.storage.local.remove('access_token');
-      showView('login');
+      if (res.status === 401 || res.status === 403) {
+        await chrome.storage.local.remove('access_token');
+        showView('login');
+      } else {
+        showError(statusEl, `Could not load profile (HTTP ${res.status})`);
+      }
     }
   } catch (error) {
     console.error('Error loading user profile:', error);
