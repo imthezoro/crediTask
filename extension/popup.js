@@ -8,7 +8,7 @@ async function handleLogin() {
   try {
     if (loginBtn) loginBtn.disabled = true;
     statusEl.textContent = 'Signing in...';
-    const base = window.promptokConfig ? await window.promptokConfig.getApiBase() : 'https://promptok.vercel.app';
+    const base = 'http://localhost:3000'; // Always use localhost in development
     const res = await fetch(`${base}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -19,13 +19,23 @@ async function handleLogin() {
     try {
       data = raw ? JSON.parse(raw) : null;
     } catch (_) {
-      // If the response isn't JSON, surface a readable error while avoiding double-read of body
-      throw new Error(`Non-JSON response (${res.status}): ${raw?.slice(0, 120)}`);
+      console.error('Login error:', raw);
+      throw new Error(`Server error (${res.status}): ${raw?.includes('DEPLOYMENT_NOT_FOUND') ? 'Local server not running' : raw?.slice(0, 120)}`);
     }
     if (res.ok && data && data.access_token) {
+      // Store the token and notify the dashboard
       await chrome.runtime.sendMessage({ type: 'SET_TOKEN', token: data.access_token });
       statusEl.textContent = 'Logged in';
       if (passEl) passEl.value = '';
+      
+      // Open the dashboard in a new tab if not already open
+      const tabs = await chrome.tabs.query({ url: 'http://localhost/*/dashboard*' });
+      if (tabs.length === 0) {
+        chrome.tabs.create({ url: 'http://localhost:3000/dashboard' });
+      } else {
+        // Focus the existing dashboard tab
+        chrome.tabs.update(tabs[0].id, { active: true });
+      }
     } else {
       statusEl.textContent = `Login failed: ${data?.error || res.status}`;
     }
@@ -54,7 +64,7 @@ async function handleSignup() {
   try {
     if (signupBtn) signupBtn.disabled = true;
     statusEl.textContent = 'Signing up...';
-    const base = window.promptokConfig ? await window.promptokConfig.getApiBase() : 'https://promptok.vercel.app';
+    const base = 'http://localhost:3000'; // Always use localhost in development
     const res = await fetch(`${base}/api/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -65,7 +75,8 @@ async function handleSignup() {
     try {
       data = raw ? JSON.parse(raw) : null;
     } catch (_) {
-      throw new Error(`Non-JSON response (${res.status}): ${raw?.slice(0, 120)}`);
+      console.error('Signup error:', raw);
+      throw new Error(`Server error (${res.status}): ${raw?.includes('DEPLOYMENT_NOT_FOUND') ? 'Local server not running' : raw?.slice(0, 120)}`);
     }
     if (res.ok) {
       if (data && data.access_token) {

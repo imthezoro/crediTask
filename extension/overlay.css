@@ -1,10 +1,164 @@
-.promptok-overlay { position: fixed; bottom: 16px; right: 16px; z-index: 2147483647; }
-.promptok-card { background: #1f2937; color: #f9fafb; border: 1px solid #374151; box-shadow: 0 10px 15px rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; width: 280px; }
-.promptok-card h4 { margin: 0 0 8px; font-size: 14px; color: #f9fafb; }
-.promptok-card label { display: block; font-size: 13px; margin: 6px 0; color: inherit; }
-.promptok-actions { display: flex; gap: 8px; margin-top: 8px; }
-.promptok-actions button { flex: 1; padding: 6px 8px; background: #4b5563; color: #f9fafb; border: 1px solid #6b7280; border-radius: 6px; cursor: pointer; }
-.promptok-actions button:hover { background: #6b7280; }
-.promptok-card input[type="radio"] { accent-color: #3b82f6; }
+/* Enhance button styles */
+.promptok-enhance-button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.05);
+  z-index: 10000;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.promptok-enhance-button:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.1);
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* Make sure the input has enough padding for the button */
+textarea[placeholder*="message" i],
+textarea[placeholder*="prompt" i],
+[contenteditable="true"] {
+  position: relative !important;
+  padding-right: 40px !important;
+}
+
+/* Overlay styles */
+.promptok-overlay {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.promptok-card {
+  position: relative;
+  z-index: 10001;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  box-shadow: 0 10px 15px rgba(0,0,0,0.2);
+  padding: 16px;
+  border-radius: 8px;
+  width: 300px;
+  box-sizing: border-box;
+}
+
+.promptok-card h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f9fafb;
+}
+
+.promptok-options {
+  margin-bottom: 12px;
+}
+
+.promptok-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  margin: 4px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.promptok-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.promptok-option input[type="radio"] {
+  margin: 0 8px 0 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.promptok-option span {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #e5e7eb;
+}
+
+.promptok-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.promptok-actions button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#promptok-enhance {
+  background: #3b82f6;
+  color: white;
+}
+
+#promptok-enhance:hover {
+  background: #2563eb;
+}
+
+#promptok-enhance:disabled {
+  background: #64748b;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+#promptok-close {
+  background: #374151;
+  color: #e5e7eb;
+}
+
+#promptok-close:hover {
+  background: #4b5563;
+}
+
+.promptok-status {
+  padding: 8px 12px;
+  margin: 8px 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  transition: all 0.3s ease;
+}
+
+.promptok-status.success {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border-left: 3px solid #22c55e;
+}
+
+.promptok-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-left: 3px solid #ef4444;
+}
+
+.promptok-status.info {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border-left: 3px solid #3b82f6;
+}
 
 

@@ -1,5 +1,6 @@
 (function () {
-  const DEFAULT_PRODUCTION_BASE = 'https://promptok.vercel.app';
+  // Always use localhost in development
+  const DEFAULT_PRODUCTION_BASE = 'http://localhost:3000';
   const DEFAULT_LOCAL_BASE = 'http://localhost:3000';
   const DETECTION_TTL_MS = 300000; // 5 minutes
   let inFlightDetectionPromise = null;
@@ -21,6 +22,11 @@
   }
 
   async function getApiBase() {
+    // Always return localhost:3000 in development
+    return 'http://localhost:3000';
+    
+    // The following code is kept for reference but not used in development
+    /*
     try {
       const { api_base, api_base_expires } = await chrome.storage.local.get([
         'api_base',
@@ -49,6 +55,7 @@
         inFlightDetectionPromise = null;
       });
     }
+    */
     return inFlightDetectionPromise;
   }
 
