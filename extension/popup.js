@@ -29,27 +29,32 @@ async function handleLogin(e) {
     const data = await res.json().catch(() => ({}));
     
     if (res.ok && data.access_token) {
-      // Store the token and notify the background script
-      await chrome.runtime.sendMessage({ 
-        type: 'SET_TOKEN', 
-        token: data.access_token 
+      // Store the token and user data in local storage
+      await chrome.storage.local.set({ 
+        token: data.access_token,
+        user: data.user || { email, name: email.split('@')[0] }
       });
       
-      showSuccess(statusEl, 'Login successful! Redirecting...');
-      
-      // Open or focus dashboard
-      const tabs = await chrome.tabs.query({ 
-        url: 'http://localhost:3000/dashboard*' 
-      });
-      
-      if (tabs.length === 0) {
-        chrome.tabs.create({ url: 'http://localhost:3000/dashboard' });
+      // Update UI immediately with available data
+      if (data.user) {
+        updateUserProfile(data.user);
       } else {
-        chrome.tabs.update(tabs[0].id, { active: true });
+        // Fallback to basic user info if full profile not returned
+        updateUserProfile({ email, name: email.split('@')[0] });
       }
       
-      // Close the popup after a short delay
-      setTimeout(() => window.close(), 1000);
+      // Show the logged-in view
+      showView('loggedIn');
+      showSuccess(statusEl, 'Login successful!');
+      
+      // Load full profile in the background
+      setTimeout(() => loadUserProfile(), 100);
+      
+      // Notify the background script about the login
+      chrome.runtime.sendMessage({ 
+        type: 'USER_LOGGED_IN',
+        token: data.access_token
+      });
       
     } else {
       const errorMsg = data.error || data.message || `Status: ${res.status}`;
@@ -80,26 +85,207 @@ function showSuccess(element, message) {
 // DOM Elements
 const loginView = document.getElementById('loginView');
 const signupView = document.getElementById('signupView');
+const loggedInView = document.getElementById('loggedInView');
 const loginForm = document.getElementById('login');
 const signupForm = document.getElementById('signup');
 const showSignupBtn = document.getElementById('showSignup');
 const showLoginBtn = document.getElementById('showLogin');
 const statusEl = document.getElementById('status');
 const signupStatusEl = document.getElementById('signupStatus');
+const logoutBtn = document.getElementById('logoutBtn');
+const userNameEl = document.getElementById('userName');
+const userEmailEl = document.getElementById('userEmail');
 
-// Toggle between login and signup views
-function showView(view) {
-  if (view === 'login') {
-    loginView.style.display = 'block';
-    signupView.style.display = 'none';
-    statusEl.textContent = '';
-    statusEl.className = 'status';
-  } else {
-    loginView.style.display = 'none';
-    signupView.style.display = 'block';
-    signupStatusEl.textContent = '';
-    signupStatusEl.className = 'status';
+// Check authentication status when popup loads
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    // Check if user is already authenticated
+    const { token } = await chrome.storage.local.get('token');
+    
+    if (token) {
+      // User is logged in, show the logged-in view
+      showView('loggedIn');
+      // Fetch and display user profile
+      await loadUserProfile();
+    } else {
+      // User is not logged in, show login view by default
+      showView('login');
+    }
+  } catch (error) {
+    console.error('Error checking auth status:', error);
+    showView('login');
   }
+  
+  // Initialize other event listeners
+  initEventListeners();
+});
+
+// Load user profile data
+async function loadUserProfile() {
+  try {
+    const { token, user: cachedUser } = await chrome.storage.local.get(['token', 'user']);
+    if (!token) {
+      showView('login');
+      return;
+    }
+    
+    // Show cached user data immediately if available
+    if (cachedUser) {
+      updateUserProfile(cachedUser);
+    }
+    
+    // Fetch fresh data from the server
+    const base = 'http://localhost:3000';
+    const res = await fetch(`${base}/api/auth/me`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      const userData = await res.json();
+      // Update local storage with fresh user data
+      await chrome.storage.local.set({ user: userData });
+      updateUserProfile(userData);
+    } else if (res.status === 401) {
+      // If token is invalid, clear it and show login
+      await chrome.storage.local.remove(['token', 'user']);
+      showView('login');
+    }
+  } catch (error) {
+    console.error('Error loading user profile:', error);
+    // Don't log out on network errors, keep using cached data
+  }
+}
+
+// Update the UI with user profile data
+function updateUserProfile(userData) {
+  if (userData.name) {
+    userNameEl.textContent = userData.name;
+  } else if (userData.firstName || userData.lastName) {
+    userNameEl.textContent = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+  } else {
+    userNameEl.textContent = 'User';
+  }
+  
+  if (userData.email) {
+    userEmailEl.textContent = userData.email;
+  }
+  
+  // Update plan and credits if available
+  if (userData.plan) {
+    const planBadge = document.querySelector('.plan-badge span');
+    if (planBadge) {
+      planBadge.textContent = userData.plan.toUpperCase();
+    }
+  }
+  
+  if (userData.credits !== undefined) {
+    const creditCount = document.querySelector('.credit-count');
+    if (creditCount) {
+      creditCount.textContent = userData.credits;
+    }
+  }
+}
+
+// Handle logout
+async function handleLogout() {
+  try {
+    // Clear the token from storage
+    await chrome.storage.local.remove('token');
+    // Show login view
+    showView('login');
+  } catch (error) {
+    console.error('Error during logout:', error);
+  }
+}
+
+// Initialize event listeners
+function initEventListeners() {
+  // Add ripple effect to all buttons
+  const buttons = document.querySelectorAll('.btn:not(.btn-text)');
+  buttons.forEach(button => {
+    button.addEventListener('click', createRipple);
+  });
+  
+  // Login form submission
+  if (loginForm) {
+    loginForm.addEventListener('click', handleLogin);
+  }
+  
+  // Signup form submission
+  if (signupForm) {
+    signupForm.addEventListener('click', handleSignup);
+  }
+  
+  // Logout button
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+  
+  // Toggle views
+  if (showSignupBtn) {
+    showSignupBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView('signup');
+    });
+  }
+  
+  if (showLoginBtn) {
+    showLoginBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView('login');
+    });
+  }
+}
+
+// Toggle between views
+function showView(view) {
+  // Get all view elements
+  const views = {
+    login: loginView,
+    signup: signupView,
+    loggedIn: loggedInView
+  };
+  
+  // Hide all views first with animation
+  Object.values(views).forEach(viewEl => {
+    if (viewEl) {
+      viewEl.style.display = 'none';
+      viewEl.style.opacity = '0';
+      viewEl.style.transition = 'opacity 0.2s ease';
+    }
+  });
+  
+  // Clear status messages
+  [statusEl, signupStatusEl].forEach(el => {
+    if (el) {
+      el.textContent = '';
+      el.className = 'status';
+    }
+  });
+  
+  // Show the requested view with animation
+  const targetView = views[view] || loginView;
+  if (targetView) {
+    targetView.style.display = 'flex';
+    // Force reflow before starting the animation
+    void targetView.offsetHeight;
+    targetView.style.opacity = '1';
+  }
+  
+  // If showing loggedIn view, ensure we have the latest data
+  if (view === 'loggedIn') {
+    loadUserProfile().catch(console.error);
+  }
+  
+  // Adjust popup size based on content
+  setTimeout(() => {
+    const height = targetView ? targetView.scrollHeight + 40 : 400; // Add some padding
+    document.body.style.height = `${Math.min(Math.max(height, 300), 600)}px`;
+  }, 50);
 }
 
 // Create ripple effect
@@ -137,11 +323,6 @@ function setLoading(button, isLoading) {
   }
 }
 
-// Initialize event listeners
-document.addEventListener('DOMContentLoaded', () => {
-  // Show login view by default
-  showView('login');
-  
   // Add ripple effect to all buttons
   const buttons = document.querySelectorAll('.btn:not(.btn-text)');
   buttons.forEach(button => {
@@ -158,6 +339,11 @@ document.addEventListener('DOMContentLoaded', () => {
     signupForm.addEventListener('click', handleSignup);
   }
   
+  // Logout button
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+  
   // Toggle views
   if (showSignupBtn) {
     showSignupBtn.addEventListener('click', (e) => {
@@ -172,7 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
       showView('login');
     });
   }
-});
 
 async function handleSignup(e) {
   e.preventDefault();

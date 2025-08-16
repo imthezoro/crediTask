@@ -4,9 +4,79 @@
     <meta charset="utf-8" />
     <title>PromptOK</title>
     <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   </head>
   <body>
     <div class="container">
+      <!-- Logged In View -->
+      <div id="loggedInView" class="view" style="display: none;">
+        <div class="profile-header">
+          <div class="logo">PromptOK</div>
+          <div class="user-info">
+            <div class="user-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="user-details">
+              <h3 id="userName">Loading...</h3>
+              <p id="userEmail">user@example.com</p>
+            </div>
+          </div>
+          
+          <div class="plan-info">
+            <div class="plan-badge">
+              <i class="fas fa-gem"></i>
+              <span>FREE</span>
+            </div>
+            <p class="plan-text">Current Plan</p>
+            <div class="credits">
+              <span>Credits</span>
+              <span class="credit-count">1</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="nav-section">
+          <a href="http://localhost:3000/dashboard" target="_blank" class="nav-item">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+            <p>Build out your super prompts</p>
+          </a>
+          
+          <a href="http://localhost:3000/billing" target="_blank" class="nav-item">
+            <i class="fas fa-credit-card"></i>
+            <span>Billing</span>
+            <p>Manage plan & payment</p>
+          </a>
+          
+          <a href="http://localhost:3000/profile" target="_blank" class="nav-item">
+            <i class="fas fa-user"></i>
+            <span>Profile</span>
+            <p>Manage your account</p>
+          </a>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="nav-section">
+          <a href="https://help.promptok.com" target="_blank" class="nav-item">
+            <i class="fas fa-question-circle"></i>
+            <span>Help & Support</span>
+            <p>Get help and contact support</p>
+          </a>
+          
+          <a href="https://chrome.google.com/webstore/detail/promptok/" target="_blank" class="nav-item">
+            <i class="fas fa-info-circle"></i>
+            <span>About</span>
+            <p>Extension Store Page</p>
+          </a>
+        </div>
+        
+        <button id="logoutBtn" class="btn btn-logout">
+          <i class="fas fa-sign-out-alt"></i>
+          Sign Out
+        </button>
+      </div>
+
       <!-- Login View -->
       <div id="loginView" class="view">
         <div class="logo">PromptOK</div>
