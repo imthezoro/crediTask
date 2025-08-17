@@ -241,6 +241,26 @@ h2 {
   to { transform: rotate(360deg); }
 }
 
+/* Show a centered spinner and hide text while loading */
+.btn.loading {
+  color: transparent; /* hide text so spinner is clear */
+}
+
+.btn.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;  /* center vertically */
+  margin-left: -9px; /* center horizontally */
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+
 /* Responsive Adjustments */
 /* Logged In View Styles */
 .profile-header {
