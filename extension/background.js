@@ -25,6 +25,9 @@ const storage = {
   }
 };
 
+// Keeps track of the tab/window that initiated OAuth so we can return focus
+let originContext = { tabId: null, windowId: null };
+
 // Notify all dashboard tabs about token updates
 async function notifyDashboardTabs(token) {
   try {
@@ -54,10 +57,42 @@ async function notifyDashboardTabs(token) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'SAVE_ORIGIN_TAB') {
+    originContext = {
+      tabId: typeof message.tabId === 'number' ? message.tabId : null,
+      windowId: typeof message.windowId === 'number' ? message.windowId : null,
+    };
+    sendResponse({ ok: true });
+    return; // no async work needed
+  }
   if (message.type === 'SET_TOKEN') {
     storage.set('access_token', message.token)
       .then(() => {
         notifyDashboardTabs(message.token);
+        // If this message came from the OAuth callback tab, first refocus origin then close it
+        try {
+          const callbackTabId = sender?.tab?.id;
+          const url = sender?.tab?.url || '';
+          if (callbackTabId && typeof callbackTabId === 'number' && url.includes('/auth/callback')) {
+            // Focus the original tab/window if we have them
+            if (originContext.windowId != null) {
+              chrome.windows.update(originContext.windowId, { focused: true }, () => void 0);
+            }
+            if (originContext.tabId != null) {
+              chrome.tabs.update(originContext.tabId, { active: true }, () => void 0);
+            }
+            // Clear context so it doesn't affect future flows
+            originContext = { tabId: null, windowId: null };
+            // Now close the callback tab
+            chrome.tabs.remove(callbackTabId, () => {
+              if (chrome.runtime.lastError) {
+                console.warn('Could not close OAuth tab:', chrome.runtime.lastError.message);
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Error trying to close OAuth tab:', e);
+        }
         sendResponse({ ok: true });
       })
       .catch(error => {

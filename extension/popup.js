@@ -319,6 +319,21 @@ async function handleLogout() {
 // Google OAuth helper
 async function startGoogleOAuth() {
   try {
+    // Save the current active tab as the origin to return focus later
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const originTab = tabs && tabs[0];
+      if (originTab && typeof originTab.id === 'number') {
+        await chrome.runtime.sendMessage({
+          type: 'SAVE_ORIGIN_TAB',
+          tabId: originTab.id,
+          windowId: originTab.windowId,
+        });
+      }
+    } catch (e) {
+      console.warn('Could not save origin tab', e);
+    }
+
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
