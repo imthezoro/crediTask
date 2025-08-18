@@ -97,6 +97,10 @@ const googleLoginSignupBtn = document.getElementById('googleLoginSignup');
 // Check authentication status when popup loads
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Popup loaded, checking auth status...');
+  
+  // Start with loading view to prevent flash
+  showView('loading');
+  
   try {
     // Check if user is already authenticated
     const result = await chrome.storage.local.get('access_token');
@@ -108,10 +112,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (access_token) {
       console.log('Found access token, attempting profile load');
-      // Attempt to load profile; loadUserProfile will decide which view to show
-      startProfileSkeleton();
+      // Load profile and show logged in view directly
       await loadUserProfile();
-      stopProfileSkeleton();
     } else {
       console.log('No access token found, showing login view');
       showView('login');
@@ -132,11 +134,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           const newToken = changes.access_token.newValue;
           if (newToken) {
             console.log('[PromptOK popup] access_token added/updated, loading profile');
-            startProfileSkeleton();
+            showView('loading');
             // Clear any cached user data before loading new profile
             updateUserProfile({ name: '', email: '' });
             await loadUserProfile();
-            stopProfileSkeleton();
           } else {
             console.log('[PromptOK popup] access_token removed, switching to login');
             showView('login');
@@ -446,9 +447,11 @@ function initEventListeners() {
 // Toggle between views
 function showView(view) {
   // Hide all views first
+  const loadingView = document.getElementById('loadingView');
   if (loginView) loginView.style.display = 'none';
   if (signupView) signupView.style.display = 'none';
   if (loggedInView) loggedInView.style.display = 'none';
+  if (loadingView) loadingView.style.display = 'none';
   
   // Clear status messages
   if (statusEl) {
@@ -463,6 +466,9 @@ function showView(view) {
   
   // Show the requested view
   switch(view) {
+    case 'loading':
+      if (loadingView) loadingView.style.display = 'block';
+      break;
     case 'login':
       if (loginView) loginView.style.display = 'block';
       break;
