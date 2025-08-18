@@ -20,6 +20,10 @@ async function handleLogin(e) {
   try {
     setLoading(loginForm, true);
     
+    // Clear any existing tokens to prevent session conflicts
+    await chrome.storage.local.remove('access_token');
+    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+    
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
@@ -38,13 +42,14 @@ async function handleLogin(e) {
       // Show success message
       showSuccess(statusEl, 'Login successful!');
       
-      // Load user profile; loadUserProfile will decide which view to show
-      await loadUserProfile();
+      // Load user profile; validate it matches the email just used to sign in
+      await loadUserProfile(email);
       
-      // Notify the background script about the login
+      // Notify the background script about the login (broadcast to pages)
       chrome.runtime.sendMessage({ 
-        type: 'USER_LOGGED_IN',
-        token: data.access_token
+        type: 'SET_TOKEN',
+        token: data.access_token,
+        updatedAt: Date.now(),
       });
       
     } else {
@@ -128,6 +133,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (newToken) {
             console.log('[PromptOK popup] access_token added/updated, loading profile');
             startProfileSkeleton();
+            // Clear any cached user data before loading new profile
+            updateUserProfile({ name: '', email: '' });
             await loadUserProfile();
             stopProfileSkeleton();
           } else {
@@ -143,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // Load user profile data
-async function loadUserProfile() {
+async function loadUserProfile(expectedEmail) {
   try {
     const { access_token } = await chrome.storage.local.get('access_token');
     if (!access_token) {
@@ -163,10 +170,25 @@ async function loadUserProfile() {
     
     if (res.ok) {
       const payload = await res.json().catch(() => null);
+      console.log('[PromptOK] Full API response payload:', payload);
       const user = payload?.user ?? payload; // Support both { user } and raw user
+      console.log('[PromptOK] Extracted user object:', user);
+      console.log('[PromptOK] Expected email for validation:', expectedEmail);
+      
       if (!user || (!user.email && !user?.user_metadata?.name && !user?.user_metadata?.full_name)) {
         console.error('[PromptOK] /api/auth/user missing essential fields', payload);
         await chrome.storage.local.remove('access_token');
+        try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+        showView('login');
+        return;
+      }
+      // If we just logged in with email/password, ensure the returned user matches the expected email
+      if (expectedEmail && user?.email && user.email.toLowerCase() !== String(expectedEmail).toLowerCase()) {
+        console.warn('[PromptOK] Expected email does not match token user, clearing token to avoid showing wrong account', 
+          `Expected: ${expectedEmail}, Actual: ${user.email}`);
+        await chrome.storage.local.remove('access_token');
+        try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+        showError(statusEl, 'Session mismatch detected. Please sign in again.');
         showView('login');
         return;
       }
@@ -174,6 +196,7 @@ async function loadUserProfile() {
       if (user?.aud && user.aud !== 'authenticated') {
         console.warn('[PromptOK] Non-authenticated audience in user payload', { aud: user.aud });
         await chrome.storage.local.remove('access_token');
+        try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
         showView('login');
         return;
       }
@@ -199,6 +222,7 @@ async function loadUserProfile() {
       // If token is invalid, clear it and show login
       if (res.status === 401 || res.status === 403) {
         await chrome.storage.local.remove('access_token');
+        try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
         showView('login');
       } else {
         showError(statusEl, `Could not load profile (HTTP ${res.status})`);
@@ -208,6 +232,7 @@ async function loadUserProfile() {
     console.error('Error loading user profile:', error);
     // On any error, ensure we show login view and do not display placeholders
     try { await chrome.storage.local.remove('access_token'); } catch (_) {}
+    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
     showView('login');
   }
 }
@@ -222,7 +247,7 @@ function updateUserProfile(userData) {
     userNameEl.textContent = '';
   }
   
-  if (userData.email) {
+  if (userData.email !== undefined) {
     userEmailEl.textContent = userData.email;
   }
   
@@ -309,6 +334,7 @@ async function handleLogout() {
   try {
     // Clear the token from storage
     await chrome.storage.local.remove('access_token');
+    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
     // Show login view
     showView('login');
   } catch (error) {
@@ -319,6 +345,10 @@ async function handleLogout() {
 // Google OAuth helper
 async function startGoogleOAuth() {
   try {
+    // Clear any existing tokens to prevent session conflicts
+    await chrome.storage.local.remove('access_token');
+    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+    
     // Save the current active tab as the origin to return focus later
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -521,6 +551,10 @@ async function handleSignup(e) {
   try {
     setLoading(signupForm, true);
     
+    // Clear any existing tokens to prevent session conflicts
+    await chrome.storage.local.remove('access_token');
+    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+    
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
@@ -538,13 +572,20 @@ async function handleSignup(e) {
     
     if (res.ok) {
       if (data.access_token) {
-        // Auto-login if token is returned
+        // Store the new token
+        await chrome.storage.local.set({ access_token: data.access_token });
+        
+        // Auto-login if token is returned - validate against signup email
         await chrome.runtime.sendMessage({ 
           type: 'SET_TOKEN', 
-          token: data.access_token 
+          token: data.access_token,
+          updatedAt: Date.now(),
         });
         
         showSuccess(signupStatusEl, 'Account created! Redirecting...');
+        
+        // Load and validate user profile matches signup email
+        await loadUserProfile(email);
         
         // Open dashboard after a short delay
         setTimeout(async () => {

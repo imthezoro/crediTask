@@ -95,6 +95,11 @@ export default function AuthCallbackPage() {
         const access_token = data.session.access_token;
         const expires_in = expiresSeconds;
         
+        // Validate the session contains user data before proceeding
+        if (!data.session.user || !data.session.user.email) {
+          throw new Error('Invalid session: missing user information');
+        }
+
         // Store the access token in localStorage for client-side usage
         try {
           localStorage.setItem('sb-access-token', access_token);

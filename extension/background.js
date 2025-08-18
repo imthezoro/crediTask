@@ -29,7 +29,7 @@ const storage = {
 let originContext = { tabId: null, windowId: null };
 
 // Notify all dashboard tabs about token updates
-async function notifyDashboardTabs(token) {
+async function notifyDashboardTabs(token, updatedAt) {
   try {
     const patterns = [
       '*://localhost/*/dashboard*',
@@ -46,7 +46,7 @@ async function notifyDashboardTabs(token) {
       if (seen.has(tab.id)) continue;
       seen.add(tab.id);
       try {
-        await chrome.tabs.sendMessage(tab.id, { type: 'TOKEN_UPDATE', token });
+        await chrome.tabs.sendMessage(tab.id, { type: 'TOKEN_UPDATE', token, updatedAt });
       } catch (e) {
         console.warn('Could not notify tab:', e);
       }
@@ -66,9 +66,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return; // no async work needed
   }
   if (message.type === 'SET_TOKEN') {
-    storage.set('access_token', message.token)
+    const updatedAt = typeof message.updatedAt === 'number' ? message.updatedAt : Date.now();
+    Promise.all([
+      storage.set('access_token', message.token),
+      storage.set('access_token_updated_at', updatedAt),
+    ])
       .then(() => {
-        notifyDashboardTabs(message.token);
+        notifyDashboardTabs(message.token, updatedAt);
         // If this message came from the OAuth callback tab, first refocus origin then close it
         try {
           const callbackTabId = sender?.tab?.id;
@@ -100,6 +104,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ ok: false, error: error.message });
       });
     return true; // Keep the message channel open for async response
+  }
+  if (message.type === 'CLEAR_TOKEN') {
+    // Remove token and notify all tabs to clear their page-local tokens
+    const updatedAt = Date.now();
+    Promise.all([
+      storage.set('access_token', null),
+      storage.set('access_token_updated_at', updatedAt),
+    ])
+      .then(() => {
+        notifyDashboardTabs(null, updatedAt);
+        sendResponse({ ok: true });
+      })
+      .catch(error => {
+        console.error('Error clearing token:', error);
+        sendResponse({ ok: false, error: error.message });
+      });
+    return true;
   }
 });
 
