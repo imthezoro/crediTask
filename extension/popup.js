@@ -11,6 +11,7 @@ async function handleLogin(e) {
     showError(statusEl, 'Please enter your email');
     return;
   }
+
   if (!password) {
     showError(statusEl, 'Please enter your password');
     return;
@@ -86,6 +87,8 @@ const signupStatusEl = document.getElementById('signupStatus');
 const logoutBtn = document.getElementById('logoutBtn');
 const userNameEl = document.getElementById('userName');
 const userEmailEl = document.getElementById('userEmail');
+const googleLoginBtn = document.getElementById('googleLogin');
+const googleLoginSignupBtn = document.getElementById('googleLoginSignup');
 
 // Check authentication status when popup loads
 document.addEventListener('DOMContentLoaded', async () => {
@@ -119,6 +122,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Initialize other event listeners
   initEventListeners();
+  
+  // Listen for token changes to auto-switch UI without reopening the popup
+  try {
+    if (chrome && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener(async (changes, area) => {
+        if (area === 'local' && changes.access_token) {
+          const newToken = changes.access_token.newValue;
+          if (newToken) {
+            console.log('[PromptOK popup] access_token added/updated, switching to loggedIn');
+            showView('loggedIn');
+            startProfileSkeleton();
+            await loadUserProfile();
+            stopProfileSkeleton();
+          } else {
+            console.log('[PromptOK popup] access_token removed, switching to login');
+            showView('login');
+          }
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Could not attach storage change listener', e);
+  }
 });
 
 // Load user profile data
@@ -127,15 +153,13 @@ async function loadUserProfile() {
     const { access_token } = await chrome.storage.local.get('access_token');
     if (!access_token) return;
     
-    const { SUPABASE_URL, SUPABASE_ANON_KEY } = window.promptokConfig || {};
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      throw new Error('Supabase configuration missing');
-    }
-    console.debug('[PromptOK] Supabase user endpoint:', `${SUPABASE_URL}/auth/v1/user`);
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
+    console.debug('[PromptOK] Backend user endpoint:', `${base}/api/auth/user`);
+    const res = await fetch(`${base}/api/auth/user`, {
       headers: {
         'Authorization': `Bearer ${access_token}`,
-        'apikey': SUPABASE_ANON_KEY,
       }
     });
     
@@ -302,6 +326,42 @@ async function handleLogout() {
   }
 }
 
+// Google OAuth helper
+async function startGoogleOAuth() {
+  try {
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
+    // Prefer direct Supabase authorize URL so user goes straight to Google without an intermediate page
+    const supabaseUrl = (window.promptokConfig && window.promptokConfig.SUPABASE_URL)
+      ? window.promptokConfig.SUPABASE_URL
+      : null;
+    const redirectTo = `${base}/auth/callback`;
+
+    if (supabaseUrl) {
+      const params = new URLSearchParams({
+        provider: 'google',
+        redirect_to: redirectTo,
+        flow_type: 'implicit',
+        // These help with Google account picking and refresh support
+        access_type: 'offline',
+        prompt: 'select_account',
+      });
+      const authUrl = `${supabaseUrl.replace(/\/$/, '')}/auth/v1/authorize?${params.toString()}`;
+      chrome.tabs.create({ url: authUrl });
+    } else {
+      // Fallback to first-party start page
+      const url = `${base}/auth/start?provider=google&redirectTo=${encodeURIComponent(redirectTo)}`;
+      chrome.tabs.create({ url });
+    }
+    // Close popup after opening the tab
+    window.close();
+  } catch (e) {
+    console.error('Google OAuth start error', e);
+    showError(statusEl || signupStatusEl, 'Google sign-in failed to start');
+  }
+}
+
 // Initialize event listeners
 function initEventListeners() {
   // Add ripple effect to all buttons
@@ -323,6 +383,13 @@ function initEventListeners() {
   // Logout button
   if (logoutBtn) {
     logoutBtn.addEventListener('click', handleLogout);
+  }
+  // Google buttons
+  if (googleLoginBtn) {
+    googleLoginBtn.addEventListener('click', (e) => { e.preventDefault(); startGoogleOAuth(); });
+  }
+  if (googleLoginSignupBtn) {
+    googleLoginSignupBtn.addEventListener('click', (e) => { e.preventDefault(); startGoogleOAuth(); });
   }
   
   // Toggle views
@@ -410,54 +477,19 @@ function setLoading(button, isLoading) {
   }
 }
 
-  // Add ripple effect to all buttons
-  const buttons = document.querySelectorAll('.btn:not(.btn-text)');
-  buttons.forEach(button => {
-    button.addEventListener('click', createRipple);
-  });
-  
-  // Login form submission
-  if (loginForm) {
-    loginForm.addEventListener('click', handleLogin);
-  }
-  
-  // Signup form submission
-  if (signupForm) {
-    signupForm.addEventListener('click', handleSignup);
-  }
-  
-  // Logout button
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', handleLogout);
-  }
-  
-  // Toggle views
-  if (showSignupBtn) {
-    showSignupBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      showView('signup');
-    });
-  }
-  
-  if (showLoginBtn) {
-    showLoginBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      showView('login');
-    });
-  }
+  // (Removed duplicate event listeners; initEventListeners handles bindings)
 
 async function handleSignup(e) {
   e.preventDefault();
   
-  const firstName = document.getElementById('firstName').value.trim();
-  const lastName = document.getElementById('lastName').value.trim();
+  const displayName = (document.getElementById('displayName')?.value || '').trim();
   const email = document.getElementById('signupEmail').value.trim();
   const password = document.getElementById('signupPassword').value;
   const confirmPassword = document.getElementById('confirmPassword').value;
   
   // Validation
-  if (!firstName) {
-    showError(signupStatusEl, 'Please enter your first name');
+  if (!displayName) {
+    showError(signupStatusEl, 'Please enter your full name');
     return;
   }
   if (!email) {
@@ -493,9 +525,7 @@ async function handleSignup(e) {
       body: JSON.stringify({
         email,
         password,
-        name: `${firstName} ${lastName}`.trim(),
-        firstName,
-        lastName
+        name: displayName,
       }),
     });
     

@@ -18,13 +18,37 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "exclude_matches": ["*://localhost/*/dashboard*"],
+      "exclude_matches": [
+        "*://localhost/*/dashboard*",
+        "*://localhost/dashboard*",
+        "*://127.0.0.1/*/dashboard*",
+        "*://127.0.0.1/dashboard*",
+        "*://localhost/*/auth/callback*",
+        "*://localhost/auth/callback*",
+        "*://127.0.0.1/*/auth/callback*",
+        "*://127.0.0.1/auth/callback*"
+      ],
       "js": ["config.js", "content.js"],
       "css": ["overlay.css"],
       "run_at": "document_idle"
     },
     {
-      "matches": ["*://localhost/*/dashboard*"],
+      "matches": [
+        "*://localhost/*/dashboard*",
+        "*://localhost/dashboard*",
+        "*://127.0.0.1/*/dashboard*",
+        "*://127.0.0.1/dashboard*"
+      ],
+      "js": ["dashboard-auth.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://localhost/*/auth/callback*",
+        "*://localhost/auth/callback*",
+        "*://127.0.0.1/*/auth/callback*",
+        "*://127.0.0.1/auth/callback*"
+      ],
       "js": ["dashboard-auth.js"],
       "run_at": "document_start"
     }

@@ -4,14 +4,18 @@ import { env } from '@/lib/env';
 import { corsJson, corsHeaders } from '@/lib/cors';
 import { createClient } from '@supabase/supabase-js';
 
-const SignupSchema = z.object({ email: z.string().email(), password: z.string().min(6) });
+const SignupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().trim().min(1).max(200).optional(),
+});
 
 export async function POST(req: NextRequest) {
   // Parse and validate request body
-  let email: string, password: string;
+  let email: string, password: string, name: string | undefined;
   try {
     const body = await req.json();
-    ({ email, password } = SignupSchema.parse(body));
+    ({ email, password, name } = SignupSchema.parse(body));
   } catch {
     return corsJson({ error: 'Invalid request' }, { status: 400 });
   }
@@ -32,7 +36,13 @@ export async function POST(req: NextRequest) {
       auth: { persistSession: false },
     });
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: name ? { full_name: name } : undefined,
+      },
+    });
     if (error) {
       return corsJson({ error: error.message }, { status: 400 });
     }

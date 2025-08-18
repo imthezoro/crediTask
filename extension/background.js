@@ -28,8 +28,20 @@ const storage = {
 // Notify all dashboard tabs about token updates
 async function notifyDashboardTabs(token) {
   try {
-    const tabs = await chrome.tabs.query({ url: '*://localhost/*/dashboard*' });
-    for (const tab of tabs) {
+    const patterns = [
+      '*://localhost/*/dashboard*',
+      '*://localhost/dashboard*',
+      '*://127.0.0.1/*/dashboard*',
+      '*://127.0.0.1/dashboard*',
+    ];
+    const results = await Promise.allSettled(patterns.map(p => chrome.tabs.query({ url: p })));
+    const allTabs = results
+      .filter(r => r.status === 'fulfilled')
+      .flatMap(r => r.value || []);
+    const seen = new Set();
+    for (const tab of allTabs) {
+      if (seen.has(tab.id)) continue;
+      seen.add(tab.id);
       try {
         await chrome.tabs.sendMessage(tab.id, { type: 'TOKEN_UPDATE', token });
       } catch (e) {
