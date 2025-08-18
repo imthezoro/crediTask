@@ -38,9 +38,8 @@ async function handleLogin(e) {
       // Show success message
       showSuccess(statusEl, 'Login successful!');
       
-      // Load user profile and update UI
+      // Load user profile; loadUserProfile will decide which view to show
       await loadUserProfile();
-      showView('loggedIn');
       
       // Notify the background script about the login
       chrome.runtime.sendMessage({ 
@@ -103,16 +102,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     setPortalLinksBase().catch(console.warn);
 
     if (access_token) {
-      console.log('Found access token, showing logged in view');
-      // User is logged in, show the logged-in view
-      showView('loggedIn');
-      // Fetch and display user profile
+      console.log('Found access token, attempting profile load');
+      // Attempt to load profile; loadUserProfile will decide which view to show
       startProfileSkeleton();
       await loadUserProfile();
       stopProfileSkeleton();
     } else {
       console.log('No access token found, showing login view');
-      // User is not logged in, show login view by default
       showView('login');
     }
   } catch (error) {
@@ -130,8 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (area === 'local' && changes.access_token) {
           const newToken = changes.access_token.newValue;
           if (newToken) {
-            console.log('[PromptOK popup] access_token added/updated, switching to loggedIn');
-            showView('loggedIn');
+            console.log('[PromptOK popup] access_token added/updated, loading profile');
             startProfileSkeleton();
             await loadUserProfile();
             stopProfileSkeleton();
@@ -151,7 +146,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadUserProfile() {
   try {
     const { access_token } = await chrome.storage.local.get('access_token');
-    if (!access_token) return;
+    if (!access_token) {
+      showView('login');
+      return;
+    }
     
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
@@ -166,9 +164,10 @@ async function loadUserProfile() {
     if (res.ok) {
       const payload = await res.json().catch(() => null);
       const user = payload?.user ?? payload; // Support both { user } and raw user
-      if (!user) {
-        console.error('[PromptOK] Supabase /auth/v1/user returned no user object', payload);
-        showError(statusEl, 'Could not load profile (empty response)');
+      if (!user || (!user.email && !user?.user_metadata?.name && !user?.user_metadata?.full_name)) {
+        console.error('[PromptOK] /api/auth/user missing essential fields', payload);
+        await chrome.storage.local.remove('access_token');
+        showView('login');
         return;
       }
       // Guard: ensure this is an authenticated user (Supabase typically sets aud="authenticated")
@@ -182,14 +181,14 @@ async function loadUserProfile() {
         user?.user_metadata?.full_name ||
         user?.user_metadata?.name ||
         user?.email ||
-        'User';
+        '';
       updateUserProfile({
         name: displayName,
         email: user?.email || '',
-        // Add any other user fields you need
       });
-      // Update avatar initials based on name/email
       setAvatarInitials(displayName, user?.email || '');
+      // Only after successful user population, show the logged-in view
+      showView('loggedIn');
     } else {
       const bodyText = await res.text().catch(() => '');
       console.error('[PromptOK] Supabase /auth/v1/user failed', {
@@ -207,18 +206,9 @@ async function loadUserProfile() {
     }
   } catch (error) {
     console.error('Error loading user profile:', error);
-    // Fallback: populate UI with defaults so the logged-in view looks presentable
-    try {
-      updateUserProfile({
-        name: 'John Doe',
-        email: 'john@doe.com',
-        plan: 'PRO',
-        credits: 123,
-      });
-      setAvatarInitials('John Doe', 'john@doe.com');
-    } catch (_) {
-      // ignore
-    }
+    // On any error, ensure we show login view and do not display placeholders
+    try { await chrome.storage.local.remove('access_token'); } catch (_) {}
+    showView('login');
   }
 }
 
@@ -229,7 +219,7 @@ function updateUserProfile(userData) {
   } else if (userData.firstName || userData.lastName) {
     userNameEl.textContent = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
   } else {
-    userNameEl.textContent = 'User';
+    userNameEl.textContent = '';
   }
   
   if (userData.email) {
@@ -257,7 +247,7 @@ function updateUserProfile(userData) {
 // Compute and set avatar initials
 function computeInitials(name, email) {
   const src = (name || '').trim() || (email || '').trim();
-  if (!src) return 'U';
+  if (!src) return '';
   const parts = src.split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   // For single word or email
@@ -265,7 +255,7 @@ function computeInitials(name, email) {
   const letters = word.replace(/[^a-zA-Z]/g, '');
   if (letters.length >= 2) return (letters[0] + letters[1]).toUpperCase();
   if (letters.length === 1) return letters[0].toUpperCase();
-  return 'U';
+  return '';
 }
 
 function setAvatarInitials(name, email) {
