@@ -16,6 +16,13 @@ class AdvancedPromptEnhancer {
     }
   }
 
+  // Test function to debug apply functionality
+  testApply() {
+    this.debugLog('Testing apply functionality...');
+    const testPrompt = "This is a test prompt to verify the apply button works.";
+    this.applyPromptToInput(testPrompt);
+  }
+
   detect() {
     const selectors = [
       'textarea[placeholder*="message" i]',
@@ -340,7 +347,6 @@ class AdvancedPromptEnhancer {
         <div class="promptok-header">
           <h4>✨ Enhanced Prompt Ready</h4>
           <div class="header-controls">
-            <button class="promptok-resize" title="Resize">⤢</button>
             <button class="promptok-close" aria-label="Close">×</button>
           </div>
         </div>
@@ -419,14 +425,12 @@ class AdvancedPromptEnhancer {
     const closeBtn = overlay.querySelector('.promptok-close');
     closeBtn.addEventListener('click', () => this.removeExistingOverlay());
     
-    // Resize functionality
-    const resizeBtn = overlay.querySelector('.promptok-resize');
-    resizeBtn.addEventListener('click', () => this.toggleCardSize(overlay));
-    
     // Apply prompt (base + selected options)
     const applyBtn = overlay.querySelector('#promptok-apply');
     applyBtn.addEventListener('click', () => {
+      this.debugLog('Apply button clicked');
       const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+      this.debugLog('Final prompt built:', finalPrompt);
       this.applyPromptToInput(finalPrompt);
     });
     
@@ -466,15 +470,10 @@ class AdvancedPromptEnhancer {
       });
     });
     
-    // Load saved size
-    this.loadCardSize(overlay);
-    
-    // Save size on resize
+    // Set default larger size
     const card = overlay.querySelector('.promptok-card.enhanced');
-    const resizeObserver = new ResizeObserver(() => {
-      this.saveCardSize(card);
-    });
-    resizeObserver.observe(card);
+    card.style.width = '1000px';
+    card.style.height = '600px';
     
     // Close when clicking outside
     overlay.addEventListener('click', (e) => {
@@ -496,129 +495,25 @@ class AdvancedPromptEnhancer {
   }
 
   applyPromptToInput(finalPrompt) {
+    this.debugLog('Starting applyPromptToInput');
     const input = this.detect();
     if (!input) {
-      console.error('No input field detected');
       this.showError('Could not find input field to apply prompt');
       return;
     }
     
-    console.log('Applying prompt to input:', input);
-    console.log('Input type:', input.tagName, 'contentEditable:', input.isContentEditable);
-    console.log('Final prompt:', finalPrompt);
+    this.debugLog('Input detected:', input.tagName, 'isLexical:', input.hasAttribute('data-lexical-editor'));
+    this.debugLog('Input value before:', this.getInputValue(input));
     
-    // Focus the input first
     input.focus();
     
     try {
-      // Method 1: For regular input/textarea elements
-      if (input.value !== undefined) {
-        console.log('Using value property method');
-        
-        // Clear and set using multiple approaches
-        input.value = '';
-        
-        // Use native setters to bypass React/Vue
-        const descriptor = input.tagName === 'TEXTAREA' 
-          ? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")
-          : Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value");
-        
-        if (descriptor && descriptor.set) {
-          descriptor.set.call(input, finalPrompt);
-        } else {
-          input.value = finalPrompt;
-        }
-        
-        // Also try setting via setAttribute
-        input.setAttribute('value', finalPrompt);
-        
-      } else if (input.isContentEditable || input.contentEditable === 'true') {
-        console.log('Using contentEditable method');
-        
-        // For contenteditable elements
-        input.innerHTML = '';
-        input.textContent = finalPrompt;
-        input.innerText = finalPrompt;
-        
-        // Set cursor to end
-        try {
-          const range = document.createRange();
-          const selection = window.getSelection();
-          range.selectNodeContents(input);
-          range.collapse(false);
-          selection.removeAllRanges();
-          selection.addRange(range);
-        } catch (e) {
-          console.warn('Could not set cursor position:', e);
-        }
-      }
+      const success = this.setInputValue(input, finalPrompt);
       
-      // Method 2: Try document.execCommand as fallback
-      try {
-        input.focus();
-        document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, finalPrompt);
-      } catch (e) {
-        console.warn('execCommand failed:', e);
-      }
-      
-      // Method 3: Comprehensive event dispatching
-      const events = [
-        'focus', 'input', 'change', 'keyup', 'keydown', 'keypress', 'paste', 'textInput'
-      ];
-      
-      events.forEach(eventType => {
-        try {
-          const event = new Event(eventType, { bubbles: true, cancelable: true });
-          input.dispatchEvent(event);
-        } catch (e) {
-          console.warn(`Failed to dispatch ${eventType}:`, e);
-        }
-      });
-      
-      // Additional InputEvent for modern browsers
-      try {
-        input.dispatchEvent(new InputEvent('input', { 
-          bubbles: true, 
-          cancelable: true,
-          inputType: 'insertText',
-          data: finalPrompt
-        }));
-      } catch (e) {
-        console.warn('InputEvent failed:', e);
-      }
-      
-      // For contenteditable elements
-      if (input.isContentEditable || input.contentEditable === 'true') {
-        try {
-          input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
-        } catch (e) {
-          console.warn('CompositionEvent failed:', e);
-        }
-      }
-      
-      // Delayed events for async handlers
+      // Verify and show result
       setTimeout(() => {
-        ['input', 'change'].forEach(eventType => {
-          try {
-            input.dispatchEvent(new Event(eventType, { bubbles: true }));
-          } catch (e) {
-            console.warn(`Delayed ${eventType} failed:`, e);
-          }
-        });
-      }, 50);
-      
-      setTimeout(() => {
-        console.log('Final input value check:', input.value || input.textContent);
+        this.verifyAndShowResult(input, finalPrompt, success);
       }, 200);
-      
-      const count = this.selectedOptions.size;
-      const message = count > 0 
-        ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} applied!`
-        : 'Enhanced prompt applied!';
-      
-      this.showSuccess(message);
-      setTimeout(() => this.removeExistingOverlay(), 1500);
       
     } catch (error) {
       console.error('Error applying prompt:', error);
@@ -626,42 +521,282 @@ class AdvancedPromptEnhancer {
     }
   }
 
-  toggleCardSize(overlay) {
-    const card = overlay.querySelector('.promptok-card.enhanced');
-    const currentWidth = card.style.width || '800px';
+  setInputValue(input, text) {
+    const isLexical = input.hasAttribute('data-lexical-editor');
     
-    if (currentWidth === '800px' || currentWidth === '') {
-      card.style.width = '1000px';
-      card.style.height = '600px';
-    } else {
-      card.style.width = '800px';
-      card.style.height = 'auto';
+    if (isLexical) {
+      return this.setLexicalValue(input, text);
+    } else if (input.value !== undefined) {
+      return this.setValueProperty(input, text);
+    } else if (input.isContentEditable) {
+      return this.setContentEditableValue(input, text);
     }
     
-    this.saveCardSize(card);
+    return false;
   }
 
-  saveCardSize(card) {
-    const size = {
-      width: card.style.width || card.offsetWidth + 'px',
-      height: card.style.height || card.offsetHeight + 'px'
-    };
-    localStorage.setItem('promptok-card-size', JSON.stringify(size));
-  }
-
-  loadCardSize(overlay) {
+  setLexicalValue(input, text) {
     try {
-      const savedSize = localStorage.getItem('promptok-card-size');
-      if (savedSize) {
-        const size = JSON.parse(savedSize);
-        const card = overlay.querySelector('.promptok-card.enhanced');
-        if (size.width) card.style.width = size.width;
-        if (size.height && size.height !== 'auto') card.style.height = size.height;
-      }
+      // Clear existing content with Ctrl+A
+      this.dispatchKeyEvent(input, 'keydown', 'a', { ctrlKey: true });
+      
+      // Use InputEvent API (proper method for Lexical)
+      this.dispatchInputEvent(input, text, 'insertText');
+      
+      // Fallback: Selection-based replacement
+      setTimeout(() => this.replaceViaSelection(input, text), 50);
+      
+      return true;
     } catch (e) {
-      console.warn('Could not load saved card size:', e);
+      this.debugLog('Lexical value setting failed:', e);
+      return false;
     }
   }
+
+  setValueProperty(input, text) {
+    try {
+      // Use native setter to bypass framework interference
+      const descriptor = input.tagName === 'TEXTAREA' 
+        ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
+        : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      
+      if (descriptor?.set) {
+        descriptor.set.call(input, text);
+      } else {
+        input.value = text;
+      }
+      
+      this.dispatchInputEvent(input, text, 'insertText');
+      return true;
+    } catch (e) {
+      this.debugLog('Value property setting failed:', e);
+      return false;
+    }
+  }
+
+  setContentEditableValue(input, text) {
+    try {
+      input.textContent = text;
+      this.setCursorToEnd(input);
+      this.dispatchInputEvent(input, text, 'insertText');
+      return true;
+    } catch (e) {
+      this.debugLog('ContentEditable setting failed:', e);
+      return false;
+    }
+  }
+
+  // Helper methods for cleaner code
+  getInputValue(input) {
+    return input.value || input.textContent || input.innerText || '';
+  }
+
+  dispatchKeyEvent(input, type, key, modifiers = {}) {
+    const event = new KeyboardEvent(type, {
+      key,
+      code: `Key${key.toUpperCase()}`,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers
+    });
+    input.dispatchEvent(event);
+  }
+
+  dispatchInputEvent(input, text, inputType = 'insertText') {
+    try {
+      // Dispatch beforeinput first
+      input.dispatchEvent(new InputEvent('beforeinput', {
+        data: text,
+        inputType,
+        bubbles: true,
+        cancelable: true
+      }));
+      
+      // Then dispatch input event
+      input.dispatchEvent(new InputEvent('input', {
+        data: text,
+        inputType,
+        bubbles: true,
+        cancelable: true
+      }));
+      
+    } catch (e) {
+      this.debugLog(`InputEvent (${inputType}) failed:`, e);
+    }
+  }
+
+  replaceViaSelection(input, text) {
+    try {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      
+      range.selectNodeContents(input);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      
+      // Try execCommand first
+      if (document.execCommand('insertText', false, text)) {
+        return true;
+      }
+      
+      // Fallback to manual replacement
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      this.setCursorToEnd(input);
+      
+      return true;
+    } catch (e) {
+      this.debugLog('Selection replacement failed:', e);
+      return false;
+    }
+  }
+
+  setCursorToEnd(input) {
+    try {
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(input);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } catch (e) {
+      this.debugLog('Cursor positioning failed:', e);
+    }
+  }
+
+  verifyAndShowResult(input, expectedText, wasSuccessful) {
+    const currentValue = this.getInputValue(input);
+    this.debugLog('Final value check:', currentValue.substring(0, 100) + '...');
+    
+    const isApplied = currentValue.includes(expectedText.substring(0, 50));
+    
+    if (!isApplied && wasSuccessful) {
+      this.debugLog('Verification failed, trying fallback');
+      this.tryAggressiveApply(input, expectedText);
+      return;
+    }
+    
+    const count = this.selectedOptions.size;
+    const message = count > 0 
+      ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} applied!`
+      : 'Enhanced prompt applied!';
+    
+    this.showSuccess(message);
+    setTimeout(() => this.removeExistingOverlay(), 1500);
+  }
+
+  tryAggressiveApply(input, finalPrompt) {
+    this.debugLog('Trying aggressive apply method');
+    
+    const isLexical = input.hasAttribute('data-lexical-editor');
+    
+    if (isLexical) {
+      this.tryLexicalAggressiveApply(input, finalPrompt);
+    } else {
+      this.tryStandardAggressiveApply(input, finalPrompt);
+    }
+  }
+
+  tryLexicalAggressiveApply(input, text) {
+    try {
+      this.debugLog('Trying Lexical aggressive apply');
+      
+      // Multiple InputEvent types for better compatibility
+      const inputTypes = ['insertText', 'insertCompositionText', 'insertReplacementText'];
+      
+      inputTypes.forEach((inputType, index) => {
+        setTimeout(() => {
+          this.dispatchInputEvent(input, text, inputType);
+        }, index * 100);
+      });
+      
+      // Try composition events as final fallback
+      setTimeout(() => {
+        this.simulateCompositionInput(input, text);
+      }, 400);
+      
+    } catch (e) {
+      this.debugLog('Lexical aggressive apply failed:', e);
+      this.simulateClipboardPaste(input, text);
+    }
+  }
+
+  simulateCompositionInput(input, text) {
+    try {
+      const events = [
+        new CompositionEvent('compositionstart', { data: '', bubbles: true }),
+        new CompositionEvent('compositionupdate', { data: text, bubbles: true }),
+        new CompositionEvent('compositionend', { data: text, bubbles: true })
+      ];
+      
+      events.forEach((event, index) => {
+        setTimeout(() => input.dispatchEvent(event), index * 10);
+      });
+      
+      // Follow up with input event
+      setTimeout(() => {
+        this.dispatchInputEvent(input, text, 'insertCompositionText');
+      }, 50);
+      
+    } catch (e) {
+      this.debugLog('Composition simulation failed:', e);
+    }
+  }
+
+  tryStandardAggressiveApply(input, text) {
+    try {
+      // Clear and set value directly
+      if (input.value !== undefined) {
+        input.value = text;
+      } else {
+        input.textContent = text;
+      }
+      
+      // Dispatch essential events
+      ['input', 'change'].forEach(eventType => {
+        input.dispatchEvent(new Event(eventType, { bubbles: true }));
+      });
+      
+    } catch (e) {
+      this.debugLog('Standard aggressive apply failed:', e);
+      this.simulateClipboardPaste(input, text);
+    }
+  }
+
+  simulateClipboardPaste(input, text) {
+    try {
+      input.focus();
+      
+      // Create clipboard event
+      const clipboardData = new DataTransfer();
+      clipboardData.setData('text/plain', text);
+      
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData
+      });
+      
+      input.dispatchEvent(pasteEvent);
+      
+      // Fallback: Direct content setting
+      setTimeout(() => {
+        const currentValue = this.getInputValue(input);
+        if (!currentValue.includes(text.substring(0, 20))) {
+          if (input.value !== undefined) {
+            input.value = text;
+          } else {
+            input.textContent = text;
+          }
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, 100);
+      
+    } catch (e) {
+      this.debugLog('Clipboard simulation failed:', e);
+    }
+  }
+
 
   async copyToClipboard(finalPrompt) {
     try {
@@ -728,16 +863,7 @@ class AdvancedPromptEnhancer {
     const input = this.detect();
     if (!input) return;
     
-    // Update the input field
-    if (input.value !== undefined) {
-      input.value = enhancedText;
-    } else if (input.textContent !== undefined) {
-      input.textContent = enhancedText;
-    }
-    
-    // Trigger input event
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    
+    this.setInputValue(input, enhancedText);
     this.showSuccess('Prompt enhanced!');
     setTimeout(() => this.removeExistingOverlay(), 1500);
   }
@@ -992,8 +1118,8 @@ class AdvancedPromptEnhancer {
     const style = document.createElement('style');
     style.textContent = `
       .promptok-card.enhanced {
-        width: min(800px, 90vw);
-        min-width: min(600px, 85vw);
+        width: min(1000px, 90vw);
+        min-width: min(800px, 85vw);
         max-width: 95vw;
         max-height: 85vh;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -1001,22 +1127,21 @@ class AdvancedPromptEnhancer {
         border-radius: 16px;
         box-shadow: 0 25px 50px -12px rgba(102, 126, 234, 0.25);
         color: white;
-        resize: both;
         overflow: auto;
         position: relative;
       }
       
       @media (max-width: 1200px) {
         .promptok-card.enhanced {
-          width: min(700px, 88vw);
-          min-width: min(500px, 80vw);
+          width: min(900px, 88vw);
+          min-width: min(700px, 80vw);
         }
       }
       
       @media (max-width: 900px) {
         .promptok-card.enhanced {
-          width: min(600px, 85vw);
-          min-width: min(400px, 75vw);
+          width: min(800px, 85vw);
+          min-width: min(600px, 75vw);
         }
       }
       
@@ -1046,25 +1171,6 @@ class AdvancedPromptEnhancer {
         align-items: center;
       }
       
-      .promptok-resize {
-        width: 32px;
-        height: 32px;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 6px;
-        color: rgba(255,255,255,0.8);
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      
-      .promptok-resize:hover {
-        background: rgba(255,255,255,0.2);
-        color: white;
-      }
       
       .promptok-card.enhanced .promptok-close {
         color: rgba(255,255,255,0.8);
@@ -1265,19 +1371,21 @@ class PromptEnhancerManager {
     if (this.observerTimeout) {
       clearTimeout(this.observerTimeout);
     }
-    this.isInitialized = false;
   }
 }
 
-// Initialize manager
-const enhancerManager = new PromptEnhancerManager();
+// Initialize the enhancer
+const enhancer = new AdvancedPromptEnhancer();
 
-// Initialize when DOM is ready
+// Expose globally for debugging
+window.promptOKEnhancer = enhancer;
+
+// Start detection when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => enhancerManager.init());
+  document.addEventListener('DOMContentLoaded', () => enhancer.detect());
 } else {
-  enhancerManager.init();
+  enhancer.detect();
 }
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => enhancerManager.destroy());
+// Also run detection periodically for dynamic content
+setInterval(() => enhancer.detect(), 2000);

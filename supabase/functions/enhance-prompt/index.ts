@@ -196,7 +196,7 @@ Now, when you are given the user prompt, do the above.`
             content: prompt
           }
         ],
-        max_tokens: 2500,
+        max_tokens: 3500,
         temperature: 0.2
       })
     })
