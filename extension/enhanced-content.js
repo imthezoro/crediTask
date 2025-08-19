@@ -2,54 +2,91 @@ class AdvancedPromptEnhancer {
   constructor() {
     this.currentEnhancementData = null;
     this.selectedOptions = new Set();
+    this.apiEndpoint = 'https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt';
+    this.buttonClass = 'promptok-enhance-button';
+    this.overlayClass = 'promptok-overlay';
   }
 
   detect() {
     const selectors = [
       'textarea[placeholder*="message" i]',
       'textarea[placeholder*="prompt" i]',
+      'textarea[placeholder*="chat" i]',
+      'textarea[placeholder*="ask" i]',
       '[contenteditable="true"]',
+      'input[type="text"][placeholder*="prompt" i]'
     ];
     const input = document.querySelector(selectors.join(', '));
-    if (input) {
+    if (input && !this.hasEnhanceButton(input)) {
       this.addEnhanceButton(input);
     }
     return input;
   }
 
-  addEnhanceButton(input) {
-    // Check if button already exists
-    if (input.parentNode.querySelector('.promptok-enhance-button')) return;
+  hasEnhanceButton(input) {
+    return input.parentNode?.querySelector(`.${this.buttonClass}`) !== null;
+  }
 
+  addEnhanceButton(input) {
+    const button = this.createEnhanceButton();
+    this.positionButton(input, button);
+    this.attachButtonEvents(button);
+  }
+
+  createEnhanceButton() {
     const button = document.createElement('button');
-    button.className = 'promptok-enhance-button';
+    button.className = this.buttonClass;
     button.innerHTML = '✨';
     button.title = 'Enhance prompt with AI';
-    button.style.cssText = `
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      font-size: 16px;
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      background: rgba(0,0,0,0.1);
-      z-index: 1000;
-    `;
+    button.setAttribute('aria-label', 'Enhance prompt with AI');
+    this.applyButtonStyles(button);
+    return button;
+  }
 
-    // Position the button relative to the input
-    input.style.position = 'relative';
+  applyButtonStyles(button) {
+    Object.assign(button.style, {
+      position: 'absolute',
+      right: '8px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      background: 'rgba(0,0,0,0.1)',
+      border: 'none',
+      fontSize: '16px',
+      cursor: 'pointer',
+      padding: '4px',
+      borderRadius: '4px',
+      zIndex: '1000',
+      transition: 'all 0.2s ease'
+    });
+    
+    button.addEventListener('mouseenter', () => {
+      button.style.background = 'rgba(0,0,0,0.2)';
+    });
+    
+    button.addEventListener('mouseleave', () => {
+      button.style.background = 'rgba(0,0,0,0.1)';
+    });
+  }
+
+  positionButton(input, button) {
+    // Ensure input has relative positioning
+    if (getComputedStyle(input).position === 'static') {
+      input.style.position = 'relative';
+    }
     input.style.paddingRight = '30px';
     
-    // Add button next to input
-    input.parentNode.insertBefore(button, input.nextSibling);
-    
-    // Start enhancement process on button click
+    // Insert button appropriately
+    if (input.nextSibling) {
+      input.parentNode.insertBefore(button, input.nextSibling);
+    } else {
+      input.parentNode.appendChild(button);
+    }
+  }
+
+  attachButtonEvents(button) {
     button.addEventListener('click', (e) => {
       e.stopPropagation();
+      e.preventDefault();
       this.startEnhancement();
     });
   }
@@ -72,14 +109,21 @@ class AdvancedPromptEnhancer {
       const enhancementData = await this.getEnhancementData(prompt);
       this.currentEnhancementData = enhancementData;
       
-      // Parse the response to extract JSON
-      const parsedData = this.parseEnhancementResponse(enhancementData);
-      
-      if (parsedData) {
-        this.showEnhancementOptions(parsedData);
+      // Check if we have structured data from the Edge Function
+      if (enhancementData.structuredData) {
+        console.log('Using structured data from Edge Function');
+        this.showEnhancementOptions(enhancementData.structuredData);
       } else {
-        // Fallback to simple enhancement if JSON parsing fails
-        this.applySimpleEnhancement(enhancementData);
+        // Try to parse JSON from raw response
+        const parsedData = this.parseEnhancementResponse(enhancementData.rawResponse);
+        
+        if (parsedData) {
+          this.showEnhancementOptions(parsedData);
+        } else {
+          // Fallback to simple enhancement
+          console.log('Using fallback: applying simple enhancement');
+          this.applySimpleEnhancement(enhancementData.rawResponse);
+        }
       }
     } catch (error) {
       console.error('Enhancement error:', error);
@@ -88,62 +132,145 @@ class AdvancedPromptEnhancer {
   }
 
   async getEnhancementData(prompt) {
-    // Get auth token from storage - try multiple possible keys
+    const accessToken = await this.getAccessToken();
+    if (!accessToken) {
+      throw new Error('Not authenticated. Please sign in to use prompt enhancement.');
+    }
+
+    const response = await this.makeApiRequest(prompt, accessToken);
+    const data = await this.handleApiResponse(response);
+    return {
+      rawResponse: data.enhancedPrompt,
+      structuredData: data.structuredData
+    };
+  }
+
+  async getAccessToken() {
+    // Try primary storage key first
     let accessToken = await this.getStorageItem('access_token');
     
+    // Fallback to alternative storage format
     if (!accessToken) {
       const authData = await this.getStorageItem('supabase.auth.token');
       accessToken = authData?.access_token;
     }
     
-    if (!accessToken) {
-      throw new Error('Not authenticated. Please sign in to use prompt enhancement.');
-    }
+    return accessToken;
+  }
 
-    const response = await fetch('https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt', {
+  async makeApiRequest(prompt, accessToken) {
+    return fetch(this.apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`
       },
-      body: JSON.stringify({
-        prompt: prompt,
-        enhancementType: 'tone' // Temporary fix until Edge Function is redeployed
-      })
+      body: JSON.stringify({ prompt })
     });
+  }
 
+  async handleApiResponse(response) {
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Enhancement failed');
+      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(errorData.error || `HTTP ${response.status}: Enhancement failed`);
     }
-
-    const data = await response.json();
-    return data.enhancedPrompt;
+    return response.json();
   }
 
   parseEnhancementResponse(responseText) {
     try {
-      // Extract JSON block from the response
-      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i);
-      if (!jsonMatch) {
-        console.log('No JSON block found in response');
-        return null;
-      }
-
-      const jsonText = jsonMatch[1];
-      const parsed = JSON.parse(jsonText);
+      console.log('Raw API response:', responseText);
       
-      // Validate required fields
-      if (!parsed.enhanced_prompt || !parsed.assumption_groups) {
-        console.log('Invalid JSON structure');
+      const jsonData = this.extractJsonFromResponse(responseText);
+      if (!jsonData) {
+        console.log('No JSON found, falling back to simple enhancement');
         return null;
       }
-
-      return parsed;
+      
+      const parsed = JSON.parse(jsonData);
+      return this.validateParsedData(parsed) ? parsed : null;
     } catch (error) {
-      console.error('Failed to parse JSON:', error);
+      console.error('Failed to parse enhancement response:', error);
+      console.log('Response text that failed to parse:', responseText);
       return null;
     }
+  }
+
+  extractJsonFromResponse(responseText) {
+    // Try to find complete JSON block first
+    let jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i);
+    
+    if (!jsonMatch) {
+      // If no complete block, try to find truncated JSON
+      jsonMatch = responseText.match(/```json\s*([\s\S]*?)$/i);
+      
+      if (jsonMatch) {
+        console.warn('Found truncated JSON block, attempting to parse');
+        let jsonText = jsonMatch[1].trim();
+        
+        // Try to fix common truncation issues
+        if (!jsonText.endsWith('}')) {
+          // Find the last complete object/array and close it
+          const lastCompleteObject = this.findLastCompleteJson(jsonText);
+          if (lastCompleteObject) {
+            jsonText = lastCompleteObject;
+          }
+        }
+        
+        return jsonText;
+      }
+      
+      console.warn('No JSON block found in response');
+      return null;
+    }
+    
+    return jsonMatch[1].trim();
+  }
+
+  findLastCompleteJson(jsonText) {
+    try {
+      // Try parsing as-is first
+      JSON.parse(jsonText);
+      return jsonText;
+    } catch (e) {
+      // Try to find the last complete structure
+      let braceCount = 0;
+      let lastValidIndex = -1;
+      
+      for (let i = 0; i < jsonText.length; i++) {
+        if (jsonText[i] === '{') {
+          braceCount++;
+        } else if (jsonText[i] === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            lastValidIndex = i;
+          }
+        }
+      }
+      
+      if (lastValidIndex > 0) {
+        const truncated = jsonText.substring(0, lastValidIndex + 1);
+        try {
+          JSON.parse(truncated);
+          return truncated;
+        } catch (e) {
+          console.warn('Could not repair truncated JSON');
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  validateParsedData(parsed) {
+    const requiredFields = ['enhanced_prompt', 'assumption_groups'];
+    const isValid = requiredFields.every(field => parsed[field]);
+    
+    if (!isValid) {
+      console.warn('Invalid JSON structure - missing required fields:', requiredFields);
+    }
+    
+    return isValid;
   }
 
   showLoadingOverlay() {
@@ -210,35 +337,42 @@ class AdvancedPromptEnhancer {
   }
 
   buildOptionsHTML(parsedData) {
-    let html = '';
-    
-    for (const group of parsedData.assumption_groups || []) {
-      html += `
-        <div class="option-group" data-group-id="${group.group_id}">
-          <h6>${group.title}</h6>
-          <p class="group-description">${group.description || ''}</p>
-          <div class="options">
-      `;
-      
-      for (const option of group.options || []) {
-        html += `
-          <label class="option-item">
-            <input type="checkbox" name="option" value="${option.option_id}" data-group="${group.group_id}">
-            <div class="option-content">
-              <span class="option-label">${option.label}</span>
-              <span class="option-short">${option.short || ''}</span>
-            </div>
-          </label>
-        `;
-      }
-      
-      html += `
-          </div>
+    return (parsedData.assumption_groups || [])
+      .map(group => this.buildGroupHTML(group))
+      .join('');
+  }
+
+  buildGroupHTML(group) {
+    const groupId = this.escapeHtml(group.group_id || '');
+    const title = this.escapeHtml(group.title || '');
+    const description = this.escapeHtml(group.description || '');
+    const optionsHTML = (group.options || [])
+      .map(option => this.buildOptionHTML(option, groupId))
+      .join('');
+
+    return `
+      <div class="option-group" data-group-id="${groupId}">
+        <h6>${title}</h6>
+        <p class="group-description">${description}</p>
+        <div class="options">${optionsHTML}</div>
+      </div>
+    `;
+  }
+
+  buildOptionHTML(option, groupId) {
+    const optionId = this.escapeHtml(option.option_id || '');
+    const label = this.escapeHtml(option.label || '');
+    const short = this.escapeHtml(option.short || '');
+
+    return `
+      <label class="option-item">
+        <input type="checkbox" name="option" value="${optionId}" data-group="${groupId}">
+        <div class="option-content">
+          <span class="option-label">${label}</span>
+          <span class="option-short">${short}</span>
         </div>
-      `;
-    }
-    
-    return html;
+      </label>
+    `;
   }
 
   setupEnhancedEventListeners(overlay, parsedData) {
@@ -325,47 +459,48 @@ class AdvancedPromptEnhancer {
   }
 
   buildFinalPrompt(parsedData, selectedOptionIds) {
-    let finalPrompt = parsedData.enhanced_prompt;
+    const optionMap = this.createOptionMap(parsedData.assumption_groups || []);
+    const appendParts = this.getSelectedSnippets(optionMap, selectedOptionIds);
+    const comboSnippets = this.getCombinationSnippets(parsedData.combination_snippets || [], selectedOptionIds);
     
-    // Create option map
-    const optionMap = {};
-    for (const group of parsedData.assumption_groups || []) {
+    const allSnippets = [...appendParts, ...comboSnippets].filter(Boolean);
+    
+    return allSnippets.length > 0 
+      ? `${parsedData.enhanced_prompt}\n\n${allSnippets.join('\n')}`
+      : parsedData.enhanced_prompt;
+  }
+
+  createOptionMap(assumptionGroups) {
+    const optionMap = new Map();
+    for (const group of assumptionGroups) {
       for (const option of group.options || []) {
-        optionMap[option.option_id] = option.append_snippet || '';
-      }
-    }
-    
-    // Add selected option snippets
-    const appendParts = [];
-    for (const optionId of selectedOptionIds) {
-      if (optionMap[optionId]) {
-        appendParts.push(optionMap[optionId]);
-      }
-    }
-    
-    // Check for combination snippets
-    const combos = parsedData.combination_snippets || [];
-    const selSet = new Set(selectedOptionIds);
-    for (const combo of combos) {
-      const comboSet = new Set(combo.combo || []);
-      // Check if combo is subset of selected options
-      let isSubset = true;
-      for (const v of comboSet) {
-        if (!selSet.has(v)) {
-          isSubset = false;
-          break;
+        if (option.option_id && option.append_snippet) {
+          optionMap.set(option.option_id, option.append_snippet);
         }
       }
-      if (isSubset && combo.append_snippet) {
-        appendParts.push(combo.append_snippet);
-      }
     }
-    
-    if (appendParts.length > 0) {
-      finalPrompt += '\n\n' + appendParts.join('\n');
-    }
-    
-    return finalPrompt;
+    return optionMap;
+  }
+
+  getSelectedSnippets(optionMap, selectedOptionIds) {
+    return selectedOptionIds
+      .map(id => optionMap.get(id))
+      .filter(Boolean);
+  }
+
+  getCombinationSnippets(combinationSnippets, selectedOptionIds) {
+    const selectedSet = new Set(selectedOptionIds);
+    return combinationSnippets
+      .filter(combo => {
+        const comboSet = new Set(combo.combo || []);
+        return this.isSubset(comboSet, selectedSet);
+      })
+      .map(combo => combo.append_snippet)
+      .filter(Boolean);
+  }
+
+  isSubset(subset, superset) {
+    return [...subset].every(item => superset.has(item));
   }
 
   applySimpleEnhancement(enhancedText) {
@@ -434,9 +569,10 @@ class AdvancedPromptEnhancer {
   }
 
   removeExistingOverlay() {
-    const existing = document.querySelector('.promptok-overlay');
+    const existing = document.querySelector(`.${this.overlayClass}`);
     if (existing) {
-      existing.remove();
+      existing.style.opacity = '0';
+      setTimeout(() => existing.remove(), 200);
     }
     this.selectedOptions.clear();
   }
@@ -709,51 +845,85 @@ class AdvancedPromptEnhancer {
   }
 
   async getStorageItem(key) {
-    if (chrome.storage && chrome.storage.local) {
-      const result = await chrome.storage.local.get(key);
-      return result[key];
-    } else if (window.localStorage) {
-      return JSON.parse(localStorage.getItem(key) || 'null');
+    try {
+      if (chrome?.storage?.local) {
+        const result = await chrome.storage.local.get(key);
+        return result[key];
+      } else if (window.localStorage) {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : null;
+      }
+    } catch (error) {
+      console.warn(`Failed to get storage item '${key}':`, error);
     }
     return null;
   }
 
   escapeHtml(text) {
+    if (typeof text !== 'string') return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
 }
 
-// Initialize the enhanced prompt enhancer
-const enhancer = new AdvancedPromptEnhancer();
+// Enhanced Prompt Extension Initialization
+class PromptEnhancerManager {
+  constructor() {
+    this.enhancer = new AdvancedPromptEnhancer();
+    this.observer = null;
+    this.isInitialized = false;
+  }
 
-// Set up observer to detect new inputs
-let observer = null;
+  init() {
+    if (this.isInitialized) return;
+    
+    this.enhancer.detect();
+    this.setupObserver();
+    this.isInitialized = true;
+  }
 
-function setupObserver() {
-  if (observer) return;
-  
-  observer = new MutationObserver(() => {
-    const input = enhancer.detect();
-    if (input) {
-      // Input detected, enhancer button added
+  setupObserver() {
+    if (this.observer) return;
+    
+    this.observer = new MutationObserver((mutations) => {
+      // Throttle observer calls
+      if (this.observerTimeout) return;
+      
+      this.observerTimeout = setTimeout(() => {
+        this.enhancer.detect();
+        this.observerTimeout = null;
+      }, 100);
+    });
+
+    this.observer.observe(document.documentElement, { 
+      childList: true, 
+      subtree: true,
+      attributes: false // Reduce observer overhead
+    });
+  }
+
+  destroy() {
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
     }
-  });
-
-  observer.observe(document.documentElement, { 
-    childList: true, 
-    subtree: true,
-    attributes: true
-  });
+    if (this.observerTimeout) {
+      clearTimeout(this.observerTimeout);
+    }
+    this.isInitialized = false;
+  }
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-  enhancer.detect();
-  setupObserver();
-});
+// Initialize manager
+const enhancerManager = new PromptEnhancerManager();
 
-// Also try to initialize immediately in case DOM is already loaded
-enhancer.detect();
-setupObserver();
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => enhancerManager.init());
+} else {
+  enhancerManager.init();
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => enhancerManager.destroy());

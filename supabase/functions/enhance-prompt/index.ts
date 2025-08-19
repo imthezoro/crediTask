@@ -188,7 +188,7 @@ Now, when you are given the user prompt, do the above.`
             content: prompt
           }
         ],
-        max_tokens: 1500,
+        max_tokens: 2500,
         temperature: 0.2
       })
     })
@@ -216,6 +216,17 @@ Now, when you are given the user prompt, do the above.`
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
+    }
+
+    // Try to parse the structured response
+    let structuredResponse = null
+    try {
+      const jsonMatch = enhancedText.match(/```json\s*([\s\S]*?)```/i)
+      if (jsonMatch) {
+        structuredResponse = JSON.parse(jsonMatch[1].trim())
+      }
+    } catch (parseError) {
+      console.log('Could not parse structured response, using simple format')
     }
 
     // Update usage count and save session
@@ -250,6 +261,7 @@ Now, when you are given the user prompt, do the above.`
     return new Response(
       JSON.stringify({ 
         enhancedPrompt: enhancedText.trim(),
+        structuredData: structuredResponse,
         usageCount: userProfile.usage_count + 1
       }),
       {
