@@ -5,9 +5,62 @@ class AdvancedPromptEnhancer {
     this.apiEndpoint = 'https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt';
     this.buttonClass = 'promptok-enhance-button';
     this.overlayClass = 'promptok-overlay';
+    this.isMinimized = false;
+    this.minimizedButtonClass = 'promptok-minimized-button';
+    this.sessionStorageKey = 'promptok.session';
     
     // Debug mode - set to true for detailed logging
     this.debug = true;
+  }
+
+  // Session persistence helpers
+  async setStorageItem(key, value) {
+    try {
+      if (chrome?.storage?.local) {
+        await chrome.storage.local.set({ [key]: value });
+      } else if (window.localStorage) {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    } catch (error) {
+      console.warn(`Failed to set storage item '${key}':`, error);
+    }
+  }
+
+  async saveSessionState() {
+    const payload = {
+      currentEnhancementData: this.currentEnhancementData,
+      selectedOptions: Array.from(this.selectedOptions || []),
+      timestamp: Date.now()
+    };
+    this.debugLog('Saving session state to storage');
+    await this.setStorageItem(this.sessionStorageKey, payload);
+  }
+
+  async clearSessionState() {
+    try {
+      if (chrome?.storage?.local) {
+        await chrome.storage.local.remove(this.sessionStorageKey);
+      } else if (window.localStorage) {
+        localStorage.removeItem(this.sessionStorageKey);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  async loadSessionState() {
+    const data = await this.getStorageItem(this.sessionStorageKey);
+    if (data) {
+      this.debugLog('Loaded session state from storage');
+      if (!this.currentEnhancementData && data.currentEnhancementData) {
+        this.currentEnhancementData = data.currentEnhancementData;
+      }
+      if (data.selectedOptions?.length) {
+        this.selectedOptions = new Set(data.selectedOptions);
+      }
+      return true;
+    }
+    return false;
   }
 
   debugLog(...args) {
@@ -149,6 +202,8 @@ class AdvancedPromptEnhancer {
       // Get enhanced prompt data from API
       const enhancementData = await this.getEnhancementData(prompt);
       this.currentEnhancementData = enhancementData;
+      // Persist session right after data arrives
+      this.saveSessionState().catch(() => {});
       
       // Check if we have structured data from the Edge Function
       if (enhancementData.structuredData) {
@@ -347,6 +402,7 @@ class AdvancedPromptEnhancer {
         <div class="promptok-header">
           <h4>✨ Enhanced Prompt Ready</h4>
           <div class="header-controls">
+            <button class="promptok-minimize" aria-label="Minimize" title="Minimize">−</button>
             <button class="promptok-close" aria-label="Close">×</button>
           </div>
         </div>
@@ -423,7 +479,11 @@ class AdvancedPromptEnhancer {
   setupEnhancedEventListeners(overlay, parsedData) {
     // Close button
     const closeBtn = overlay.querySelector('.promptok-close');
-    closeBtn.addEventListener('click', () => this.removeExistingOverlay());
+    closeBtn.addEventListener('click', () => this.closeOverlay());
+    
+    // Minimize button
+    const minimizeBtn = overlay.querySelector('.promptok-minimize');
+    minimizeBtn.addEventListener('click', () => this.minimizeOverlay());
     
     // Apply prompt (base + selected options)
     const applyBtn = overlay.querySelector('#promptok-apply');
@@ -444,22 +504,21 @@ class AdvancedPromptEnhancer {
     // Option selection handling (both checkboxes and radios)
     const inputs = overlay.querySelectorAll('input[type="checkbox"], input[type="radio"]');
     inputs.forEach(input => {
+      // Restore previous selections
+      if (this.selectedOptions.has(input.value)) {
+        input.checked = true;
+      }
+      
       input.addEventListener('change', (e) => {
         if (e.target.type === 'radio') {
           // For radio buttons, remove other options from same group
           const groupId = e.target.dataset.group;
           const groupInputs = overlay.querySelectorAll(`input[data-group="${groupId}"]`);
           groupInputs.forEach(groupInput => {
-            if (groupInput !== e.target) {
-              this.selectedOptions.delete(groupInput.value);
-            }
+            this.selectedOptions.delete(groupInput.value);
           });
-          
-          if (e.target.checked) {
-            this.selectedOptions.add(e.target.value);
-          }
+          this.selectedOptions.add(e.target.value);
         } else {
-          // Checkbox behavior
           if (e.target.checked) {
             this.selectedOptions.add(e.target.value);
           } else {
@@ -467,8 +526,14 @@ class AdvancedPromptEnhancer {
           }
         }
         this.updateButtonText(overlay);
+        this.updateMinimizedButtonCount();
+        // Persist session on selection changes
+        this.saveSessionState().catch(() => {});
       });
     });
+    
+    // Update button text based on current selections
+    this.updateButtonText(overlay);
     
     // Set default larger size
     const card = overlay.querySelector('.promptok-card.enhanced');
@@ -478,9 +543,20 @@ class AdvancedPromptEnhancer {
     // Close when clicking outside
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        this.removeExistingOverlay();
+        this.closeOverlay();
       }
     });
+  }
+
+  updateMinimizedButtonCount() {
+    const minimizedBtn = document.querySelector(`.${this.minimizedButtonClass}`);
+    if (minimizedBtn) {
+      const countEl = minimizedBtn.querySelector('.minimized-count');
+      if (countEl) {
+        countEl.textContent = this.selectedOptions.size;
+        countEl.style.display = this.selectedOptions.size > 0 ? 'block' : 'none';
+      }
+    }
   }
 
   updateButtonText(overlay) {
@@ -906,7 +982,7 @@ class AdvancedPromptEnhancer {
     const closeBtn = overlay.querySelector('.promptok-close');
     const closeErrorBtn = overlay.querySelector('#promptok-close-error');
     
-    const closeHandler = () => this.removeExistingOverlay();
+    const closeHandler = () => this.closeOverlay();
     closeBtn.addEventListener('click', closeHandler);
     closeErrorBtn.addEventListener('click', closeHandler);
     
@@ -915,13 +991,139 @@ class AdvancedPromptEnhancer {
     });
   }
 
-  removeExistingOverlay() {
+  minimizeOverlay() {
+    const overlay = document.querySelector(`.${this.overlayClass}`);
+    if (!overlay) return;
+    
+    this.debugLog('Minimizing overlay, preserving data');
+    this.debugLog('Enhancement data before minimize:', !!this.currentEnhancementData);
+    
+    this.isMinimized = true;
+    overlay.style.opacity = '0';
+    
+    setTimeout(() => {
+      overlay.remove();
+      this.showMinimizedButton();
+      // Persist session after minimizing
+      this.saveSessionState().catch(() => {});
+      this.debugLog('Overlay minimized, data preserved:', !!this.currentEnhancementData);
+    }, 200);
+  }
+
+  showMinimizedButton() {
+    // Remove any existing minimized button
+    this.removeMinimizedButton();
+    
+    // Find the input field to position near it
+    const input = this.detect();
+    if (!input) return;
+    
+    const minimizedBtn = document.createElement('div');
+    minimizedBtn.className = this.minimizedButtonClass;
+    minimizedBtn.innerHTML = `✨`;
+    minimizedBtn.title = `PromptOK enhancer (${this.selectedOptions.size} options selected)`;
+    
+    // Position near the input field
+    this.positionMinimizedButton(input, minimizedBtn);
+    
+    // Add styles
+    this.addMinimizedButtonStyles(minimizedBtn);
+    
+    // Add click handler to restore
+    minimizedBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      this.debugLog('Minimized button clicked!');
+      this.debugLog('Enhancement data exists:', !!this.currentEnhancementData);
+      this.debugLog('Is minimized state:', this.isMinimized);
+      this.restoreOverlay();
+    });
+    
+    // Insert into document body for better positioning control
+    document.body.appendChild(minimizedBtn);
+    
+    this.debugLog('Minimized button created and added to DOM');
+  }
+
+  restoreOverlay() {
+    this.debugLog('Restoring overlay from minimized state');
+    this.debugLog('Current enhancement data:', this.currentEnhancementData);
+    this.debugLog('Is minimized:', this.isMinimized);
+    
+    if (!this.currentEnhancementData) {
+      this.debugLog('No in-memory data, attempting to load session');
+      // Try to load from session storage
+      // Note: loadSessionState is async; restore path continues after load
+      // because we are in event handler, we can use a microtask
+      Promise.resolve().then(async () => {
+        const loaded = await this.loadSessionState();
+        this.debugLog('Session loaded:', loaded);
+        if (!loaded || !this.currentEnhancementData) {
+          this.debugLog('No enhancement data available to restore');
+          return;
+        }
+        this.removeMinimizedButton();
+        this.isMinimized = false;
+        if (this.currentEnhancementData.structuredData) {
+          this.debugLog('Restoring with structured data');
+          this.showEnhancementOptions(this.currentEnhancementData.structuredData);
+        } else {
+          this.debugLog('Restoring with raw response data');
+          const parsedData = this.parseEnhancementResponse(this.currentEnhancementData.rawResponse);
+          if (parsedData) {
+            this.showEnhancementOptions(parsedData);
+          }
+        }
+      });
+      return;
+    }
+    
+    this.removeMinimizedButton();
+    this.isMinimized = false;
+    
+    // Recreate the overlay with preserved data and selections
+    if (this.currentEnhancementData.structuredData) {
+      this.debugLog('Restoring with structured data');
+      this.showEnhancementOptions(this.currentEnhancementData.structuredData);
+    } else {
+      this.debugLog('Restoring with raw response data');
+      const parsedData = this.parseEnhancementResponse(this.currentEnhancementData.rawResponse);
+      if (parsedData) {
+        this.showEnhancementOptions(parsedData);
+      }
+    }
+  }
+
+  removeMinimizedButton() {
+    const existing = document.querySelector(`.${this.minimizedButtonClass}`);
+    if (existing) {
+      existing.remove();
+    }
+  }
+
+  closeOverlay() {
+    this.debugLog('Closing overlay completely');
     const existing = document.querySelector(`.${this.overlayClass}`);
     if (existing) {
       existing.style.opacity = '0';
       setTimeout(() => existing.remove(), 200);
     }
+    
+    this.removeMinimizedButton();
     this.selectedOptions.clear();
+    this.currentEnhancementData = null;
+    this.isMinimized = false;
+    // Clear any persisted session
+    this.clearSessionState().catch(() => {});
+  }
+
+  removeExistingOverlay() {
+    // Pure DOM cleanup: remove any existing overlay without touching state
+    const existing = document.querySelector(`.${this.overlayClass}`);
+    if (existing) {
+      existing.style.opacity = '0';
+      setTimeout(() => existing.remove(), 200);
+    }
   }
 
   addOverlayStyles(overlay) {
@@ -1114,6 +1316,52 @@ class AdvancedPromptEnhancer {
     overlay.appendChild(style);
   }
 
+  positionMinimizedButton(input, button) {
+    // Ensure input has relative positioning
+    if (getComputedStyle(input).position === 'static') {
+      input.style.position = 'relative';
+    }
+  }
+
+  addMinimizedButtonStyles(button) {
+    const style = document.createElement('style');
+    style.textContent = `
+      .${this.minimizedButtonClass} {
+        position: fixed !important;
+        right: 20px !important;
+        top: 20px !important;
+        transform: none !important;
+        background: rgba(102, 126, 234, 0.9) !important;
+        border-radius: 50% !important;
+        width: 40px !important;
+        height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        z-index: 999999 !important;
+        transition: all 0.2s ease !important;
+        border: 2px solid rgba(255,255,255,0.3) !important;
+        backdrop-filter: blur(10px) !important;
+        font-size: 18px !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+        pointer-events: auto !important;
+      }
+      
+      .${this.minimizedButtonClass}:hover {
+        transform: scale(1.1) !important;
+        background: rgba(102, 126, 234, 1) !important;
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+      }
+      
+      .${this.minimizedButtonClass}:active {
+        transform: scale(0.95) !important;
+      }
+    `;
+    button.appendChild(style);
+  }
+
   addEnhancedStyles(overlay) {
     const style = document.createElement('style');
     style.textContent = `
@@ -1171,13 +1419,22 @@ class AdvancedPromptEnhancer {
         align-items: center;
       }
       
-      
+      .promptok-card.enhanced .promptok-minimize,
       .promptok-card.enhanced .promptok-close {
         color: rgba(255,255,255,0.8);
         background: rgba(255,255,255,0.1);
         border: 1px solid rgba(255,255,255,0.2);
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
       }
       
+      .promptok-card.enhanced .promptok-minimize:hover,
       .promptok-card.enhanced .promptok-close:hover {
         background: rgba(255,255,255,0.2);
         color: white;
