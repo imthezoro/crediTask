@@ -28,7 +28,7 @@
         "*://127.0.0.1/*/auth/callback*",
         "*://127.0.0.1/auth/callback*"
       ],
-      "js": ["config.js", "prompts.js", "gemini-service.js", "content.js"],
+      "js": ["enhanced-content.js"],
       "css": ["overlay.css"],
       "run_at": "document_idle"
     },

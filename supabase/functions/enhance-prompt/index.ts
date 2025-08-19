@@ -41,11 +41,11 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { prompt, enhancementType } = await req.json()
+    const { prompt } = await req.json()
 
-    if (!prompt || !enhancementType) {
+    if (!prompt) {
       return new Response(
-        JSON.stringify({ error: 'Missing prompt or enhancementType' }),
+        JSON.stringify({ error: 'Missing prompt' }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -96,59 +96,65 @@ serve(async (req) => {
       )
     }
 
-    // Enhancement prompts
-    const ENHANCEMENT_PROMPTS = {
-      tone: `You are a professional prompt enhancement assistant. The user has provided a prompt and wants to improve its tone. 
+    // Advanced system prompt for comprehensive enhancement
+    const SYSTEM_PROMPT = `You are a Prompt-Enhancement Engine. When given an input user prompt (the "original prompt"), you must transform it into a high-quality, production-ready "enhanced prompt" and produce machine-readable output so a client UI can:
 
-Please enhance the following prompt to have a more professional, clear, and effective tone while maintaining the original intent:
+1. Present the top assumptions the LLM has to make to run the prompt, as *selectable options* (the user will choose among them).
+2. Present additional configurable option groups (tone, audience, length, format, domain constraints, persona, output type, examples, constraints, locale/timeframe etc.) as choices the user can select.
+3. For each selectable option, produce a short *append snippet* — text that, when appended to the enhanced prompt, will enforce that option.
+4. Predict sensible follow-up clarifying assumptions that may become necessary depending on the user's selection(s). Provide those follow-up options programmatically (tied to option IDs).
+5. Provide pairwise (and up to 3-way, only if relevant) combination snippets for commonly used pairs/triples across groups so the client can support appending combination-specific text.
 
-Original prompt: "${prompt}"
+Output format requirements (MUST follow exactly):
+- Produce two renderings simultaneously in the assistant message:
+  1) A human-friendly markdown section that shows: the ENHANCED PROMPT, a clear numbered list of the TOP 3 ASSUMPTIONS (each with option IDs), all option groups with option IDs and labels, and brief guidance how to select options. This is for display in the UI. Keep this markdown concise.
+  2) A JSON block (surrounded by triple backticks and labeled as JSON) that contains the canonical, machine-readable structure with the following exact fields:
 
-Enhanced prompt:`,
-
-      length: `You are a professional prompt enhancement assistant. The user has provided a prompt and wants to make it more detailed and comprehensive.
-
-Please enhance the following prompt to be more detailed, specific, and comprehensive while maintaining the original intent:
-
-Original prompt: "${prompt}"
-
-Enhanced prompt:`,
-
-      audience: `You are a professional prompt enhancement assistant. The user has provided a prompt and wants to make it more suitable for their target audience.
-
-Please enhance the following prompt to be more appropriate for the intended audience, clearer in communication, and more engaging:
-
-Original prompt: "${prompt}"
-
-Enhanced prompt:`,
-
-      clarity: `You are a professional prompt enhancement assistant. The user has provided a prompt and wants to make it clearer and more specific.
-
-Please enhance the following prompt to be clearer, more specific, and easier to understand while maintaining the original intent:
-
-Original prompt: "${prompt}"
-
-Enhanced prompt:`,
-
-      structure: `You are a professional prompt enhancement assistant. The user has provided a prompt and wants to improve its structure and organization.
-
-Please enhance the following prompt to be better structured, well-organized, and more logical in its flow:
-
-Original prompt: "${prompt}"
-
-Enhanced prompt:`
-    }
-
-    const enhancementPrompt = ENHANCEMENT_PROMPTS[enhancementType as keyof typeof ENHANCEMENT_PROMPTS]
-    if (!enhancementPrompt) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid enhancement type' }),
+    {
+      "enhanced_prompt": "string",
+      "display_excerpt": "string (short 1-2 line summary of the enhanced prompt)",
+      "assumption_groups": [
         {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          "group_id": "A1",                // unique short id for group
+          "title": "Target audience",
+          "description": "why it matters",
+          "options": [
+            {
+              "option_id": "A1_O1",        // unique id used to build mappings
+              "label": "General public",
+              "short": "1-line summary",
+              "append_snippet": "Text to append to base prompt (1-3 sentences).",
+              "followup_questions": [       // optional: followups triggered if selected
+                {"qid": "Q1", "question": "Do you want to target a specific region?"}
+              ]
+            }
+          ]
         }
-      )
+      ],
+      "combination_snippets": [        // optional but recommended — pairwise/triple mappings
+        {"combo": ["A1_O2","A2_O1"], "append_snippet": "Text to append if both chosen"}
+      ],
+      "max_pairwise_combinations_produced": 0,
+      "notes": "Any safety / scope / important recommendations"
     }
+
+- The JSON MUST be parseable. The assistant must NOT wrap the JSON in extraneous commentary inside the JSON block.
+- Each append_snippet should be short (one or two sentences) and written so that simply appending it to the enhanced_prompt results in a clear, enforceable instruction for any downstream LLM.
+- For option labels and ids, prefer concise ids like A1_O1, A2_O3, etc.
+- Only produce up to 6 option groups, and within each group up to 6 options. Prefer 3–5 options per useful group.
+- For assumptions: identify the top 3 assumptions the model must make and present them as the first group (group_id: "ASSUMPTIONS") and mark them with priority.
+- Produce combination_snippets for the top up to 10 most relevant pairwise combinations across different groups, and up to 5 triple combinations only if they seem highly relevant.
+- If any option would conflict with another option, mark the conflict explicitly in the JSON (e.g., add a "conflicts_with": ["A2_O3"]).
+- Be conservative about making assumptions. If a critical missing detail would dramatically change the prompt, include a followup question and mark it as REQUIRED.
+- Avoid hallucinations. When the original prompt references facts that are plausibly time-sensitive or ambiguous, do not invent specifics.
+
+Behavior and tone:
+- Produce safe, factual, and helpful guidance.
+- When improving style, make minimal but high-impact edits. The enhanced prompt should remain faithful to the user's intent.
+- When possible, normalize ambiguous units, formats and scopes.
+- When producing append_snippets, use imperative, LLM-friendly phrasing. Keep it short.
+
+Now, when you are given the user prompt, do the above.`
 
     // Call OpenRouter API
     const openrouterApiKey = Deno.env.get('OPENROUTER_API_KEY')
@@ -162,27 +168,30 @@ Enhanced prompt:`
       )
     }
 
-    const openrouterResponse = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openrouterApiKey}`,
-          'HTTP-Referer': 'https://promptok.com',
-          'X-Title': 'PromptOK',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'deepseek/deepseek-r1:free',
-          messages: [
-            {
-              role: 'user',
-              content: enhancementPrompt
-            }
-          ]
-        }),
-      }
-    )
+    const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openrouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://promptok.app',
+        'X-Title': 'PromptOK'
+      },
+      body: JSON.stringify({
+        model: 'deepseek/deepseek-r1:free',
+        messages: [
+          {
+            role: 'system',
+            content: SYSTEM_PROMPT
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 1500,
+        temperature: 0.2
+      })
+    })
 
     if (!openrouterResponse.ok) {
       const errorData = await openrouterResponse.json().catch(() => ({}))

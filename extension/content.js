@@ -212,8 +212,8 @@ async function enhancePrompt(enhancementType) {
   }
   
   try {
-    // Use Gemini API for enhancement
-    const enhancedPrompt = await enhanceWithGemini(prompt, enhancementType);
+    // Use API for enhancement
+    const enhancedPrompt = await enhanceWithAPI(prompt, enhancementType);
     
     // Update the input field with enhanced prompt
     if (input.value !== undefined) {
@@ -247,16 +247,38 @@ async function enhancePrompt(enhancementType) {
   }
 }
 
-// Enhanced prompt function using Gemini API
-async function enhanceWithGemini(prompt, enhancementType) {
+// Enhanced prompt function using Edge Function API
+async function enhanceWithAPI(prompt, enhancementType) {
   try {
-    const geminiService = new GeminiService();
-    const enhancedPrompt = await geminiService.enhancePrompt(prompt, enhancementType);
-    return enhancedPrompt;
+    // Get auth token from storage
+    const authData = await storage.get('supabase.auth.token');
+    if (!authData?.access_token) {
+      throw new Error('Not authenticated');
+    }
+
+    const response = await fetch('https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authData.access_token}`
+      },
+      body: JSON.stringify({
+        prompt: prompt,
+        enhancementType: enhancementType
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Enhancement failed');
+    }
+
+    const data = await response.json();
+    return data.enhancedPrompt;
   } catch (error) {
-    console.error('Gemini enhancement failed:', error);
+    console.error('API enhancement failed:', error);
     
-    // Fallback to simple enhancements if Gemini fails
+    // Fallback to simple enhancements if API fails
     const fallbackEnhancements = {
       'tone': `[Professional tone] ${prompt}`,
       'length': `[Detailed version] ${prompt} - Please provide a comprehensive response.`,
