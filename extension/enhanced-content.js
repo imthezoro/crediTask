@@ -5,6 +5,15 @@ class AdvancedPromptEnhancer {
     this.apiEndpoint = 'https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt';
     this.buttonClass = 'promptok-enhance-button';
     this.overlayClass = 'promptok-overlay';
+    
+    // Debug mode - set to true for detailed logging
+    this.debug = true;
+  }
+
+  debugLog(...args) {
+    if (this.debug) {
+      console.log('[PromptOK Debug]', ...args);
+    }
   }
 
   detect() {
@@ -13,14 +22,39 @@ class AdvancedPromptEnhancer {
       'textarea[placeholder*="prompt" i]',
       'textarea[placeholder*="chat" i]',
       'textarea[placeholder*="ask" i]',
+      'textarea[placeholder*="type" i]',
+      'textarea[placeholder*="enter" i]',
       '[contenteditable="true"]',
-      'input[type="text"][placeholder*="prompt" i]'
+      'input[type="text"][placeholder*="prompt" i]',
+      'textarea',
+      'div[contenteditable="true"]',
+      '[role="textbox"]'
     ];
-    const input = document.querySelector(selectors.join(', '));
+    
+    // Try each selector individually for better debugging
+    let input = null;
+    for (const selector of selectors) {
+      const found = document.querySelector(selector);
+      if (found && this.isValidInput(found)) {
+        input = found;
+        console.log('Found input with selector:', selector, input);
+        break;
+      }
+    }
+    
     if (input && !this.hasEnhanceButton(input)) {
       this.addEnhanceButton(input);
     }
     return input;
+  }
+
+  isValidInput(element) {
+    // Check if element is visible and interactable
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && 
+           style.visibility !== 'hidden' && 
+           !element.disabled &&
+           element.offsetParent !== null;
   }
 
   hasEnhanceButton(input) {
@@ -470,70 +504,126 @@ class AdvancedPromptEnhancer {
     }
     
     console.log('Applying prompt to input:', input);
+    console.log('Input type:', input.tagName, 'contentEditable:', input.isContentEditable);
     console.log('Final prompt:', finalPrompt);
     
     // Focus the input first
     input.focus();
     
-    // Clear existing content and set new content
-    if (input.value !== undefined) {
-      // For regular input/textarea elements
-      input.value = '';
-      input.value = finalPrompt;
-      
-      // Trigger React/Vue style events
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-      
-      if (input.tagName === 'INPUT') {
-        nativeInputValueSetter.call(input, finalPrompt);
-      } else if (input.tagName === 'TEXTAREA') {
-        nativeTextAreaValueSetter.call(input, finalPrompt);
+    try {
+      // Method 1: For regular input/textarea elements
+      if (input.value !== undefined) {
+        console.log('Using value property method');
+        
+        // Clear and set using multiple approaches
+        input.value = '';
+        
+        // Use native setters to bypass React/Vue
+        const descriptor = input.tagName === 'TEXTAREA' 
+          ? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")
+          : Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value");
+        
+        if (descriptor && descriptor.set) {
+          descriptor.set.call(input, finalPrompt);
+        } else {
+          input.value = finalPrompt;
+        }
+        
+        // Also try setting via setAttribute
+        input.setAttribute('value', finalPrompt);
+        
+      } else if (input.isContentEditable || input.contentEditable === 'true') {
+        console.log('Using contentEditable method');
+        
+        // For contenteditable elements
+        input.innerHTML = '';
+        input.textContent = finalPrompt;
+        input.innerText = finalPrompt;
+        
+        // Set cursor to end
+        try {
+          const range = document.createRange();
+          const selection = window.getSelection();
+          range.selectNodeContents(input);
+          range.collapse(false);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } catch (e) {
+          console.warn('Could not set cursor position:', e);
+        }
       }
-    } else if (input.isContentEditable) {
-      // For contenteditable elements
-      input.textContent = '';
-      input.textContent = finalPrompt;
       
-      // Set cursor to end
-      const range = document.createRange();
-      const selection = window.getSelection();
-      range.selectNodeContents(input);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // Method 2: Try document.execCommand as fallback
+      try {
+        input.focus();
+        document.execCommand('selectAll', false, null);
+        document.execCommand('insertText', false, finalPrompt);
+      } catch (e) {
+        console.warn('execCommand failed:', e);
+      }
+      
+      // Method 3: Comprehensive event dispatching
+      const events = [
+        'focus', 'input', 'change', 'keyup', 'keydown', 'keypress', 'paste', 'textInput'
+      ];
+      
+      events.forEach(eventType => {
+        try {
+          const event = new Event(eventType, { bubbles: true, cancelable: true });
+          input.dispatchEvent(event);
+        } catch (e) {
+          console.warn(`Failed to dispatch ${eventType}:`, e);
+        }
+      });
+      
+      // Additional InputEvent for modern browsers
+      try {
+        input.dispatchEvent(new InputEvent('input', { 
+          bubbles: true, 
+          cancelable: true,
+          inputType: 'insertText',
+          data: finalPrompt
+        }));
+      } catch (e) {
+        console.warn('InputEvent failed:', e);
+      }
+      
+      // For contenteditable elements
+      if (input.isContentEditable || input.contentEditable === 'true') {
+        try {
+          input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+        } catch (e) {
+          console.warn('CompositionEvent failed:', e);
+        }
+      }
+      
+      // Delayed events for async handlers
+      setTimeout(() => {
+        ['input', 'change'].forEach(eventType => {
+          try {
+            input.dispatchEvent(new Event(eventType, { bubbles: true }));
+          } catch (e) {
+            console.warn(`Delayed ${eventType} failed:`, e);
+          }
+        });
+      }, 50);
+      
+      setTimeout(() => {
+        console.log('Final input value check:', input.value || input.textContent);
+      }, 200);
+      
+      const count = this.selectedOptions.size;
+      const message = count > 0 
+        ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} applied!`
+        : 'Enhanced prompt applied!';
+      
+      this.showSuccess(message);
+      setTimeout(() => this.removeExistingOverlay(), 1500);
+      
+    } catch (error) {
+      console.error('Error applying prompt:', error);
+      this.showError('Failed to apply prompt. Please copy and paste manually.');
     }
-    
-    // Comprehensive event dispatching for maximum compatibility
-    const events = [
-      'input', 'change', 'keyup', 'keydown', 'paste', 'blur', 'focus'
-    ];
-    
-    events.forEach(eventType => {
-      input.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
-    });
-    
-    // Additional events for modern frameworks
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
-    
-    // For contenteditable elements
-    if (input.isContentEditable) {
-      input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
-      input.dispatchEvent(new Event('textInput', { bubbles: true }));
-    }
-    
-    // Trigger a delayed event to catch any async handlers
-    setTimeout(() => {
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    }, 100);
-    
-    const count = this.selectedOptions.size;
-    const message = count > 0 
-      ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} applied!`
-      : 'Enhanced prompt applied!';
-    
-    this.showSuccess(message);
-    setTimeout(() => this.removeExistingOverlay(), 1500);
   }
 
   toggleCardSize(overlay) {
@@ -902,9 +992,10 @@ class AdvancedPromptEnhancer {
     const style = document.createElement('style');
     style.textContent = `
       .promptok-card.enhanced {
-        width: 800px;
-        min-width: 600px;
+        width: min(800px, 90vw);
+        min-width: min(600px, 85vw);
         max-width: 95vw;
+        max-height: 85vh;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border: none;
         border-radius: 16px;
@@ -913,6 +1004,28 @@ class AdvancedPromptEnhancer {
         resize: both;
         overflow: auto;
         position: relative;
+      }
+      
+      @media (max-width: 1200px) {
+        .promptok-card.enhanced {
+          width: min(700px, 88vw);
+          min-width: min(500px, 80vw);
+        }
+      }
+      
+      @media (max-width: 900px) {
+        .promptok-card.enhanced {
+          width: min(600px, 85vw);
+          min-width: min(400px, 75vw);
+        }
+      }
+      
+      @media (max-width: 600px) {
+        .promptok-card.enhanced {
+          width: 95vw;
+          min-width: 300px;
+          max-height: 80vh;
+        }
       }
       
       .promptok-card.enhanced .promptok-header {

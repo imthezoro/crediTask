@@ -102,33 +102,20 @@ serve(async (req) => {
 1. Present the top assumptions the LLM has to make to run the prompt, as *selectable options* (the user will choose among them).
 2. Present additional configurable option groups (tone, audience, length, format, domain constraints, persona, output type, examples, constraints, locale/timeframe etc.) as choices the user can select.
 
+CRITICAL: The "enhanced_prompt" field must be a complete, standalone prompt that works perfectly without any placeholders or brackets like [audience level], [specific aspects], etc. It should be immediately usable by any LLM.
+
+The append_snippets are ONLY for adding extra context when options are selected. The base enhanced_prompt should never contain placeholder text.
+
 Format your response as follows:
 
 **Enhanced Prompt**
-[Your enhanced version of the prompt]
-
----
-
-### **UI Display Summary**
-**Enhanced Prompt Excerpt**: "[Brief 1-line summary of the enhanced prompt]"
-
-**Top 3 Assumptions** (Select to clarify):
-1. **[Category]** (A1): [Assumption description]
-2. **[Category]** (A2): [Assumption description]  
-3. **[Category]** (A3): [Assumption description]
-
-**Option Groups**:
-1. **[Category]** (A1): [Option1, Option2, Option3, etc.]
-2. **[Category]** (A2): [Option1, Option2, Option3, etc.]
-3. **[Category]** (A3): [Option1, Option2, Option3, etc.]
-
-**Guidance**: [Brief instruction on how to use the options]
+[Your enhanced version of the prompt - complete and usable without placeholders]
 
 ---
 
 \`\`\`json
 {
-  "enhanced_prompt": "[The enhanced prompt text]",
+  "enhanced_prompt": "[Complete enhanced prompt with NO placeholders or brackets]",
   "display_excerpt": "[Brief 1-line summary]",
   "assumption_groups": [
     {
@@ -141,10 +128,7 @@ Format your response as follows:
           "option_id": "A1_O1",
           "label": "[Option Name]",
           "short": "[Brief description]",
-          "append_snippet": "[Text to append to prompt if selected]",
-          "followup_questions": [
-            {"qid": "Q1", "question": "[Optional follow-up question]"}
-          ]
+          "append_snippet": "[Text to append to prompt if selected]"
         }
       ]
     }
@@ -159,20 +143,16 @@ Format your response as follows:
 \`\`\`
 
 Guidelines:
-- Keep the enhanced prompt focused and actionable
+- The enhanced_prompt must be complete and functional without any placeholders
+- Never use bracket notation like [audience level] or [specific aspects] in enhanced_prompt
+- Make reasonable assumptions for the enhanced_prompt base version
 - Provide 2-4 assumption groups with 2-4 options each
-- Make option descriptions clear and concise
-- Ensure append_snippets add meaningful context
-- Use combination_snippets for synergistic option pairs
-- Set "input_type" to "radio" for mutually exclusive options (choose one) or "checkbox" for multiple selections
+- append_snippets should add specific context when options are selected
+- Set "input_type" to "radio" for mutually exclusive options or "checkbox" for multiple selections
 - Use "radio" for categories like audience level, format type, or focus area where only one choice makes sense
 - Use "checkbox" for features, topics, or elements that can be combined together
 - Each append_snippet should be short (one or two sentences) and written so that simply appending it to the enhanced_prompt results in a clear, enforceable instruction for any downstream LLM.
-- For option labels and ids, prefer concise ids like A1_O1, A2_O3, etc.
 - Only produce up to 6 option groups, and within each group up to 6 options. Prefer 3–5 options per useful group.
-- For assumptions: identify the top 3 assumptions the model must make and present them as the first group (group_id: "ASSUMPTIONS") and mark them with priority.
-- Produce combination_snippets for the top up to 10 most relevant pairwise combinations across different groups, and up to 5 triple combinations only if they seem highly relevant.
-- If any option would conflict with another option, mark the conflict explicitly in the JSON (e.g., add a "conflicts_with": ["A2_O3"]).
 - Be conservative about making assumptions. If a critical missing detail would dramatically change the prompt, include a followup question and mark it as REQUIRED.
 - Avoid hallucinations. When the original prompt references facts that are plausibly time-sensitive or ambiguous, do not invent specifics.
 
