@@ -101,44 +101,72 @@ serve(async (req) => {
 
 1. Present the top assumptions the LLM has to make to run the prompt, as *selectable options* (the user will choose among them).
 2. Present additional configurable option groups (tone, audience, length, format, domain constraints, persona, output type, examples, constraints, locale/timeframe etc.) as choices the user can select.
-3. For each selectable option, produce a short *append snippet* — text that, when appended to the enhanced prompt, will enforce that option.
-4. Predict sensible follow-up clarifying assumptions that may become necessary depending on the user's selection(s). Provide those follow-up options programmatically (tied to option IDs).
-5. Provide pairwise (and up to 3-way, only if relevant) combination snippets for commonly used pairs/triples across groups so the client can support appending combination-specific text.
 
-Output format requirements (MUST follow exactly):
-- Produce two renderings simultaneously in the assistant message:
-  1) A human-friendly markdown section that shows: the ENHANCED PROMPT, a clear numbered list of the TOP 3 ASSUMPTIONS (each with option IDs), all option groups with option IDs and labels, and brief guidance how to select options. This is for display in the UI. Keep this markdown concise.
-  2) A JSON block (surrounded by triple backticks and labeled as JSON) that contains the canonical, machine-readable structure with the following exact fields:
+Format your response as follows:
 
+**Enhanced Prompt**
+[Your enhanced version of the prompt]
+
+---
+
+### **UI Display Summary**
+**Enhanced Prompt Excerpt**: "[Brief 1-line summary of the enhanced prompt]"
+
+**Top 3 Assumptions** (Select to clarify):
+1. **[Category]** (A1): [Assumption description]
+2. **[Category]** (A2): [Assumption description]  
+3. **[Category]** (A3): [Assumption description]
+
+**Option Groups**:
+1. **[Category]** (A1): [Option1, Option2, Option3, etc.]
+2. **[Category]** (A2): [Option1, Option2, Option3, etc.]
+3. **[Category]** (A3): [Option1, Option2, Option3, etc.]
+
+**Guidance**: [Brief instruction on how to use the options]
+
+---
+
+\`\`\`json
+{
+  "enhanced_prompt": "[The enhanced prompt text]",
+  "display_excerpt": "[Brief 1-line summary]",
+  "assumption_groups": [
     {
-      "enhanced_prompt": "string",
-      "display_excerpt": "string (short 1-2 line summary of the enhanced prompt)",
-      "assumption_groups": [
+      "group_id": "A1",
+      "title": "[Category Name]",
+      "description": "[What this group helps clarify]",
+      "input_type": "radio",
+      "options": [
         {
-          "group_id": "A1",                // unique short id for group
-          "title": "Target audience",
-          "description": "why it matters",
-          "options": [
-            {
-              "option_id": "A1_O1",        // unique id used to build mappings
-              "label": "General public",
-              "short": "1-line summary",
-              "append_snippet": "Text to append to base prompt (1-3 sentences).",
-              "followup_questions": [       // optional: followups triggered if selected
-                {"qid": "Q1", "question": "Do you want to target a specific region?"}
-              ]
-            }
+          "option_id": "A1_O1",
+          "label": "[Option Name]",
+          "short": "[Brief description]",
+          "append_snippet": "[Text to append to prompt if selected]",
+          "followup_questions": [
+            {"qid": "Q1", "question": "[Optional follow-up question]"}
           ]
         }
-      ],
-      "combination_snippets": [        // optional but recommended — pairwise/triple mappings
-        {"combo": ["A1_O2","A2_O1"], "append_snippet": "Text to append if both chosen"}
-      ],
-      "max_pairwise_combinations_produced": 0,
-      "notes": "Any safety / scope / important recommendations"
+      ]
     }
+  ],
+  "combination_snippets": [
+    {
+      "combo": ["A1_O1", "A2_O1"],
+      "append_snippet": "[Special text when these options are combined]"
+    }
+  ]
+}
+\`\`\`
 
-- The JSON MUST be parseable. The assistant must NOT wrap the JSON in extraneous commentary inside the JSON block.
+Guidelines:
+- Keep the enhanced prompt focused and actionable
+- Provide 2-4 assumption groups with 2-4 options each
+- Make option descriptions clear and concise
+- Ensure append_snippets add meaningful context
+- Use combination_snippets for synergistic option pairs
+- Set "input_type" to "radio" for mutually exclusive options (choose one) or "checkbox" for multiple selections
+- Use "radio" for categories like audience level, format type, or focus area where only one choice makes sense
+- Use "checkbox" for features, topics, or elements that can be combined together
 - Each append_snippet should be short (one or two sentences) and written so that simply appending it to the enhanced_prompt results in a clear, enforceable instruction for any downstream LLM.
 - For option labels and ids, prefer concise ids like A1_O1, A2_O3, etc.
 - Only produce up to 6 option groups, and within each group up to 6 options. Prefer 3–5 options per useful group.

@@ -302,10 +302,13 @@ class AdvancedPromptEnhancer {
     const optionsHTML = this.buildOptionsHTML(parsedData);
     
     overlay.innerHTML = `
-      <div class="promptok-card enhanced">
+      <div class="promptok-card enhanced" id="promptok-enhanced-card">
         <div class="promptok-header">
           <h4>✨ Enhanced Prompt Ready</h4>
-          <button class="promptok-close" aria-label="Close">×</button>
+          <div class="header-controls">
+            <button class="promptok-resize" title="Resize">⤢</button>
+            <button class="promptok-close" aria-label="Close">×</button>
+          </div>
         </div>
         
         <div class="enhanced-prompt-preview">
@@ -320,8 +323,8 @@ class AdvancedPromptEnhancer {
         </div>
         
         <div class="promptok-actions">
-          <button id="promptok-apply" class="primary">Apply Enhanced Prompt</button>
-          <button id="promptok-apply-with-options" class="secondary">Apply with Selected Options</button>
+          <button id="promptok-apply" class="primary">Apply</button>
+          <button id="promptok-copy" class="copy-icon" title="Copy to clipboard">📋</button>
         </div>
         
         <div class="promptok-status"></div>
@@ -346,8 +349,9 @@ class AdvancedPromptEnhancer {
     const groupId = this.escapeHtml(group.group_id || '');
     const title = this.escapeHtml(group.title || '');
     const description = this.escapeHtml(group.description || '');
+    const inputType = group.input_type || 'checkbox';
     const optionsHTML = (group.options || [])
-      .map(option => this.buildOptionHTML(option, groupId))
+      .map(option => this.buildOptionHTML(option, groupId, inputType))
       .join('');
 
     return `
@@ -359,14 +363,15 @@ class AdvancedPromptEnhancer {
     `;
   }
 
-  buildOptionHTML(option, groupId) {
+  buildOptionHTML(option, groupId, inputType = 'checkbox') {
     const optionId = this.escapeHtml(option.option_id || '');
     const label = this.escapeHtml(option.label || '');
     const short = this.escapeHtml(option.short || '');
+    const name = inputType === 'radio' ? `group-${groupId}` : 'option';
 
     return `
       <label class="option-item">
-        <input type="checkbox" name="option" value="${optionId}" data-group="${groupId}">
+        <input type="${inputType}" name="${name}" value="${optionId}" data-group="${groupId}">
         <div class="option-content">
           <span class="option-label">${label}</span>
           <span class="option-short">${short}</span>
@@ -380,30 +385,62 @@ class AdvancedPromptEnhancer {
     const closeBtn = overlay.querySelector('.promptok-close');
     closeBtn.addEventListener('click', () => this.removeExistingOverlay());
     
-    // Apply base enhanced prompt
+    // Resize functionality
+    const resizeBtn = overlay.querySelector('.promptok-resize');
+    resizeBtn.addEventListener('click', () => this.toggleCardSize(overlay));
+    
+    // Apply prompt (base + selected options)
     const applyBtn = overlay.querySelector('#promptok-apply');
     applyBtn.addEventListener('click', () => {
-      this.applyEnhancedPrompt(parsedData.enhanced_prompt);
+      const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+      this.applyPromptToInput(finalPrompt);
     });
     
-    // Apply with selected options
-    const applyWithOptionsBtn = overlay.querySelector('#promptok-apply-with-options');
-    applyWithOptionsBtn.addEventListener('click', () => {
-      this.applyEnhancedPromptWithOptions(parsedData);
+    // Copy to clipboard
+    const copyBtn = overlay.querySelector('#promptok-copy');
+    copyBtn.addEventListener('click', () => {
+      const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+      this.copyToClipboard(finalPrompt);
     });
     
-    // Option selection handling
-    const checkboxes = overlay.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-      checkbox.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          this.selectedOptions.add(e.target.value);
+    // Option selection handling (both checkboxes and radios)
+    const inputs = overlay.querySelectorAll('input[type="checkbox"], input[type="radio"]');
+    inputs.forEach(input => {
+      input.addEventListener('change', (e) => {
+        if (e.target.type === 'radio') {
+          // For radio buttons, remove other options from same group
+          const groupId = e.target.dataset.group;
+          const groupInputs = overlay.querySelectorAll(`input[data-group="${groupId}"]`);
+          groupInputs.forEach(groupInput => {
+            if (groupInput !== e.target) {
+              this.selectedOptions.delete(groupInput.value);
+            }
+          });
+          
+          if (e.target.checked) {
+            this.selectedOptions.add(e.target.value);
+          }
         } else {
-          this.selectedOptions.delete(e.target.value);
+          // Checkbox behavior
+          if (e.target.checked) {
+            this.selectedOptions.add(e.target.value);
+          } else {
+            this.selectedOptions.delete(e.target.value);
+          }
         }
-        this.updateApplyButtonText(overlay);
+        this.updateButtonText(overlay);
       });
     });
+    
+    // Load saved size
+    this.loadCardSize(overlay);
+    
+    // Save size on resize
+    const card = overlay.querySelector('.promptok-card.enhanced');
+    const resizeObserver = new ResizeObserver(() => {
+      this.saveCardSize(card);
+    });
+    resizeObserver.observe(card);
     
     // Close when clicking outside
     overlay.addEventListener('click', (e) => {
@@ -413,49 +450,143 @@ class AdvancedPromptEnhancer {
     });
   }
 
-  updateApplyButtonText(overlay) {
-    const btn = overlay.querySelector('#promptok-apply-with-options');
+  updateButtonText(overlay) {
+    const applyBtn = overlay.querySelector('#promptok-apply');
     const count = this.selectedOptions.size;
-    btn.textContent = count > 0 ? `Apply with ${count} Option${count > 1 ? 's' : ''}` : 'Apply with Selected Options';
+    
+    if (count > 0) {
+      applyBtn.textContent = `Apply + ${count} Option${count > 1 ? 's' : ''}`;
+    } else {
+      applyBtn.textContent = 'Apply';
+    }
   }
 
-  applyEnhancedPrompt(enhancedPrompt) {
+  applyPromptToInput(finalPrompt) {
     const input = this.detect();
-    if (!input) return;
-    
-    // Update the input field
-    if (input.value !== undefined) {
-      input.value = enhancedPrompt;
-    } else if (input.textContent !== undefined) {
-      input.textContent = enhancedPrompt;
+    if (!input) {
+      console.error('No input field detected');
+      this.showError('Could not find input field to apply prompt');
+      return;
     }
     
-    // Trigger input event to notify the page
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    console.log('Applying prompt to input:', input);
+    console.log('Final prompt:', finalPrompt);
     
-    this.showSuccess('Base enhanced prompt applied!');
-    setTimeout(() => this.removeExistingOverlay(), 1500);
-  }
-
-  applyEnhancedPromptWithOptions(parsedData) {
-    const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+    // Focus the input first
+    input.focus();
     
-    const input = this.detect();
-    if (!input) return;
-    
-    // Update the input field
+    // Clear existing content and set new content
     if (input.value !== undefined) {
+      // For regular input/textarea elements
+      input.value = '';
       input.value = finalPrompt;
-    } else if (input.textContent !== undefined) {
+      
+      // Trigger React/Vue style events
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+      
+      if (input.tagName === 'INPUT') {
+        nativeInputValueSetter.call(input, finalPrompt);
+      } else if (input.tagName === 'TEXTAREA') {
+        nativeTextAreaValueSetter.call(input, finalPrompt);
+      }
+    } else if (input.isContentEditable) {
+      // For contenteditable elements
+      input.textContent = '';
       input.textContent = finalPrompt;
+      
+      // Set cursor to end
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(input);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
     
-    // Trigger input event to notify the page
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+    // Comprehensive event dispatching for maximum compatibility
+    const events = [
+      'input', 'change', 'keyup', 'keydown', 'paste', 'blur', 'focus'
+    ];
+    
+    events.forEach(eventType => {
+      input.dispatchEvent(new Event(eventType, { bubbles: true, cancelable: true }));
+    });
+    
+    // Additional events for modern frameworks
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
+    
+    // For contenteditable elements
+    if (input.isContentEditable) {
+      input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+      input.dispatchEvent(new Event('textInput', { bubbles: true }));
+    }
+    
+    // Trigger a delayed event to catch any async handlers
+    setTimeout(() => {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, 100);
     
     const count = this.selectedOptions.size;
-    this.showSuccess(`Enhanced prompt applied with ${count} customization${count > 1 ? 's' : ''}!`);
+    const message = count > 0 
+      ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} applied!`
+      : 'Enhanced prompt applied!';
+    
+    this.showSuccess(message);
     setTimeout(() => this.removeExistingOverlay(), 1500);
+  }
+
+  toggleCardSize(overlay) {
+    const card = overlay.querySelector('.promptok-card.enhanced');
+    const currentWidth = card.style.width || '800px';
+    
+    if (currentWidth === '800px' || currentWidth === '') {
+      card.style.width = '1000px';
+      card.style.height = '600px';
+    } else {
+      card.style.width = '800px';
+      card.style.height = 'auto';
+    }
+    
+    this.saveCardSize(card);
+  }
+
+  saveCardSize(card) {
+    const size = {
+      width: card.style.width || card.offsetWidth + 'px',
+      height: card.style.height || card.offsetHeight + 'px'
+    };
+    localStorage.setItem('promptok-card-size', JSON.stringify(size));
+  }
+
+  loadCardSize(overlay) {
+    try {
+      const savedSize = localStorage.getItem('promptok-card-size');
+      if (savedSize) {
+        const size = JSON.parse(savedSize);
+        const card = overlay.querySelector('.promptok-card.enhanced');
+        if (size.width) card.style.width = size.width;
+        if (size.height && size.height !== 'auto') card.style.height = size.height;
+      }
+    } catch (e) {
+      console.warn('Could not load saved card size:', e);
+    }
+  }
+
+  async copyToClipboard(finalPrompt) {
+    try {
+      await navigator.clipboard.writeText(finalPrompt);
+      
+      const count = this.selectedOptions.size;
+      const message = count > 0 
+        ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} copied to clipboard!`
+        : 'Enhanced prompt copied to clipboard!';
+      
+      this.showSuccess(message);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      this.showError('Failed to copy to clipboard. Please try again.');
+    }
   }
 
   buildFinalPrompt(parsedData, selectedOptionIds) {
@@ -684,10 +815,50 @@ class AdvancedPromptEnhancer {
         transition: all 0.2s;
       }
       
+      .promptok-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+        align-items: center;
+      }
+      
       .promptok-actions button.primary {
-        background: #3b82f6;
-        color: white;
+        flex: 1;
+        background: rgba(255,255,255,0.9);
+        color: #667eea;
         border: none;
+        font-weight: 600;
+        padding: 12px 20px;
+        border-radius: 8px;
+        transition: all 0.2s;
+      }
+      
+      .promptok-actions button.primary:hover {
+        background: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      
+      .promptok-actions button.copy-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 6px;
+        color: rgba(255,255,255,0.9);
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      
+      .promptok-actions button.copy-icon:hover {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        transform: translateY(-1px);
       }
       
       .promptok-actions button.primary:hover {
@@ -730,65 +901,131 @@ class AdvancedPromptEnhancer {
   addEnhancedStyles(overlay) {
     const style = document.createElement('style');
     style.textContent = `
+      .promptok-card.enhanced {
+        width: 800px;
+        min-width: 600px;
+        max-width: 95vw;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 25px 50px -12px rgba(102, 126, 234, 0.25);
+        color: white;
+        resize: both;
+        overflow: auto;
+        position: relative;
+      }
+      
+      .promptok-card.enhanced .promptok-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .promptok-card.enhanced .promptok-header h4 {
+        color: white;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin: 0;
+      }
+      
+      .header-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      
+      .promptok-resize {
+        width: 32px;
+        height: 32px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 6px;
+        color: rgba(255,255,255,0.8);
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .promptok-resize:hover {
+        background: rgba(255,255,255,0.2);
+        color: white;
+      }
+      
+      .promptok-card.enhanced .promptok-close {
+        color: rgba(255,255,255,0.8);
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+      }
+      
+      .promptok-card.enhanced .promptok-close:hover {
+        background: rgba(255,255,255,0.2);
+        color: white;
+      }
+      
       .enhanced-prompt-preview {
         margin-bottom: 24px;
         padding: 16px;
-        background: #f8fafc;
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
+        background: rgba(255,255,255,0.1);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
       }
       
       .enhanced-prompt-preview h5 {
         margin: 0 0 12px 0;
-        color: #374151;
+        color: rgba(255,255,255,0.9);
         font-size: 14px;
         font-weight: 600;
       }
       
       .prompt-text {
-        background: white;
+        background: rgba(255,255,255,0.95);
         padding: 12px;
-        border-radius: 6px;
-        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.3);
         font-family: monospace;
         font-size: 13px;
         line-height: 1.5;
         color: #1f2937;
         max-height: 120px;
         overflow-y: auto;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
       }
       
       .options-section h5 {
         margin: 0 0 8px 0;
-        color: #374151;
+        color: rgba(255,255,255,0.95);
         font-size: 16px;
         font-weight: 600;
       }
       
       .options-description {
         margin: 0 0 20px 0;
-        color: #6b7280;
+        color: rgba(255,255,255,0.8);
         font-size: 14px;
       }
       
       .option-group {
         margin-bottom: 20px;
         padding: 16px;
-        background: #fafbfc;
-        border-radius: 8px;
-        border: 1px solid #e5e7eb;
+        background: rgba(255,255,255,0.1);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
       }
       
       .option-group h6 {
         margin: 0 0 8px 0;
-        color: #1f2937;
+        color: rgba(255,255,255,0.95);
         font-size: 14px;
         font-weight: 600;
       }
       
       .group-description {
         margin: 0 0 12px 0;
-        color: #6b7280;
+        color: rgba(255,255,255,0.8);
         font-size: 13px;
       }
       
@@ -803,16 +1040,19 @@ class AdvancedPromptEnhancer {
         align-items: flex-start;
         gap: 12px;
         padding: 12px;
-        background: white;
-        border-radius: 6px;
-        border: 1px solid #e5e7eb;
+        background: rgba(255,255,255,0.95);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.3);
         cursor: pointer;
         transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }
       
       .option-item:hover {
-        border-color: #3b82f6;
-        background: #f8fafc;
+        border-color: rgba(255,255,255,0.5);
+        background: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
       }
       
       .option-item input[type="checkbox"] {
@@ -838,7 +1078,8 @@ class AdvancedPromptEnhancer {
       }
       
       .option-item input[type="checkbox"]:checked + .option-content .option-label {
-        color: #3b82f6;
+        color: #667eea;
+        font-weight: 600;
       }
     `;
     overlay.appendChild(style);
