@@ -114,13 +114,8 @@ export default function ResetPasswordConfirmPage() {
         throw new Error(updateError.message);
       }
 
-      setMessage('Password updated successfully! You can now sign in with your new password.');
+      setMessage('Password updated successfully! Please use the PromptOK browser extension to sign in with your new password.');
       setShowPasswordForm(false);
-      
-      // Redirect to login after a delay
-      setTimeout(() => {
-        window.location.href = '/auth/start';
-      }, 3000);
 
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Failed to update password';
