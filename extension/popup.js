@@ -81,13 +81,18 @@ function showSuccess(element, message) {
 // DOM Elements
 const loginView = document.getElementById('loginView');
 const signupView = document.getElementById('signupView');
+const resetPasswordView = document.getElementById('resetPasswordView');
 const loggedInView = document.getElementById('loggedInView');
 const loginForm = document.getElementById('login');
 const signupForm = document.getElementById('signup');
+const resetPasswordForm = document.getElementById('resetPassword');
 const showSignupBtn = document.getElementById('showSignup');
 const showLoginBtn = document.getElementById('showLogin');
+const showResetPasswordBtn = document.getElementById('showResetPassword');
+const backToLoginBtn = document.getElementById('backToLogin');
 const statusEl = document.getElementById('status');
 const signupStatusEl = document.getElementById('signupStatus');
+const resetStatusEl = document.getElementById('resetStatus');
 const logoutBtn = document.getElementById('logoutBtn');
 const userNameEl = document.getElementById('userName');
 const userEmailEl = document.getElementById('userEmail');
@@ -416,6 +421,11 @@ function initEventListeners() {
     signupForm.addEventListener('click', handleSignup);
   }
   
+  // Reset password form submission
+  if (resetPasswordForm) {
+    resetPasswordForm.addEventListener('click', handleResetPassword);
+  }
+  
   // Logout button
   if (logoutBtn) {
     logoutBtn.addEventListener('click', handleLogout);
@@ -442,6 +452,20 @@ function initEventListeners() {
       showView('login');
     });
   }
+  
+  if (showResetPasswordBtn) {
+    showResetPasswordBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView('resetPassword');
+    });
+  }
+  
+  if (backToLoginBtn) {
+    backToLoginBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView('login');
+    });
+  }
 }
 
 // Toggle between views
@@ -450,6 +474,7 @@ function showView(view) {
   const loadingView = document.getElementById('loadingView');
   if (loginView) loginView.style.display = 'none';
   if (signupView) signupView.style.display = 'none';
+  if (resetPasswordView) resetPasswordView.style.display = 'none';
   if (loggedInView) loggedInView.style.display = 'none';
   if (loadingView) loadingView.style.display = 'none';
   
@@ -464,6 +489,11 @@ function showView(view) {
     signupStatusEl.className = 'status';
   }
   
+  if (resetStatusEl) {
+    resetStatusEl.textContent = '';
+    resetStatusEl.className = 'status';
+  }
+  
   // Show the requested view
   switch(view) {
     case 'loading':
@@ -474,6 +504,9 @@ function showView(view) {
       break;
     case 'signup':
       if (signupView) signupView.style.display = 'block';
+      break;
+    case 'resetPassword':
+      if (resetPasswordView) resetPasswordView.style.display = 'block';
       break;
     case 'loggedIn':
       if (loggedInView) loggedInView.style.display = 'block';
@@ -519,6 +552,61 @@ function setLoading(button, isLoading) {
 }
 
   // (Removed duplicate event listeners; initEventListeners handles bindings)
+
+// Handle reset password
+async function handleResetPassword(e) {
+  e.preventDefault();
+  
+  const emailEl = document.getElementById('resetEmail');
+  const email = emailEl?.value.trim() || '';
+  
+  // Basic validation
+  if (!email) {
+    showError(resetStatusEl, 'Please enter your email address');
+    return;
+  }
+  
+  if (!/\S+@\S+\.\S+/.test(email)) {
+    showError(resetStatusEl, 'Please enter a valid email address');
+    return;
+  }
+  
+  try {
+    setLoading(resetPasswordForm, true);
+    
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
+    
+    const res = await fetch(`${base}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    
+    const data = await res.json().catch(() => ({}));
+    
+    if (res.ok) {
+      showSuccess(resetStatusEl, 'Reset link sent! Check your email for instructions.');
+      // Clear the email field
+      if (emailEl) emailEl.value = '';
+      // Optionally switch back to login after a delay
+      setTimeout(() => showView('login'), 3000);
+    } else {
+      const errorMsg = data.error || data.message || `Status: ${res.status}`;
+      showError(resetStatusEl, `Reset failed: ${errorMsg}`);
+    }
+    
+  } catch (error) {
+    console.error('Reset password error:', error);
+    const errorMsg = error.message.includes('Failed to fetch') 
+      ? 'Unable to connect to server. Please try again later.' 
+      : error.message;
+    showError(resetStatusEl, `Error: ${errorMsg}`);
+  } finally {
+    setLoading(resetPasswordForm, false);
+  }
+}
 
 async function handleSignup(e) {
   e.preventDefault();
