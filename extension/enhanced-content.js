@@ -222,15 +222,24 @@ class AdvancedPromptEnhancer {
         }
       }
     } catch (error) {
-      console.error('Enhancement error:', error);
-      this.showError('Failed to enhance prompt. Please try again.');
+      // Handle specific error types with better logging
+      if (error.message === 'AUTH_ERROR') {
+        console.log('[PromptOK] User authentication required - showing login prompt');
+        this.showAuthError();
+      } else if (error.message === 'RATE_LIMIT_ERROR') {
+        console.log('[PromptOK] Usage limit reached - showing upgrade prompt');
+        this.showRateLimitError();
+      } else {
+        console.error('[PromptOK] Enhancement failed:', error.message || error);
+        this.showError('Failed to enhance prompt. Please try again.');
+      }
     }
   }
 
   async getEnhancementData(prompt) {
     const accessToken = await this.getAccessToken();
     if (!accessToken) {
-      throw new Error('Not authenticated. Please sign in to use prompt enhancement.');
+      throw new Error('AUTH_ERROR');
     }
 
     const response = await this.makeApiRequest(prompt, accessToken);
@@ -268,7 +277,18 @@ class AdvancedPromptEnhancer {
   async handleApiResponse(response) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}: Enhancement failed`);
+      const errorMessage = errorData.error || `HTTP ${response.status}: Enhancement failed`;
+      
+      // Check for specific error types
+      if (response.status === 401 || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('not authenticated')) {
+        throw new Error('AUTH_ERROR');
+      }
+      
+      if (response.status === 403 || errorMessage.toLowerCase().includes('usage limit') || errorMessage.toLowerCase().includes('rate limit') || errorMessage.toLowerCase().includes('upgrade')) {
+        throw new Error('RATE_LIMIT_ERROR');
+      }
+      
+      throw new Error(errorMessage);
     }
     return response.json();
   }
@@ -976,6 +996,7 @@ class AdvancedPromptEnhancer {
     `;
     
     this.addOverlayStyles(overlay);
+    this.addErrorStyles(overlay);
     document.body.appendChild(overlay);
     
     // Add close listeners
@@ -985,6 +1006,100 @@ class AdvancedPromptEnhancer {
     const closeHandler = () => this.closeOverlay();
     closeBtn.addEventListener('click', closeHandler);
     closeErrorBtn.addEventListener('click', closeHandler);
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeHandler();
+    });
+  }
+
+  showAuthError() {
+    this.removeExistingOverlay();
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'promptok-overlay';
+    overlay.innerHTML = `
+      <div class="promptok-card error-card">
+        <div class="promptok-header">
+          <h4>🔒 Login Required</h4>
+          <button class="promptok-close" aria-label="Close">×</button>
+        </div>
+        <div class="error-message auth-error">
+          <div class="error-icon">🔐</div>
+          <h3>Please log in to use the enhancement feature</h3>
+          <p>You need to be signed in to access AI-powered prompt enhancement.</p>
+        </div>
+        <div class="promptok-actions">
+          <button id="promptok-login" class="primary action-button">Log In</button>
+          <button id="promptok-close-auth" class="secondary">Close</button>
+        </div>
+      </div>
+    `;
+    
+    this.addOverlayStyles(overlay);
+    this.addErrorStyles(overlay);
+    document.body.appendChild(overlay);
+    
+    // Add event listeners
+    const closeBtn = overlay.querySelector('.promptok-close');
+    const loginBtn = overlay.querySelector('#promptok-login');
+    const closeAuthBtn = overlay.querySelector('#promptok-close-auth');
+    
+    const closeHandler = () => this.closeOverlay();
+    closeBtn.addEventListener('click', closeHandler);
+    closeAuthBtn.addEventListener('click', closeHandler);
+    
+    loginBtn.addEventListener('click', () => {
+      // Redirect to login page
+      window.open('https://promptok.app/auth/start', '_blank');
+      closeHandler();
+    });
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeHandler();
+    });
+  }
+
+  showRateLimitError() {
+    this.removeExistingOverlay();
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'promptok-overlay';
+    overlay.innerHTML = `
+      <div class="promptok-card error-card">
+        <div class="promptok-header">
+          <h4>⚡ Enhancement Limit Reached</h4>
+          <button class="promptok-close" aria-label="Close">×</button>
+        </div>
+        <div class="error-message rate-limit-error">
+          <div class="error-icon">📊</div>
+          <h3>Enhancement limit reached</h3>
+          <p>You've reached your current plan's enhancement limit. Upgrade to continue using AI-powered enhancements.</p>
+        </div>
+        <div class="promptok-actions">
+          <button id="promptok-upgrade" class="primary action-button">Upgrade Subscription</button>
+          <button id="promptok-close-limit" class="secondary">Close</button>
+        </div>
+      </div>
+    `;
+    
+    this.addOverlayStyles(overlay);
+    this.addErrorStyles(overlay);
+    document.body.appendChild(overlay);
+    
+    // Add event listeners
+    const closeBtn = overlay.querySelector('.promptok-close');
+    const upgradeBtn = overlay.querySelector('#promptok-upgrade');
+    const closeLimitBtn = overlay.querySelector('#promptok-close-limit');
+    
+    const closeHandler = () => this.closeOverlay();
+    closeBtn.addEventListener('click', closeHandler);
+    closeLimitBtn.addEventListener('click', closeHandler);
+    
+    upgradeBtn.addEventListener('click', () => {
+      // Redirect to purchase page
+      window.open('https://promptok.app/dashboard', '_blank');
+      closeHandler();
+    });
     
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeHandler();
@@ -1574,6 +1689,105 @@ class AdvancedPromptEnhancer {
       console.warn(`Failed to get storage item '${key}':`, error);
     }
     return null;
+  }
+
+  addErrorStyles(overlay) {
+    const style = document.createElement('style');
+    style.textContent = `
+      .promptok-card.error-card {
+        max-width: 500px;
+        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        border: 2px solid #d1d5db;
+        color: #374151;
+        box-shadow: 0 20px 25px -5px rgba(102, 126, 234, 0.15), 0 10px 10px -5px rgba(102, 126, 234, 0.08);
+      }
+      
+      .promptok-card.error-card .promptok-header h4 {
+        color: #667eea;
+        font-weight: 600;
+      }
+      
+      .promptok-card.error-card .promptok-close {
+        color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.2);
+      }
+      
+      .promptok-card.error-card .promptok-close:hover {
+        background: rgba(102, 126, 234, 0.2);
+        color: #5a67d8;
+      }
+      
+      .error-message.auth-error,
+      .error-message.rate-limit-error {
+        padding: 30px 20px;
+        text-align: center;
+        color: #374151;
+      }
+      
+      .error-message .error-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.8;
+        filter: hue-rotate(240deg);
+      }
+      
+      .error-message h3 {
+        margin: 0 0 12px 0;
+        font-size: 20px;
+        font-weight: 600;
+        color: #667eea;
+      }
+      
+      .error-message p {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #6b7280;
+        opacity: 0.9;
+      }
+      
+      .promptok-card.error-card .promptok-actions {
+        border-top: 1px solid rgba(102, 126, 234, 0.1);
+        padding-top: 20px;
+        margin-top: 20px;
+      }
+      
+      .promptok-card.error-card .action-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-weight: 600;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.3);
+      }
+      
+      .promptok-card.error-card .action-button:hover {
+        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 12px -1px rgba(102, 126, 234, 0.4);
+      }
+      
+      .promptok-card.error-card .action-button:active {
+        transform: translateY(0);
+      }
+      
+      .promptok-card.error-card .secondary {
+        background: transparent;
+        color: #667eea;
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        font-weight: 500;
+      }
+      
+      .promptok-card.error-card .secondary:hover {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: rgba(102, 126, 234, 0.5);
+      }
+    `;
+    overlay.appendChild(style);
   }
 
   escapeHtml(text) {
