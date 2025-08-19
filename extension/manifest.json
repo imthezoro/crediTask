@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Clarify and enhance prompts across LLM sites",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://coqwcumwpixmrjqnmhkv.supabase.co https://openrouter.ai https://*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
   },
   "permissions": [
     "storage",
@@ -28,7 +28,7 @@
         "*://127.0.0.1/*/auth/callback*",
         "*://127.0.0.1/auth/callback*"
       ],
-      "js": ["config.js", "content.js"],
+      "js": ["config.js", "prompts.js", "gemini-service.js", "content.js"],
       "css": ["overlay.css"],
       "run_at": "document_idle"
     },

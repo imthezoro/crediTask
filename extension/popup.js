@@ -466,6 +466,7 @@ function initEventListeners() {
       showView('login');
     });
   }
+  
 }
 
 // Toggle between views
@@ -710,3 +711,4 @@ async function handleSignup(e) {
     setLoading(signupForm, false);
   }
 }
+

@@ -212,8 +212,8 @@ async function enhancePrompt(enhancementType) {
   }
   
   try {
-    // Fallback enhancement since we don't have an API key
-    const enhancedPrompt = await enhanceWithFallback(prompt, enhancementType);
+    // Use Gemini API for enhancement
+    const enhancedPrompt = await enhanceWithGemini(prompt, enhancementType);
     
     // Update the input field with enhanced prompt
     if (input.value !== undefined) {
@@ -247,20 +247,26 @@ async function enhancePrompt(enhancementType) {
   }
 }
 
-// Fallback enhancement function
-async function enhanceWithFallback(prompt, enhancementType) {
-  // These are simple fallback enhancements since we don't have an API key
-  const enhancements = {
-    'tone': `[Professional tone] ${prompt}`,
-    'length': `[Detailed version] ${prompt} - Please provide a comprehensive response.`,
-    'audience': `[For general audience] ${prompt}`
-  };
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Return enhanced prompt or original if enhancement type not found
-  return enhancements[enhancementType] || prompt;
+// Enhanced prompt function using Gemini API
+async function enhanceWithGemini(prompt, enhancementType) {
+  try {
+    const geminiService = new GeminiService();
+    const enhancedPrompt = await geminiService.enhancePrompt(prompt, enhancementType);
+    return enhancedPrompt;
+  } catch (error) {
+    console.error('Gemini enhancement failed:', error);
+    
+    // Fallback to simple enhancements if Gemini fails
+    const fallbackEnhancements = {
+      'tone': `[Professional tone] ${prompt}`,
+      'length': `[Detailed version] ${prompt} - Please provide a comprehensive response.`,
+      'audience': `[For general audience] ${prompt}`,
+      'clarity': `[Clear and specific] ${prompt}`,
+      'structure': `[Well-structured] ${prompt}`
+    };
+    
+    return fallbackEnhancements[enhancementType] || prompt;
+  }
 }
 
 function init() {
@@ -268,9 +274,11 @@ function init() {
   const input = detector.detect();
   if (!input) return;
   const options = [
-    { value: 'tone', label: 'What tone should the output have?' },
-    { value: 'length', label: 'Desired length?' },
-    { value: 'audience', label: 'Who is the audience?' },
+    { value: 'tone', label: 'Improve tone and professionalism' },
+    { value: 'length', label: 'Make more detailed and comprehensive' },
+    { value: 'audience', label: 'Optimize for target audience' },
+    { value: 'clarity', label: 'Enhance clarity and specificity' },
+    { value: 'structure', label: 'Improve structure and organization' },
   ];
   showEnhancementOptions(options);
 }
