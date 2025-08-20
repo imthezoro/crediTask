@@ -20,8 +20,31 @@ export default function AuthCallbackPage() {
 
         // Get Supabase client from auth service
         const supabase = (authService as any).supabase;
+
+        // 1) Handle hash-based token response (implicit flow or provider quirk)
+        // Example: #access_token=...&refresh_token=...&expires_in=...
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const access_token = hashParams.get('access_token');
+          const refresh_token = hashParams.get('refresh_token');
+
+          if (access_token && refresh_token) {
+            // Set session directly from tokens
+            const { data: setData, error: setError } = await supabase.auth.setSession({
+              access_token,
+              refresh_token,
+            });
+
+            if (setError) {
+              throw new Error(`Set session failed: ${setError.message}`);
+            }
+
+            // Clean hash from URL to avoid leaking tokens
+            window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          }
+        }
         
-        // Let Supabase handle the session from URL
+        // 2) Let Supabase handle the session from URL/cookies if already present
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -29,7 +52,7 @@ export default function AuthCallbackPage() {
         }
 
         if (!data.session) {
-          // Check if we have auth code in URL for PKCE flow
+          // 3) PKCE code exchange path
           const code = urlParams.get('code');
           
           if (code) {
@@ -43,7 +66,7 @@ export default function AuthCallbackPage() {
           }
         }
 
-        // Get final session after potential code exchange
+        // Get final session after potential code/hash handling
         const { data: finalData } = await supabase.auth.getSession();
         const session = finalData.session;
         
@@ -55,11 +78,11 @@ export default function AuthCallbackPage() {
 
         setMessage('Signed in! Redirecting...');
         
-        // Redirect to dashboard
+        // Redirect to dashboard or provided redirectTo
         const redirectTo = urlParams.get('redirectTo') || '/dashboard';
         setTimeout(() => {
           window.location.replace(redirectTo);
-        }, 1000);
+        }, 500);
         
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
@@ -70,7 +93,7 @@ export default function AuthCallbackPage() {
         // Redirect to signin with error
         setTimeout(() => {
           window.location.replace(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
-        }, 3000);
+        }, 1500);
       }
     };
 

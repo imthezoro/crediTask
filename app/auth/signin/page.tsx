@@ -11,6 +11,48 @@ export default function SignInPage() {
   const [error, setError] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
 
+  // Handle cases where provider returns tokens in URL hash on this page
+  useEffect(() => {
+    const handleHashTokens = async () => {
+      try {
+        if (typeof window === 'undefined') return
+        if (!window.location.hash || !window.location.hash.includes('access_token')) return
+
+        const supabase = (authService as any).supabase
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const access_token = hashParams.get('access_token')
+        const refresh_token = hashParams.get('refresh_token')
+
+        if (access_token && refresh_token) {
+          const { data, error: setErr } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          })
+          if (setErr) {
+            setError(`Authentication failed: ${setErr.message}`)
+            return
+          }
+
+          // Clean hash from URL to avoid leaking tokens
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+
+          // Store and notify extension
+          if (data?.session) {
+            authService.storeAuthData(data.session)
+            authService.notifyExtension('SIGNED_IN', data.session)
+          }
+
+          // Redirect to dashboard
+          window.location.replace('/dashboard')
+        }
+      } catch (e) {
+        console.error('Error handling hash tokens on signin:', e)
+        setError('Could not complete authentication')
+      }
+    }
+    handleHashTokens()
+  }, [])
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
