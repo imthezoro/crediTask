@@ -5,27 +5,38 @@ import Link from 'next/link'
 
 async function getUserAndPayments() {
   const cookieStore = cookies()
-  const supabase = createServerClient()
+  const accessToken = cookieStore.get('sb-access-token')?.value
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
+  if (!accessToken) {
     redirect('/auth/signin')
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const supabase = createServerClient()
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+    
+    if (error || !user) {
+      redirect('/auth/signin')
+    }
 
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-  return { user, profile, payments: payments || [] }
+    const { data: payments } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    return { user, profile, payments: payments || [] }
+  } catch (error) {
+    console.error('Billing page error:', error)
+    redirect('/auth/signin')
+  }
 }
 
 export default async function BillingPage() {

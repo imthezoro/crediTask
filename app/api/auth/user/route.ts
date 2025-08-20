@@ -1,4 +1,3 @@
-import { getUser } from '@/lib/supabaseServer';
 import { corsJson, corsEmpty } from '@/lib/cors';
 import { createClient } from '@supabase/supabase-js';
 import { headers } from 'next/headers';

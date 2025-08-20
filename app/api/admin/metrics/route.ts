@@ -3,12 +3,19 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization')
+    const token = authHeader?.replace('Bearer ', '')
+    
+    if (!token) {
+      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
+    }
+
     const supabase = createServerClient()
     
-    // Get user from session
-    const { data: { user } } = await supabase.auth.getUser()
+    // Get user from token
+    const { data: { user }, error } = await supabase.auth.getUser(token)
     
-    if (!user || !(await isUserAdmin(user.id))) {
+    if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

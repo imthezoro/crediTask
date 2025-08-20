@@ -20,7 +20,7 @@ export default function SignInPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -28,6 +28,44 @@ export default function SignInPage() {
     if (error) {
       setError(error.message)
     } else {
+      // Set cookie and redirect
+      if (data?.session) {
+        const isHttps = window.location.protocol === 'https:'
+        const secureAttr = isHttps ? '; secure' : ''
+        document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; samesite=lax${secureAttr}`
+        
+        // Store in localStorage for extension access
+        localStorage.setItem('sb-access-token', data.session.access_token)
+        
+        // Store user data for extension
+        if (data.session.user) {
+          localStorage.setItem('sb-user-data', JSON.stringify({
+            id: data.session.user.id,
+            email: data.session.user.email,
+            user_metadata: data.session.user.user_metadata || {}
+          }))
+        }
+        
+        // Notify extension about successful login via multiple channels
+        const authMessage = {
+          type: 'WEBSITE_AUTH_UPDATE',
+          source: 'website',
+          data: {
+            accessToken: data.session.access_token,
+            user: data.session.user,
+            timestamp: Date.now()
+          }
+        }
+        
+        // Send via postMessage
+        window.postMessage(authMessage, window.location.origin)
+        
+        // Also send legacy format for backward compatibility
+        window.postMessage(
+          { type: 'SUPABASE_AUTH', event: 'SIGNED_IN', session: data.session },
+          window.location.origin
+        )
+      }
       window.location.href = '/dashboard'
     }
     setLoading(false)
@@ -37,7 +75,7 @@ export default function SignInPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/dashboard`
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`
       }
     })
     if (error) setError(error.message)

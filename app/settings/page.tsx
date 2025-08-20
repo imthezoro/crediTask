@@ -5,21 +5,32 @@ import Link from 'next/link'
 
 async function getUser() {
   const cookieStore = cookies()
-  const supabase = createServerClient()
+  const accessToken = cookieStore.get('sb-access-token')?.value
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
+  if (!accessToken) {
     redirect('/auth/signin')
   }
 
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  const supabase = createServerClient()
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+    
+    if (error || !user) {
+      redirect('/auth/signin')
+    }
 
-  return { user, profile }
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    return { user, profile }
+  } catch (error) {
+    console.error('Settings page error:', error)
+    redirect('/auth/signin')
+  }
 }
 
 export default async function SettingsPage() {

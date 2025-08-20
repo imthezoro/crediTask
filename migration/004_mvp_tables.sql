@@ -2,6 +2,14 @@
 ALTER TABLE user_profiles 
 ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
 
+-- Add status column to prompt_sessions for tracking success/failure
+ALTER TABLE prompt_sessions 
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'completed' CHECK (status IN ('completed', 'failed', 'pending'));
+
+-- Add response_time_ms column for metrics
+ALTER TABLE prompt_sessions 
+ADD COLUMN IF NOT EXISTS response_time_ms INT DEFAULT 0;
+
 -- Create daily_metrics table
 CREATE TABLE IF NOT EXISTS public.daily_metrics (
   date DATE PRIMARY KEY,
@@ -9,56 +17,28 @@ CREATE TABLE IF NOT EXISTS public.daily_metrics (
   failed_calls INT NOT NULL DEFAULT 0,
   new_signups INT NOT NULL DEFAULT 0,
   revenue_cents INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create payments table
-CREATE TABLE IF NOT EXISTS public.payments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  provider VARCHAR(50) NOT NULL CHECK (provider IN ('stripe', 'razorpay')),
-  provider_payment_id VARCHAR(255) NOT NULL,
-  amount_cents INT NOT NULL,
-  currency VARCHAR(3) NOT NULL DEFAULT 'usd',
-  status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
-  plan VARCHAR(50) NOT NULL CHECK (plan IN ('free', 'pro', 'enterprise')),
-  valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
-  valid_to TIMESTAMP WITH TIME ZONE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create incidents table for system alerts
 CREATE TABLE IF NOT EXISTS public.incidents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL,
+  title TEXT NOT NULL,
   description TEXT,
-  status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'investigating', 'resolved')),
-  severity VARCHAR(50) NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  resolved_at TIMESTAMP WITH TIME ZONE,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'investigating', 'resolved')),
+  severity TEXT NOT NULL DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Add indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at);
-CREATE INDEX IF NOT EXISTS idx_daily_metrics_date ON daily_metrics(date);
-CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
-CREATE INDEX IF NOT EXISTS idx_incidents_severity ON incidents(severity);
+-- Update existing payments table to match expected schema (only if columns don't exist)
+ALTER TABLE payments 
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
--- Add RLS policies for payments table
-ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
-
--- Users can only see their own payments
-CREATE POLICY "Users can view own payments" ON payments
-  FOR SELECT USING (auth.uid() = user_id);
-
--- Only authenticated users can insert payments (via webhook)
-CREATE POLICY "Service can insert payments" ON payments
-  FOR INSERT WITH CHECK (true);
+-- Update payments status values to match new schema
+UPDATE payments SET status = 'completed' WHERE status = 'succeeded';
 
 -- Add RLS policies for incidents table (public read)
 ALTER TABLE incidents ENABLE ROW LEVEL SECURITY;
@@ -88,7 +68,7 @@ CREATE POLICY "Admins can access daily_metrics" ON daily_metrics
     )
   );
 
--- Update function for timestamps
+-- Update function for timestamps (if not exists)
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -97,12 +77,15 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Add triggers for updated_at
+-- Add triggers for updated_at (only for new tables)
+DROP TRIGGER IF EXISTS update_payments_updated_at ON payments;
 CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_incidents_updated_at ON incidents;
 CREATE TRIGGER update_incidents_updated_at BEFORE UPDATE ON incidents
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_daily_metrics_updated_at ON daily_metrics;
 CREATE TRIGGER update_daily_metrics_updated_at BEFORE UPDATE ON daily_metrics
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

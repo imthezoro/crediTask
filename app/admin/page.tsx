@@ -6,12 +6,22 @@ import KPI from '@/components/KPI'
 
 async function getAdminData() {
   const cookieStore = cookies()
+  const accessToken = cookieStore.get('sb-access-token')?.value
+  
+  if (!accessToken) {
+    redirect('/auth/signin')
+  }
+
   const supabase = createServerClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user || !(await isUserAdmin(user.id))) {
-    redirect('/dashboard')
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+    
+    if (error || !user || !(await isUserAdmin(user.id))) {
+      redirect('/dashboard')
+    }
+  } catch (error) {
+    redirect('/auth/signin')
   }
 
   // Get KPI data

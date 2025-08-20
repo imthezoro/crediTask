@@ -5,22 +5,53 @@ import Link from 'next/link'
 
 async function getUser() {
   const cookieStore = cookies()
-  const supabase = createServerClient()
+  const accessToken = cookieStore.get('sb-access-token')?.value
   
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
+  if (!accessToken) {
     redirect('/auth/signin')
   }
 
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  try {
+    const supabase = createServerClient()
+    
+    // Get user with the access token
+    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+    
+    if (error || !user) {
+      console.error('Auth error:', error)
+      redirect('/auth/signin')
+    }
 
-  return { user, profile }
+    // Get user profile
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError) {
+      console.error('Profile error:', profileError)
+      // Create profile if it doesn't exist
+      const { data: newProfile } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: user.id,
+          email: user.email,
+          plan: 'free',
+          usage_count: 0,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+      
+      return { user, profile: newProfile }
+    }
+
+    return { user, profile }
+  } catch (error) {
+    console.error('Auth error:', error)
+    redirect('/auth/signin')
+  }
 }
 
 export default async function Dashboard() {
@@ -33,8 +64,10 @@ export default async function Dashboard() {
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
             <nav className="space-x-4">
-              <Link href="/settings" className="text-blue-600 hover:text-blue-700">Settings</Link>
               <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
+              <form action="/api/auth/logout" method="post" className="inline">
+                <button type="submit" className="text-red-600 hover:text-red-700">Sign Out</button>
+              </form>
             </nav>
           </div>
         </div>
