@@ -3,113 +3,159 @@
 import { useEffect, useState } from 'react';
 import { authService } from '@/lib/auth-service';
 
+interface CallbackState {
+  message: string;
+  error: string | null;
+  isProcessing: boolean;
+}
+
 export default function AuthCallbackPage() {
-  const [message, setMessage] = useState('Completing sign-in...');
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<CallbackState>({
+    message: 'Completing sign-in...',
+    error: null,
+    isProcessing: true
+  });
+
+  const updateState = (updates: Partial<CallbackState>) => {
+    setState(prev => ({ ...prev, ...updates }));
+  };
 
   useEffect(() => {
-    const handleCallback = async () => {
+    const processAuthCallback = async () => {
       try {
-        // Check for error in URL
         const urlParams = new URLSearchParams(window.location.search);
         const errorParam = urlParams.get('error');
         
+        // Check for OAuth error in URL
         if (errorParam) {
           throw new Error(`OAuth error: ${errorParam}`);
         }
 
-        // Get Supabase client from auth service
-        const supabase = (authService as any).supabase;
+        const supabase = authService.getSupabaseClient();
+        let session = null;
 
-        // 1) Handle hash-based token response (implicit flow or provider quirk)
-        // Example: #access_token=...&refresh_token=...&expires_in=...
-        if (window.location.hash && window.location.hash.includes('access_token')) {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
-          const access_token = hashParams.get('access_token');
-          const refresh_token = hashParams.get('refresh_token');
-
-          if (access_token && refresh_token) {
-            // Set session directly from tokens
-            const { data: setData, error: setError } = await supabase.auth.setSession({
-              access_token,
-              refresh_token,
-            });
-
-            if (setError) {
-              throw new Error(`Set session failed: ${setError.message}`);
-            }
-
-            // Clean hash from URL to avoid leaking tokens
-            window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-          }
+        // Handle hash-based tokens (implicit flow)
+        if (window.location.hash?.includes('access_token')) {
+          session = await handleHashTokens(supabase);
         }
         
-        // 2) Let Supabase handle the session from URL/cookies if already present
-        const { data, error } = await supabase.auth.getSession();
+        // Handle code-based flow (PKCE)
+        if (!session) {
+          session = await handleCodeExchange(supabase, urlParams);
+        }
         
-        if (error) {
-          throw new Error(`Session error: ${error.message}`);
+        // Verify we have a valid session
+        if (!session) {
+          const { data } = await supabase.auth.getSession();
+          session = data.session;
         }
 
-        if (!data.session) {
-          // 3) PKCE code exchange path
-          const code = urlParams.get('code');
-          
-          if (code) {
-            // Exchange code for session
-            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(window.location.href);
-            if (exchangeError) {
-              throw new Error(`Code exchange failed: ${exchangeError.message}`);
-            }
-          } else {
-            throw new Error('No valid session or auth code found');
-          }
+        if (!session) {
+          throw new Error('No valid session created');
         }
 
-        // Get final session after potential code/hash handling
-        const { data: finalData } = await supabase.auth.getSession();
-        const session = finalData.session;
-        
-        if (session) {
-          // Store auth data and notify extension using auth service
-          authService.storeAuthData(session);
-          authService.notifyExtension('SIGNED_IN', session);
-        }
+        // Store session and notify extension
+        authService.storeAuthData(session);
+        authService.notifyExtension('SIGNED_IN', session);
 
-        setMessage('Signed in! Redirecting...');
+        updateState({ 
+          message: 'Signed in! Redirecting...', 
+          isProcessing: false 
+        });
         
-        // Redirect to dashboard or provided redirectTo
+        // Redirect to destination
         const redirectTo = urlParams.get('redirectTo') || '/dashboard';
         setTimeout(() => {
           window.location.replace(redirectTo);
         }, 500);
         
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
-        console.error('Auth callback error:', err);
-        setError(errorMessage);
-        setMessage('Authentication failed');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+        console.error('Auth callback error:', error);
         
-        // Redirect to signin with error
+        updateState({
+          error: errorMessage,
+          message: 'Authentication failed',
+          isProcessing: false
+        });
+        
+        // Redirect to signin with error after delay
         setTimeout(() => {
           window.location.replace(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
-        }, 1500);
+        }, 2000);
       }
     };
 
-    handleCallback();
+    processAuthCallback();
   }, []);
+
+  // Handle hash-based token authentication
+  const handleHashTokens = async (supabase: any) => {
+    const hash = window.location.hash;
+    if (!hash) return null;
+
+    const hashParams = new URLSearchParams(hash.substring(1));
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      throw new Error('Missing required tokens in hash');
+    }
+
+    const { data, error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (error) {
+      throw new Error(`Set session failed: ${error.message}`);
+    }
+
+    // Clean URL to remove sensitive tokens
+    window.history.replaceState(
+      {},
+      document.title,
+      window.location.pathname + window.location.search
+    );
+
+    return data.session;
+  };
+
+  // Handle PKCE code exchange
+  const handleCodeExchange = async (supabase: any, urlParams: URLSearchParams) => {
+    const code = urlParams.get('code');
+    if (!code) return null;
+
+    const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+    if (error) {
+      throw new Error(`Code exchange failed: ${error.message}`);
+    }
+
+    const { data } = await supabase.auth.getSession();
+    return data.session;
+  };
 
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">PromptOK</h1>
-        <p className="text-gray-600 mb-4">{message}</p>
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-            <strong>Error:</strong> {error}
-          </div>
-        )}
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">PromptOK</h1>
+          
+          {state.isProcessing && (
+            <div className="flex items-center justify-center mb-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Processing...</span>
+            </div>
+          )}
+          
+          <p className="text-gray-600 mb-4">{state.message}</p>
+          
+          {state.error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-left" role="alert">
+              <strong>Error:</strong> {state.error}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

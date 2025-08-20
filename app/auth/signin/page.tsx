@@ -4,96 +4,121 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { authService } from '@/lib/auth-service'
 
+interface FormState {
+  email: string
+  password: string
+  loading: boolean
+  googleLoading: boolean
+  error: string
+}
+
 export default function SignInPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [googleLoading, setGoogleLoading] = useState(false)
+  const [formState, setFormState] = useState<FormState>({
+    email: '',
+    password: '',
+    loading: false,
+    googleLoading: false,
+    error: ''
+  })
 
-  // Handle cases where provider returns tokens in URL hash on this page
+  const updateFormState = (updates: Partial<FormState>) => {
+    setFormState(prev => ({ ...prev, ...updates }))
+  }
+
+  const clearError = () => updateFormState({ error: '' })
+
+  // Handle OAuth tokens in URL hash
   useEffect(() => {
-    const handleHashTokens = async () => {
+    const handleOAuthTokens = async () => {
+      if (typeof window === 'undefined') return
+      
+      const hash = window.location.hash
+      if (!hash || !hash.includes('access_token')) return
+
       try {
-        if (typeof window === 'undefined') return
-        if (!window.location.hash || !window.location.hash.includes('access_token')) return
+        const hashParams = new URLSearchParams(hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
 
-        const supabase = (authService as any).supabase
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const access_token = hashParams.get('access_token')
-        const refresh_token = hashParams.get('refresh_token')
+        if (!accessToken || !refreshToken) {
+          throw new Error('Missing required tokens')
+        }
 
-        if (access_token && refresh_token) {
-          const { data, error: setErr } = await supabase.auth.setSession({
-            access_token,
-            refresh_token,
-          })
-          if (setErr) {
-            setError(`Authentication failed: ${setErr.message}`)
-            return
-          }
+        const supabase = authService.getSupabaseClient()
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
 
-          // Clean hash from URL to avoid leaking tokens
-          window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+        if (error) {
+          throw new Error(error.message)
+        }
 
-          // Store and notify extension
-          if (data?.session) {
-            authService.storeAuthData(data.session)
-            authService.notifyExtension('SIGNED_IN', data.session)
-          }
+        // Clean URL to remove sensitive tokens
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname + window.location.search
+        )
 
-          // Redirect to dashboard
+        if (data?.session) {
+          authService.storeAuthData(data.session)
+          authService.notifyExtension('SIGNED_IN', data.session)
           window.location.replace('/dashboard')
         }
-      } catch (e) {
-        console.error('Error handling hash tokens on signin:', e)
-        setError('Could not complete authentication')
+      } catch (error) {
+        console.error('OAuth token handling failed:', error)
+        updateFormState({ 
+          error: `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        })
       }
     }
-    handleHashTokens()
+
+    handleOAuthTokens()
   }, [])
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError('')
+    
+    if (!formState.email || !formState.password) {
+      updateFormState({ error: 'Please enter both email and password' })
+      return
+    }
+
+    updateFormState({ loading: true, error: '' })
 
     try {
-      const { session, error } = await authService.getSession()
-      
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      // Use Supabase client from auth service for password login
-      const supabase = (authService as any).supabase
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const supabase = authService.getSupabaseClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formState.email,
+        password: formState.password,
       })
 
-      if (signInError) {
-        setError(signInError.message)
-      } else if (data.session) {
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      if (data.session) {
         authService.storeAuthData(data.session)
         authService.notifyExtension('SIGNED_IN', data.session)
         window.location.href = '/dashboard'
+      } else {
+        throw new Error('No session created')
       }
-    } catch (err) {
-      setError('An unexpected error occurred')
+    } catch (error) {
+      updateFormState({ 
+        error: error instanceof Error ? error.message : 'Sign in failed' 
+      })
     } finally {
-      setLoading(false)
+      updateFormState({ loading: false })
     }
   }
 
   const handleGoogleSignIn = async () => {
-    setGoogleLoading(true)
-    setError('')
+    updateFormState({ googleLoading: true, error: '' })
     
     try {
-      // Use Supabase client from auth service
-      const supabase = (authService as any).supabase
+      const supabase = authService.getSupabaseClient()
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -102,13 +127,14 @@ export default function SignInPage() {
       })
       
       if (error) {
-        setError(`Google sign-in failed: ${error.message}`)
-        setGoogleLoading(false)
+        throw new Error(error.message)
       }
-      // If successful, user will be redirected to Google
-    } catch (err) {
-      setError('Google sign-in error occurred')
-      setGoogleLoading(false)
+      // User will be redirected to Google OAuth flow
+    } catch (error) {
+      updateFormState({ 
+        error: `Google sign-in failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        googleLoading: false 
+      })
     }
   }
 
@@ -128,10 +154,10 @@ export default function SignInPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSignIn}>
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">
-                {error}
+          <form className="space-y-6" onSubmit={handleEmailSignIn}>
+            {formState.error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded" role="alert">
+                {formState.error}
               </div>
             )}
 
@@ -146,9 +172,13 @@ export default function SignInPage() {
                   type="email"
                   autoComplete="email"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={formState.email}
+                  onChange={(e) => {
+                    updateFormState({ email: e.target.value })
+                    if (formState.error) clearError()
+                  }}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  disabled={formState.loading || formState.googleLoading}
                 />
               </div>
             </div>
@@ -164,9 +194,13 @@ export default function SignInPage() {
                   type="password"
                   autoComplete="current-password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formState.password}
+                  onChange={(e) => {
+                    updateFormState({ password: e.target.value })
+                    if (formState.error) clearError()
+                  }}
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  disabled={formState.loading || formState.googleLoading}
                 />
               </div>
             </div>
@@ -174,10 +208,10 @@ export default function SignInPage() {
             <div>
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                disabled={formState.loading || formState.googleLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {formState.loading ? 'Signing in...' : 'Sign in'}
               </button>
             </div>
           </form>
@@ -194,17 +228,20 @@ export default function SignInPage() {
 
             <div className="mt-6">
               <button
+                type="button"
                 onClick={handleGoogleSignIn}
-                disabled={googleLoading}
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={formState.googleLoading || formState.loading}
+                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                <span className="ml-2">{googleLoading ? 'Connecting...' : 'Google'}</span>
+                <span className="ml-2">
+                  {formState.googleLoading ? 'Connecting...' : 'Continue with Google'}
+                </span>
               </button>
             </div>
           </div>
