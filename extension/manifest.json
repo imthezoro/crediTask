@@ -34,6 +34,14 @@
     },
     {
       "matches": [
+        "*://localhost/*",
+        "*://127.0.0.1/*"
+      ],
+      "js": ["website-sync.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
         "*://localhost/*/dashboard*",
         "*://localhost/dashboard*",
         "*://127.0.0.1/*/dashboard*",

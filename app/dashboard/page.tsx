@@ -1,61 +1,130 @@
-import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
+'use client'
+
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 
-async function getUser() {
-  const cookieStore = cookies()
-  const accessToken = cookieStore.get('sb-access-token')?.value
-  
-  if (!accessToken) {
-    redirect('/auth/signin')
-  }
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
-  try {
-    const supabase = createServerClient()
-    
-    // Get user with the access token
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
-    
-    if (error || !user) {
-      console.error('Auth error:', error)
-      redirect('/auth/signin')
-    }
+export default function Dashboard() {
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
-    // Get user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+  useEffect(() => {
+    checkAuth()
+  }, [])
 
-    if (profileError) {
-      console.error('Profile error:', profileError)
-      // Create profile if it doesn't exist
-      const { data: newProfile } = await supabase
+  const checkAuth = async () => {
+    try {
+      const accessToken = localStorage.getItem('sb-access-token')
+      
+      if (!accessToken) {
+        router.push('/auth/signin')
+        return
+      }
+
+      // Get user with the access token
+      const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+      
+      if (error || !user) {
+        console.error('Auth error:', error)
+        localStorage.removeItem('sb-access-token')
+        localStorage.removeItem('sb-user-data')
+        router.push('/auth/signin')
+        return
+      }
+
+      setUser(user)
+
+      // Get user profile - handle case where profile doesn't exist
+      const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
-        .insert({
+        .select('*')
+        .eq('id', user.id)
+
+      if (profileError) {
+        console.error('Profile query error:', profileError)
+        // Set default profile if query fails
+        setProfile({
           id: user.id,
-          email: user.email,
           plan: 'free',
           usage_count: 0,
-          created_at: new Date().toISOString()
+          plan_valid_until: null
         })
-        .select()
-        .single()
-      
-      return { user, profile: newProfile }
+      } else if (!profiles || profiles.length === 0) {
+        // Profile doesn't exist, create it
+        const { data: newProfile, error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: user.id,
+            plan: 'free',
+            usage_count: 0
+          })
+          .select()
+          .single()
+        
+        if (insertError) {
+          console.error('Profile creation error:', insertError)
+          // Use default profile if creation fails
+          setProfile({
+            id: user.id,
+            plan: 'free',
+            usage_count: 0,
+            plan_valid_until: null
+          })
+        } else {
+          setProfile(newProfile)
+        }
+      } else {
+        setProfile(profiles[0])
+      }
+    } catch (error) {
+      console.error('Auth error:', error)
+      router.push('/auth/signin')
+    } finally {
+      setLoading(false)
     }
-
-    return { user, profile }
-  } catch (error) {
-    console.error('Auth error:', error)
-    redirect('/auth/signin')
   }
-}
 
-export default async function Dashboard() {
-  const { user, profile } = await getUser()
+  const handleLogout = async () => {
+    // Clear localStorage
+    localStorage.removeItem('sb-access-token')
+    localStorage.removeItem('sb-user-data')
+    
+    // Clear cookies
+    document.cookie = 'sb-access-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;'
+    
+    // Notify extension about logout
+    window.postMessage({
+      type: 'WEBSITE_LOGOUT',
+      source: 'website',
+      timestamp: Date.now()
+    }, '*')
+    
+    // Redirect to signin
+    router.push('/auth/signin')
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null // Will redirect to signin
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -65,9 +134,12 @@ export default async function Dashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
             <nav className="space-x-4">
               <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
-              <form action="/api/auth/logout" method="post" className="inline">
-                <button type="submit" className="text-red-600 hover:text-red-700">Sign Out</button>
-              </form>
+              <button 
+                onClick={handleLogout}
+                className="text-red-600 hover:text-red-700"
+              >
+                Sign Out
+              </button>
             </nav>
           </div>
         </div>

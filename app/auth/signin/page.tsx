@@ -62,7 +62,7 @@ export default function SignInPage() {
         
         // Also send legacy format for backward compatibility
         window.postMessage(
-          { type: 'SUPABASE_AUTH', event: 'SIGNED_IN', session: data.session },
+          { type: 'SUPABASE_AUTH', data: { event: 'SIGNED_IN', session: data.session } },
           window.location.origin
         )
       }

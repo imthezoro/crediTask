@@ -65,6 +65,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return; // no async work needed
   }
+  
+  // Handle token requests from content script
+  if (message.type === 'GET_TOKEN') {
+    storage.get('access_token')
+      .then(token => {
+        sendResponse({ token });
+      })
+      .catch(error => {
+        console.error('Error getting token:', error);
+        sendResponse({ token: null });
+      });
+    return true; // Keep message channel open for async response
+  }
   if (message.type === 'SET_TOKEN') {
     const updatedAt = typeof message.updatedAt === 'number' ? message.updatedAt : Date.now();
     Promise.all([

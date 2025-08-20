@@ -341,6 +341,21 @@ async function handleLogout() {
     // Clear the token from storage
     await chrome.storage.local.remove('access_token');
     try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+    
+    // Also notify website to logout
+    try {
+      const tabs = await chrome.tabs.query({ url: ['*://localhost/*', '*://127.0.0.1/*'] });
+      for (const tab of tabs) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'EXTENSION_LOGOUT',
+          source: 'extension',
+          timestamp: Date.now()
+        }).catch(() => {}); // Ignore errors for tabs without content script
+      }
+    } catch (e) {
+      console.warn('Could not notify website tabs of logout:', e);
+    }
+    
     // Show login view
     showView('login');
   } catch (error) {
