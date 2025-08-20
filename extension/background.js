@@ -28,31 +28,24 @@ const storage = {
 // Keeps track of the tab/window that initiated OAuth so we can return focus
 let originContext = { tabId: null, windowId: null };
 
-// Notify all dashboard tabs about token updates
-async function notifyDashboardTabs(token, updatedAt) {
+// Notify all PromptOK tabs about token updates
+async function notifyPromptOKTabs(token, updatedAt) {
   try {
-    const patterns = [
-      '*://localhost/*/dashboard*',
-      '*://localhost/dashboard*',
-      '*://127.0.0.1/*/dashboard*',
-      '*://127.0.0.1/dashboard*',
-    ];
-    const results = await Promise.allSettled(patterns.map(p => chrome.tabs.query({ url: p })));
-    const allTabs = results
-      .filter(r => r.status === 'fulfilled')
-      .flatMap(r => r.value || []);
-    const seen = new Set();
-    for (const tab of allTabs) {
-      if (seen.has(tab.id)) continue;
-      seen.add(tab.id);
-      try {
-        await chrome.tabs.sendMessage(tab.id, { type: 'TOKEN_UPDATE', token, updatedAt });
-      } catch (e) {
-        console.warn('Could not notify tab:', e);
-      }
-    }
-  } catch (e) {
-    console.warn('Error querying tabs:', e);
+    const tabs = await chrome.tabs.query({ 
+      url: ['*://localhost/*', '*://127.0.0.1/*'] 
+    });
+    
+    const notifications = tabs.map(tab => 
+      chrome.tabs.sendMessage(tab.id, { 
+        type: 'TOKEN_UPDATE', 
+        token, 
+        updatedAt 
+      }).catch(() => {}) // Ignore errors for tabs without content script
+    );
+    
+    await Promise.allSettled(notifications);
+  } catch (error) {
+    console.warn('[PromptOK] Failed to notify tabs:', error);
   }
 }
 
@@ -85,7 +78,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       storage.set('access_token_updated_at', updatedAt),
     ])
       .then(() => {
-        notifyDashboardTabs(message.token, updatedAt);
+        notifyPromptOKTabs(message.token, updatedAt);
         // If this message came from the OAuth callback tab, first refocus origin then close it
         try {
           const callbackTabId = sender?.tab?.id;
@@ -126,7 +119,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       storage.set('access_token_updated_at', updatedAt),
     ])
       .then(() => {
-        notifyDashboardTabs(null, updatedAt);
+        notifyPromptOKTabs(null, updatedAt);
         sendResponse({ ok: true });
       })
       .catch(error => {

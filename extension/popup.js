@@ -338,28 +338,20 @@ async function setPortalLinksBase() {
 // Handle logout
 async function handleLogout() {
   try {
-    // Clear the token from storage
-    await chrome.storage.local.remove('access_token');
-    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
-    
-    // Also notify website to logout
-    try {
-      const tabs = await chrome.tabs.query({ url: ['*://localhost/*', '*://127.0.0.1/*'] });
-      for (const tab of tabs) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: 'EXTENSION_LOGOUT',
-          source: 'extension',
-          timestamp: Date.now()
-        }).catch(() => {}); // Ignore errors for tabs without content script
-      }
-    } catch (e) {
-      console.warn('Could not notify website tabs of logout:', e);
-    }
+    // Clear the token from storage and notify all tabs
+    await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' });
     
     // Show login view
     showView('login');
   } catch (error) {
-    console.error('Error during logout:', error);
+    console.error('[PromptOK] Logout error:', error);
+    // Fallback: clear local storage directly
+    try {
+      await chrome.storage.local.remove('access_token');
+      showView('login');
+    } catch (fallbackError) {
+      console.error('[PromptOK] Fallback logout failed:', fallbackError);
+    }
   }
 }
 
