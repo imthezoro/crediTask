@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Configuration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .test-section { border: 1px solid #ddd; padding: 20px; margin: 15px 0; border-radius: 8px; }
+        .success { color: #28a745; background: #d4edda; padding: 10px; border-radius: 4px; }
+        .error { color: #dc3545; background: #f8d7da; padding: 10px; border-radius: 4px; }
+        .warning { color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; }
+        .info { color: #0c5460; background: #d1ecf1; padding: 10px; border-radius: 4px; }
+        button { padding: 12px 20px; margin: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }
+        .config-item { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+        .checklist { list-style: none; padding: 0; }
+        .checklist li { margin: 8px 0; padding: 8px; background: #f8f9fa; border-radius: 4px; }
+        .checklist li::before { content: "❌ "; }
+        .checklist li.success::before { content: "✅ "; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Supabase Configuration Checker</h1>
+    
+    <div class="test-section">
+        <h2>1. Environment Variables Test</h2>
+        <button onclick="testEnvironment()">Test Environment</button>
+        <div id="env-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Supabase Connection Test</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connection-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Auth Configuration Test</h2>
+        <button onclick="testAuthConfig()">Test Auth Config</button>
+        <div id="auth-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. OAuth Providers Test</h2>
+        <button onclick="testOAuthProviders()">Test OAuth Providers</button>
+        <div id="oauth-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>5. Configuration Checklist</h2>
+        <div id="checklist">
+            <h3>Supabase Dashboard Checklist:</h3>
+            <ul class="checklist">
+                <li id="check-project">Project exists and is active</li>
+                <li id="check-auth-enabled">Authentication is enabled</li>
+                <li id="check-google-provider">Google OAuth provider is configured</li>
+                <li id="check-redirect-urls">Redirect URLs are configured</li>
+                <li id="check-site-url">Site URL is set correctly</li>
+                <li id="check-api-keys">API keys are valid</li>
+            </ul>
+            
+            <h3>Google Console Checklist:</h3>
+            <ul class="checklist">
+                <li id="check-google-project">Google Cloud project exists</li>
+                <li id="check-oauth-consent">OAuth consent screen configured</li>
+                <li id="check-oauth-client">OAuth 2.0 client ID created</li>
+                <li id="check-authorized-origins">Authorized JavaScript origins set</li>
+                <li id="check-authorized-redirects">Authorized redirect URIs set</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>6. Manual Configuration Steps</h2>
+        <div id="manual-steps">
+            <div class="info">
+                <h3>🔗 Quick Links:</h3>
+                <p><strong>Supabase Dashboard:</strong> <a href="https://supabase.com/dashboard/project/coqwcumwpixmrjqnmhkv" target="_blank">https://supabase.com/dashboard/project/coqwcumwpixmrjqnmhkv</a></p>
+                <p><strong>Google Console:</strong> <a href="https://console.cloud.google.com/apis/credentials" target="_blank">https://console.cloud.google.com/apis/credentials</a></p>
+            </div>
+            
+            <div class="config-item">
+                <h4>Expected Supabase Settings:</h4>
+                <ul>
+                    <li><strong>Site URL:</strong> http://localhost:3000</li>
+                    <li><strong>Redirect URLs:</strong> http://localhost:3000/auth/callback</li>
+                    <li><strong>Google OAuth Client ID:</strong> [Your Google Client ID]</li>
+                    <li><strong>Google OAuth Client Secret:</strong> [Your Google Client Secret]</li>
+                </ul>
+            </div>
+            
+            <div class="config-item">
+                <h4>Expected Google Console Settings:</h4>
+                <ul>
+                    <li><strong>Authorized JavaScript origins:</strong> http://localhost:3000</li>
+                    <li><strong>Authorized redirect URIs:</strong> https://coqwcumwpixmrjqnmhkv.supabase.co/auth/v1/callback</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>7. Debug Logs</h2>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <pre id="debug-logs"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+        
+        let debugLogs = [];
+        
+        function log(message, data = null) {
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${message}`;
+            if (data) {
+                console.log(logEntry, data);
+                debugLogs.push(`${logEntry}\n${JSON.stringify(data, null, 2)}`);
+            } else {
+                console.log(logEntry);
+                debugLogs.push(logEntry);
+            }
+            updateDebugDisplay();
+        }
+        
+        function updateDebugDisplay() {
+            document.getElementById('debug-logs').textContent = debugLogs.join('\n\n');
+        }
+        
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugDisplay();
+        }
+        
+        // Test environment variables
+        window.testEnvironment = function() {
+            log('Testing environment variables');
+            const resultsDiv = document.getElementById('env-results');
+            
+            const url = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+            const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+            
+            let html = '';
+            
+            if (url && anon) {
+                html += '<div class="success">✅ Environment variables are present</div>';
+                html += `<div class="config-item">
+                    <strong>Supabase URL:</strong> ${url}<br>
+                    <strong>Anon Key:</strong> ${anon.substring(0, 50)}...
+                </div>`;
+                
+                // Decode JWT to check validity
+                try {
+                    const payload = JSON.parse(atob(anon.split('.')[1]));
+                    const exp = new Date(payload.exp * 1000);
+                    const now = new Date();
+                    
+                    if (exp > now) {
+                        html += '<div class="success">✅ Anon key is valid and not expired</div>';
+                        html += `<div class="info">Key expires: ${exp.toISOString()}</div>`;
+                    } else {
+                        html += '<div class="error">❌ Anon key has expired</div>';
+                    }
+                    
+                    log('JWT payload', payload);
+                } catch (e) {
+                    html += '<div class="error">❌ Invalid JWT format in anon key</div>';
+                    log('JWT decode error', e);
+                }
+            } else {
+                html += '<div class="error">❌ Missing environment variables</div>';
+            }
+            
+            resultsDiv.innerHTML = html;
+        };
+        
+        // Test Supabase connection
+        window.testConnection = async function() {
+            log('Testing Supabase connection');
+            const resultsDiv = document.getElementById('connection-results');
+            resultsDiv.innerHTML = '<div class="info">Testing connection...</div>';
+            
+            try {
+                const url = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+                const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+                
+                const supabase = createClient(url, anon);
+                
+                // Test basic connection
+                const { data, error } = await supabase.from('_test_').select('*').limit(1);
+                
+                if (error && error.code === 'PGRST116') {
+                    resultsDiv.innerHTML = '<div class="success">✅ Supabase connection successful (table not found is expected)</div>';
+                    log('Connection test successful');
+                } else if (error) {
+                    resultsDiv.innerHTML = `<div class="warning">⚠️ Connection established but got error: ${error.message}</div>`;
+                    log('Connection error', error);
+                } else {
+                    resultsDiv.innerHTML = '<div class="success">✅ Supabase connection successful</div>';
+                    log('Connection test successful', data);
+                }
+                
+                document.getElementById('check-project').classList.add('success');
+                document.getElementById('check-api-keys').classList.add('success');
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<div class="error">❌ Connection failed: ${err.message}</div>`;
+                log('Connection exception', err);
+            }
+        };
+        
+        // Test auth configuration
+        window.testAuthConfig = async function() {
+            log('Testing auth configuration');
+            const resultsDiv = document.getElementById('auth-results');
+            resultsDiv.innerHTML = '<div class="info">Testing auth configuration...</div>';
+            
+            try {
+                const url = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+                const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+                
+                const supabase = createClient(url, anon);
+                
+                // Test auth session
+                const { data: session, error: sessionError } = await supabase.auth.getSession();
+                
+                let html = '';
+                if (sessionError) {
+                    html += `<div class="error">❌ Auth session error: ${sessionError.message}</div>`;
+                    log('Auth session error', sessionError);
+                } else {
+                    html += '<div class="success">✅ Auth service is accessible</div>';
+                    html += `<div class="info">Current session: ${session?.session ? 'Active' : 'None'}</div>`;
+                    log('Auth session check', session);
+                    document.getElementById('check-auth-enabled').classList.add('success');
+                }
+                
+                // Test auth settings endpoint
+                try {
+                    const settingsResponse = await fetch(`${url}/auth/v1/settings`, {
+                        headers: {
+                            'apikey': anon,
+                            'Authorization': `Bearer ${anon}`
+                        }
+                    });
+                    
+                    if (settingsResponse.ok) {
+                        const settings = await settingsResponse.json();
+                        html += '<div class="success">✅ Auth settings accessible</div>';
+                        html += `<div class="config-item">
+                            <strong>Site URL:</strong> ${settings.site_url || 'Not set'}<br>
+                            <strong>External Providers:</strong> ${Object.keys(settings.external || {}).join(', ') || 'None configured'}
+                        </div>`;
+                        log('Auth settings', settings);
+                        
+                        if (settings.site_url) {
+                            document.getElementById('check-site-url').classList.add('success');
+                        }
+                    } else {
+                        html += `<div class="warning">⚠️ Could not fetch auth settings (${settingsResponse.status})</div>`;
+                    }
+                } catch (settingsErr) {
+                    html += `<div class="warning">⚠️ Could not fetch auth settings: ${settingsErr.message}</div>`;
+                    log('Auth settings error', settingsErr);
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<div class="error">❌ Auth test failed: ${err.message}</div>`;
+                log('Auth test exception', err);
+            }
+        };
+        
+        // Test OAuth providers
+        window.testOAuthProviders = async function() {
+            log('Testing OAuth providers');
+            const resultsDiv = document.getElementById('oauth-results');
+            resultsDiv.innerHTML = '<div class="info">Testing OAuth providers...</div>';
+            
+            try {
+                const url = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+                const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+                
+                const supabase = createClient(url, anon);
+                
+                // Test Google OAuth URL generation
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: `${window.location.origin}/auth/callback`,
+                        skipBrowserRedirect: true
+                    }
+                });
+                
+                let html = '';
+                if (error) {
+                    html += `<div class="error">❌ Google OAuth error: ${error.message}</div>`;
+                    
+                    if (error.message.includes('Provider not found') || error.message.includes('google')) {
+                        html += '<div class="warning">⚠️ Google OAuth provider is not configured in Supabase</div>';
+                        html += '<div class="info">Go to Supabase Dashboard → Authentication → Providers → Google</div>';
+                    }
+                    
+                    log('OAuth provider error', error);
+                } else if (data?.url) {
+                    html += '<div class="success">✅ Google OAuth provider is configured</div>';
+                    html += `<div class="info">OAuth URL generated successfully</div>`;
+                    html += `<div class="config-item"><strong>OAuth URL:</strong> ${data.url.substring(0, 100)}...</div>`;
+                    log('OAuth URL generated', data);
+                    document.getElementById('check-google-provider').classList.add('success');
+                } else {
+                    html += '<div class="error">❌ No OAuth URL returned</div>';
+                    log('No OAuth URL returned', data);
+                }
+                
+                resultsDiv.innerHTML = html;
+                
+            } catch (err) {
+                resultsDiv.innerHTML = `<div class="error">❌ OAuth test failed: ${err.message}</div>`;
+                log('OAuth test exception', err);
+            }
+        };
+        
+        // Make functions global
+        window.clearLogs = clearLogs;
+        
+        // Auto-run basic tests
+        setTimeout(() => {
+            testEnvironment();
+        }, 500);
+    </script>
+</body>
+</html>

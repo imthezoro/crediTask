@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Debug Test - PromptOK</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { border: 1px solid #ccc; padding: 15px; margin: 10px 0; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 5px; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>PromptOK OAuth Debug Test</h1>
+    
+    <div class="debug-section">
+        <h2>Environment Check</h2>
+        <div id="env-check"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>OAuth Flow Test</h2>
+        <button onclick="testDirectOAuth()">Test Direct OAuth</button>
+        <button onclick="testAPIRoute()">Test API Route</button>
+        <div id="oauth-results"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Callback URL Test</h2>
+        <div id="callback-info"></div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Debug Logs</h2>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <pre id="debug-logs"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+        
+        let debugLogs = [];
+        
+        function log(message, data = null) {
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${message}`;
+            if (data) {
+                console.log(logEntry, data);
+                debugLogs.push(`${logEntry}\n${JSON.stringify(data, null, 2)}`);
+            } else {
+                console.log(logEntry);
+                debugLogs.push(logEntry);
+            }
+            updateDebugDisplay();
+        }
+        
+        function updateDebugDisplay() {
+            document.getElementById('debug-logs').textContent = debugLogs.join('\n\n');
+        }
+        
+        function clearLogs() {
+            debugLogs = [];
+            updateDebugDisplay();
+        }
+        
+        // Check environment
+        function checkEnvironment() {
+            const url = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+            const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+            
+            const envDiv = document.getElementById('env-check');
+            envDiv.innerHTML = `
+                <p class="success">✓ Supabase URL: ${url ? 'Present' : 'Missing'}</p>
+                <p class="success">✓ Supabase Anon Key: ${anon ? 'Present' : 'Missing'}</p>
+                <p class="info">Current Origin: ${window.location.origin}</p>
+                <p class="info">Callback URL: ${window.location.origin}/auth/callback</p>
+            `;
+            
+            log('Environment check completed', {
+                url: url ? 'present' : 'missing',
+                anon: anon ? 'present' : 'missing',
+                origin: window.location.origin
+            });
+        }
+        
+        // Test direct OAuth
+        window.testDirectOAuth = async function() {
+            log('Starting direct OAuth test');
+            const resultsDiv = document.getElementById('oauth-results');
+            resultsDiv.innerHTML = '<p class="info">Testing direct OAuth...</p>';
+            
+            try {
+                const url = 'https://coqwcumwpixmrjqnmhkv.supabase.co';
+                const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvcXdjdW13cGl4bXJqcW5taGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMTUwMzgsImV4cCI6MjA3MDU5MTAzOH0.sBGwoRxaYpyE2EmyjHxSmlxuOGITxw8kVSthlSLigME';
+                
+                const supabase = createClient(url, anon);
+                const redirectUrl = `${window.location.origin}/auth/callback`;
+                
+                log('Direct OAuth configuration', {
+                    provider: 'google',
+                    redirectTo: redirectUrl
+                });
+                
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: redirectUrl,
+                        queryParams: {
+                            access_type: 'offline',
+                            prompt: 'select_account'
+                        }
+                    }
+                });
+                
+                log('Direct OAuth response', { data, error });
+                
+                if (error) {
+                    resultsDiv.innerHTML = `<p class="error">❌ Direct OAuth Error: ${error.message}</p>`;
+                } else if (data?.url) {
+                    resultsDiv.innerHTML = `
+                        <p class="success">✓ Direct OAuth URL generated</p>
+                        <p><a href="${data.url}" target="_blank">Open OAuth URL</a></p>
+                        <p><small>${data.url}</small></p>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `<p class="error">❌ No OAuth URL returned</p>`;
+                }
+            } catch (err) {
+                log('Direct OAuth exception', err);
+                resultsDiv.innerHTML = `<p class="error">❌ Exception: ${err.message}</p>`;
+            }
+        };
+        
+        // Test API route
+        window.testAPIRoute = async function() {
+            log('Starting API route test');
+            const resultsDiv = document.getElementById('oauth-results');
+            resultsDiv.innerHTML = '<p class="info">Testing API route...</p>';
+            
+            try {
+                const response = await fetch('/api/auth/google-url');
+                const result = await response.json();
+                
+                log('API route response', { status: response.status, result });
+                
+                if (response.ok && result.url) {
+                    resultsDiv.innerHTML = `
+                        <p class="success">✓ API Route OAuth URL generated</p>
+                        <p><a href="${result.url}" target="_blank">Open OAuth URL</a></p>
+                        <p><small>${result.url}</small></p>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `<p class="error">❌ API Route Error: ${result.error || 'Unknown error'}</p>`;
+                }
+            } catch (err) {
+                log('API route exception', err);
+                resultsDiv.innerHTML = `<p class="error">❌ Exception: ${err.message}</p>`;
+            }
+        };
+        
+        // Check if this is a callback
+        function checkCallback() {
+            const callbackDiv = document.getElementById('callback-info');
+            const url = new URL(window.location.href);
+            const hasCode = url.searchParams.has('code');
+            const hasError = url.searchParams.has('error');
+            const hasHash = window.location.hash.includes('access_token');
+            
+            if (hasCode || hasError || hasHash) {
+                callbackDiv.innerHTML = `
+                    <p class="info">🔄 This appears to be an OAuth callback!</p>
+                    <p>Code: ${hasCode ? '✓' : '❌'}</p>
+                    <p>Error: ${hasError ? '✓' : '❌'}</p>
+                    <p>Hash Token: ${hasHash ? '✓' : '❌'}</p>
+                    <p>Full URL: <code>${window.location.href}</code></p>
+                `;
+                
+                log('OAuth callback detected', {
+                    hasCode,
+                    hasError,
+                    hasHash,
+                    code: url.searchParams.get('code'),
+                    error: url.searchParams.get('error'),
+                    hash: window.location.hash
+                });
+            } else {
+                callbackDiv.innerHTML = '<p class="info">No OAuth callback parameters detected</p>';
+            }
+        }
+        
+        // Initialize
+        checkEnvironment();
+        checkCallback();
+        
+        // Make functions global
+        window.clearLogs = clearLogs;
+    </script>
+</body>
+</html>
