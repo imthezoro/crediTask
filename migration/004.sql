@@ -43,10 +43,6 @@ UPDATE payments SET status = 'completed' WHERE status = 'succeeded';
 -- Add RLS policies for incidents table (public read)
 ALTER TABLE incidents ENABLE ROW LEVEL SECURITY;
 
--- Anyone can read incidents (for status page)
-CREATE POLICY "Anyone can view incidents" ON incidents
-  FOR SELECT USING (true);
-
 -- Only admins can manage incidents
 CREATE POLICY "Admins can manage incidents" ON incidents
   FOR ALL USING (
