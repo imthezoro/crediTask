@@ -22,23 +22,81 @@ export default function Dashboard() {
 
   const checkAuth = async () => {
     try {
-      const accessToken = localStorage.getItem('sb-access-token')
+      console.log('🔍 Dashboard: Starting auth check...')
       
-      if (!accessToken) {
+      // First check if we have a Supabase session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log('🔍 Dashboard: Current Supabase session:', {
+        hasSession: !!session,
+        userId: session?.user?.id,
+        sessionError: sessionError?.message
+      })
+      
+      if (session && session.user) {
+        console.log('✅ Dashboard: User authenticated via session:', session.user.id)
+        setUser(session.user)
+        
+        // Get user profile
+        const { data: profiles, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user.id)
+
+        if (profileError) {
+          console.error('Profile fetch error:', profileError)
+        } else if (profiles && profiles.length > 0) {
+          setProfile(profiles[0])
+        }
+        
+        setLoading(false)
+        return
+      }
+      
+      // Fallback: check localStorage token
+      const storedToken = localStorage.getItem('sb-access-token')
+      console.log('🔍 Dashboard: Stored token:', storedToken ? 'present' : 'missing')
+      
+      if (!storedToken) {
+        console.log('❌ Dashboard: No session and no stored token, redirecting to signin')
         router.push('/auth/signin')
         return
       }
 
-      // Get user with the access token
-      const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+      // Parse token data (it's stored as JSON object now)
+      let accessToken: string
+      try {
+        const tokenData = JSON.parse(storedToken)
+        accessToken = tokenData.token
+        
+        // Check if token is expired
+        const expiresAt = tokenData.expires_at || 0
+        if (Date.now() > expiresAt) {
+          console.log('❌ Dashboard: Token expired, redirecting to signin')
+          localStorage.removeItem('sb-access-token')
+          localStorage.removeItem('sb-user-data')
+          router.push('/auth/signin')
+          return
+        }
+      } catch (parseError) {
+        // Fallback for old format (plain string)
+        accessToken = storedToken
+      }
+
+      // Try to get user with stored token
+      console.log('🔍 Dashboard: Trying getUser() fallback...')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      console.log('🔍 Dashboard: getUser result:', { user: !!user, error: error?.message })
       
       if (error || !user) {
-        console.error('Auth error:', error)
+        console.error('❌ Dashboard: Auth error, redirecting to signin:', error)
         localStorage.removeItem('sb-access-token')
         localStorage.removeItem('sb-user-data')
         router.push('/auth/signin')
         return
       }
+      
+      console.log('✅ Dashboard: User authenticated successfully:', user.id)
 
       setUser(user)
 

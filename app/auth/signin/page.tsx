@@ -144,18 +144,78 @@ export default function SignInPage() {
     updateFormState({ guestLoading: true, error: '' })
     
     try {
-      const { session, error } = await authService.createGuestUser()
+      // Get device ID from localStorage or let the API generate one
+      const deviceId = localStorage.getItem('promptok-device-id')
+      console.log("here")
+      // Call the guest-login API with device ID
+      const response = await fetch('/api/auth/guest-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ device_id: deviceId })
+      })
       
-      if (error) {
-        throw error
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.log("response",response,data)
+        throw new Error(data.message || data.error || 'Guest login failed')
       }
       
-      if (session) {
-        window.location.href = '/dashboard'
-      } else {
-        throw new Error('No session created for guest')
+      // Save the device_id to localStorage if it was returned from the API
+      if (data.device_id) {
+        localStorage.setItem('promptok-device-id', data.device_id)
       }
+      
+      // Create session object from API response
+      const session = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        user: {
+          id: data.user_id,
+          email: data.email,
+          user_metadata: { is_guest: data.is_guest }
+        },
+        expires_at: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+      }
+      
+      // Set the session in Supabase client
+      console.log('🔄 Setting Supabase session with tokens:', {
+        access_token: data.access_token ? 'present' : 'missing',
+        refresh_token: data.refresh_token ? 'present' : 'missing'
+      })
+      
+      const supabase = authService.getSupabaseClient()
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token
+      })
+      
+      if (sessionError) {
+        console.error('❌ Failed to set session:', sessionError)
+        throw new Error('Failed to establish session')
+      }
+      
+      console.log('✅ Session set successfully')
+      
+      // Verify session was set
+      const { data: { session: verifySession } } = await supabase.auth.getSession()
+      console.log('🔍 Session verification:', {
+        hasSession: !!verifySession,
+        userId: verifySession?.user?.id,
+        expiresAt: verifySession?.expires_at
+      })
+      
+      // Store auth data and notify extension
+      authService.storeAuthData(session)
+      authService.notifyExtension('SIGNED_IN', session)
+      
+      console.log('🏠 Redirecting to dashboard...')
+      // If successful, redirect to dashboard
+      window.location.href = '/dashboard'
     } catch (error) {
+      console.log("error",error  )
       updateFormState({ 
         error: `Guest login failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         guestLoading: false 

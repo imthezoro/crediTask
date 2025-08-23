@@ -24,13 +24,23 @@ async function handleLogin(e) {
     await chrome.storage.local.remove('access_token');
     try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
     
+    // Get device ID from storage if available
+    let deviceId = null;
+    try {
+      const result = await chrome.storage.local.get('promptok-device-id');
+      deviceId = result['promptok-device-id'];
+    } catch (e) {
+      console.warn('Failed to get device ID from storage:', e);
+    }
+    
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
+    
     const res = await fetch(`${base}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, device_id: deviceId }),
     });
     
     const data = await res.json().catch(() => ({}));
@@ -38,6 +48,11 @@ async function handleLogin(e) {
     if (res.ok && data.access_token) {
       // Store the token in local storage with consistent key
       await chrome.storage.local.set({ access_token: data.access_token });
+      
+      // Store the device_id if it was returned from the API
+      if (data.device_id) {
+        await chrome.storage.local.set({ 'promptok-device-id': data.device_id });
+      }
       
       // Show success message
       showSuccess(statusEl, 'Login successful!');
@@ -165,13 +180,33 @@ async function loadUserProfile(expectedEmail) {
       return;
     }
     
+    // Extract actual JWT token if stored as JSON object
+    let actualToken = access_token;
+    if (typeof access_token === 'string' && access_token.startsWith('{')) {
+      try {
+        const tokenData = JSON.parse(access_token);
+        actualToken = tokenData.token || access_token;
+        console.log('[PromptOK] Extracted JWT from JSON storage');
+      } catch (e) {
+        console.warn('[PromptOK] Failed to parse token JSON, using as-is');
+      }
+    }
+    
+    console.log('[PromptOK] Extension token debug:', {
+      hasToken: !!actualToken,
+      tokenType: typeof actualToken,
+      tokenLength: actualToken?.length,
+      tokenStart: actualToken?.substring(0, 30) + '...',
+      isValidJWTFormat: actualToken ? actualToken.split('.').length === 3 : false
+    });
+    
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
     console.debug('[PromptOK] Backend user endpoint:', `${base}/api/auth/user`);
     const res = await fetch(`${base}/api/auth/user`, {
       headers: {
-        'Authorization': `Bearer ${access_token}`,
+        'Authorization': `Bearer ${actualToken}`,
       }
     });
     
@@ -596,12 +631,22 @@ async function handleGuestLogin() {
     await chrome.storage.local.remove('access_token');
     try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
     
+    // Get device ID from storage if available
+    let deviceId = null;
+    try {
+      const result = await chrome.storage.local.get('promptok-device-id');
+      deviceId = result['promptok-device-id'];
+    } catch (e) {
+      console.warn('Failed to get device ID from storage:', e);
+    }
+    
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
     const res = await fetch(`${base}/api/auth/guest-login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: deviceId })
     });
     
     const data = await res.json().catch(() => ({}));
@@ -609,6 +654,11 @@ async function handleGuestLogin() {
     if (res.ok && data.access_token) {
       // Store the token in local storage with consistent key
       await chrome.storage.local.set({ access_token: data.access_token });
+      
+      // Store the device_id if it was returned from the API
+      if (data.device_id) {
+        await chrome.storage.local.set({ 'promptok-device-id': data.device_id });
+      }
       
       // Show success message
       showSuccess(statusEl, 'Guest login successful!');
@@ -749,6 +799,15 @@ async function handleSignup(e) {
     await chrome.storage.local.remove('access_token');
     try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
     
+    // Get device ID from storage if available
+    let deviceId = null;
+    try {
+      const result = await chrome.storage.local.get('promptok-device-id');
+      deviceId = result['promptok-device-id'];
+    } catch (e) {
+      console.warn('Failed to get device ID from storage:', e);
+    }
+    
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
@@ -759,6 +818,7 @@ async function handleSignup(e) {
         email,
         password,
         name: displayName,
+        device_id: deviceId
       }),
     });
     
@@ -768,6 +828,11 @@ async function handleSignup(e) {
       if (data.access_token) {
         // Store the new token
         await chrome.storage.local.set({ access_token: data.access_token });
+        
+        // Store the device_id if it was returned from the API
+        if (data.device_id) {
+          await chrome.storage.local.set({ 'promptok-device-id': data.device_id });
+        }
         
         // Auto-login if token is returned - validate against signup email
         await chrome.runtime.sendMessage({ 

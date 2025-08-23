@@ -8,10 +8,11 @@ const LoginSchema = z.object({ email: z.string().email(), password: z.string().m
 
 export async function POST(req: NextRequest) {
   // Parse and validate request body with a 400 response on failure
-  let email: string, password: string;
+  let email: string, password: string, deviceId: string | undefined;
   try {
     const body = await req.json();
     ({ email, password } = LoginSchema.parse(body));
+    deviceId = body.device_id;
   } catch {
     return corsJson({ error: 'Invalid request' }, { status: 400 });
   }
@@ -35,7 +36,35 @@ export async function POST(req: NextRequest) {
     if (error || !data?.session || !data.user) {
       return corsJson({ error: error?.message || 'Invalid credentials' }, { status: 401 });
     }
-    return corsJson({ access_token: data.session.access_token, user: data.user });
+    
+    // Get client IP address from request
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
+                    req.headers.get('x-real-ip') || 
+                    req.ip || 
+                    'unknown';
+    
+    // If no device_id provided, generate one
+    if (!deviceId || deviceId.trim() === "") {
+      deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + 
+                Date.now().toString(36);
+    }
+    
+    // Update user_profiles with ip_address and device_id
+    if (data.user.id) {
+      await supabase
+        .from('user_profiles')
+        .update({ 
+          ip_address: clientIp,
+          device_id: deviceId
+        })
+        .eq('id', data.user.id);
+    }
+    
+    return corsJson({ 
+      access_token: data.session.access_token, 
+      user: data.user,
+      device_id: deviceId 
+    });
   } catch (error: unknown) {
     console.error('/api/auth/login error', error);
     return corsJson({ error: 'Internal Server Error' }, { status: 500 });

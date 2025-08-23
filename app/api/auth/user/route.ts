@@ -6,11 +6,21 @@ export async function GET() {
   try {
     // Get the full user object from Supabase instead of the simplified one
     const authHeader = headers().get('authorization') || headers().get('Authorization');
+    console.log('API /auth/user - Auth header:', authHeader ? 'present' : 'missing');
+    
     const token = authHeader?.toLowerCase().startsWith('bearer ')
       ? authHeader.split(' ')[1]
       : undefined;
     
+    console.log('API /auth/user - Extracted token:', {
+      hasToken: !!token,
+      tokenLength: token?.length,
+      tokenStart: token?.substring(0, 20) + '...',
+      isValidJWTFormat: token ? token.split('.').length === 3 : false
+    });
+    
     if (!token) {
+      console.log('API /auth/user - No token provided');
       return corsJson({ user: null });
     }
 
