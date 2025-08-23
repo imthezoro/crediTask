@@ -207,11 +207,17 @@ async function loadUserProfile(expectedEmail) {
         showView('login');
         return;
       }
-      const displayName =
-        user?.user_metadata?.full_name ||
-        user?.user_metadata?.name ||
-        user?.email ||
-        '';
+      // For guest users, use 'Guest' as the display name instead of the email
+      let displayName = '';
+      if (user?.email && user.email.includes('@promptok.guest')) {
+        displayName = 'Guest';
+      } else {
+        displayName =
+          user?.user_metadata?.full_name ||
+          user?.user_metadata?.name ||
+          user?.email ||
+          '';
+      }
       updateUserProfile({
         name: displayName,
         email: user?.email || '',
@@ -246,7 +252,13 @@ async function loadUserProfile(expectedEmail) {
 
 // Update the UI with user profile data
 function updateUserProfile(userData) {
-  if (userData.name) {
+  // Check if this is a guest user by email
+  const isGuestUser = userData.email && userData.email.includes('@promptok.guest');
+  
+  if (isGuestUser) {
+    // For guest users, always display 'Guest' as the name
+    userNameEl.textContent = 'Guest';
+  } else if (userData.name) {
     userNameEl.textContent = userData.name;
   } else if (userData.firstName || userData.lastName) {
     userNameEl.textContent = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
@@ -255,7 +267,12 @@ function updateUserProfile(userData) {
   }
   
   if (userData.email !== undefined) {
-    userEmailEl.textContent = userData.email;
+    // If it's a guest email (contains @promptok.guest), display just 'Guest'
+    if (userData.email.includes('@promptok.guest')) {
+      userEmailEl.textContent = 'Guest';
+    } else {
+      userEmailEl.textContent = userData.email;
+    }
   }
   
   // Update plan and credits if available
@@ -278,6 +295,11 @@ function updateUserProfile(userData) {
 
 // Compute and set avatar initials
 function computeInitials(name, email) {
+  // If it's a guest email, use 'Guest' for initials
+  if (email && email.includes('@promptok.guest')) {
+    return 'GU';
+  }
+  
   const src = (name || '').trim() || (email || '').trim();
   if (!src) return '';
   const parts = src.split(/\s+/);

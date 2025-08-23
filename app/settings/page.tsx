@@ -63,7 +63,7 @@ export default async function SettingsPage() {
                 <input
                   type="email"
                   id="email"
-                  value={user.email || ''}
+                  value={user.email?.includes('@promptok.guest') ? 'Guest' : (user.email || '')}
                   disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
                 />

@@ -27,7 +27,11 @@ export default async function AdminUsersPage() {
 
   const columns = [
     { key: 'id', label: 'ID' },
-    { key: 'email', label: 'Email' },
+    { 
+      key: 'email', 
+      label: 'Email',
+      render: (value: string) => value && value.includes('@promptok.guest') ? 'Guest' : value
+    },
     { 
       key: 'plan', 
       label: 'Plan',
