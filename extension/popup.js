@@ -98,6 +98,7 @@ const userNameEl = document.getElementById('userName');
 const userEmailEl = document.getElementById('userEmail');
 const googleLoginBtn = document.getElementById('googleLogin');
 const googleLoginSignupBtn = document.getElementById('googleLoginSignup');
+const guestLoginBtn = document.getElementById('guestLogin');
 
 // Check authentication status when popup loads
 document.addEventListener('DOMContentLoaded', async () => {
@@ -445,6 +446,11 @@ function initEventListeners() {
     googleLoginSignupBtn.addEventListener('click', (e) => { e.preventDefault(); startGoogleOAuth(); });
   }
   
+  // Guest login button
+  if (guestLoginBtn) {
+    guestLoginBtn.addEventListener('click', (e) => { e.preventDefault(); handleGuestLogin(); });
+  }
+  
   // Toggle views
   if (showSignupBtn) {
     showSignupBtn.addEventListener('click', (e) => {
@@ -556,6 +562,70 @@ function setLoading(button, isLoading) {
   } else {
     button.classList.remove('loading');
     button.disabled = false;
+  }
+}
+
+// Handle guest login
+async function handleGuestLogin() {
+  try {
+    setLoading(guestLoginBtn, true);
+    
+    // Clear any existing tokens to prevent session conflicts
+    await chrome.storage.local.remove('access_token');
+    try { await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' }); } catch (_) {}
+    
+    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+      ? await window.promptokConfig.getApiBase()
+      : 'http://localhost:3000';
+    const res = await fetch(`${base}/api/auth/guest-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await res.json().catch(() => ({}));
+    
+    if (res.ok && data.access_token) {
+      // Store the token in local storage with consistent key
+      await chrome.storage.local.set({ access_token: data.access_token });
+      
+      // Show success message
+      showSuccess(statusEl, 'Guest login successful!');
+      
+      // Load user profile
+      await loadUserProfile();
+      
+      // Notify the background script about the login (broadcast to pages)
+      chrome.runtime.sendMessage({ 
+        type: 'SET_TOKEN',
+        token: data.access_token,
+        updatedAt: Date.now(),
+      });
+      
+      // Open dashboard after successful guest login
+      setTimeout(async () => {
+        try {
+          const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
+            ? await window.promptokConfig.getApiBase()
+            : 'http://localhost:3000';
+          chrome.tabs.create({ url: `${base}/dashboard` });
+        } catch (_e) {
+          chrome.tabs.create({ url: 'http://localhost:3000/dashboard' });
+        }
+      }, 3000);
+      
+    } else {
+      const errorMsg = data.error || data.message || `Status: ${res.status}`;
+      showError(statusEl, `Guest login failed: ${errorMsg}`);
+    }
+    
+  } catch (error) {
+    console.error('Guest login error:', error);
+    const errorMsg = error.message.includes('Failed to fetch') 
+      ? 'Unable to connect to server. Please try again later.' 
+      : error.message;
+    showError(statusEl, `Error: ${errorMsg}`);
+  } finally {
+    setLoading(guestLoginBtn, false);
   }
 }
 

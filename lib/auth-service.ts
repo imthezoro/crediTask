@@ -10,6 +10,11 @@ type AuthSession = {
   };
 };
 
+type GuestAuthResponse = {
+  session: AuthSession | null;
+  error: Error | null;
+};
+
 type AuthEventType = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED';
 
 /**
@@ -64,6 +69,59 @@ export class AuthService {
    */
   onAuthStateChange(callback: (event: string, session: any) => void) {
     return this.supabase.auth.onAuthStateChange(callback);
+  }
+
+  /**
+   * Create a guest user account
+   */
+  async createGuestUser(): Promise<GuestAuthResponse> {
+    try {
+      // Generate a random email and password for the guest user
+      const randomId = Math.random().toString(36).substring(2, 15);
+      const email = `guest_${randomId}@promptok.guest`;
+      const password = Math.random().toString(36).substring(2, 15) + 
+                      Math.random().toString(36).substring(2, 15);
+      
+      // Sign up the guest user
+      const { data, error } = await this.supabase.auth.signUp({
+        email,
+        password,
+      });
+      
+      if (error) {
+        console.error('Guest signup error:', error);
+        return { session: null, error };
+      }
+      
+      if (!data.session) {
+        return { 
+          session: null, 
+          error: new Error('No session created for guest user') 
+        };
+      }
+      
+      // Mark the user as a guest in the user_profiles table
+      const { error: updateError } = await this.supabase
+        .from('user_profiles')
+        .update({ is_guest: true })
+        .eq('id', data.user?.id);
+      
+      if (updateError) {
+        console.error('Failed to mark user as guest:', updateError);
+      }
+      
+      // Store auth data and notify extension
+      this.storeAuthData(data.session);
+      this.notifyExtension('SIGNED_IN', data.session);
+      
+      return { session: data.session, error: null };
+    } catch (error) {
+      console.error('Guest login failed:', error);
+      return { 
+        session: null, 
+        error: error instanceof Error ? error : new Error('Unknown error during guest login') 
+      };
+    }
   }
 
   /**

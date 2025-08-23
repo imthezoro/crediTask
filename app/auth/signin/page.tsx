@@ -9,6 +9,7 @@ interface FormState {
   password: string
   loading: boolean
   googleLoading: boolean
+  guestLoading: boolean
   error: string
 }
 
@@ -18,6 +19,7 @@ export default function SignInPage() {
     password: '',
     loading: false,
     googleLoading: false,
+    guestLoading: false,
     error: ''
   })
 
@@ -138,6 +140,29 @@ export default function SignInPage() {
     }
   }
 
+  const handleGuestLogin = async () => {
+    updateFormState({ guestLoading: true, error: '' })
+    
+    try {
+      const { session, error } = await authService.createGuestUser()
+      
+      if (error) {
+        throw error
+      }
+      
+      if (session) {
+        window.location.href = '/dashboard'
+      } else {
+        throw new Error('No session created for guest')
+      }
+    } catch (error) {
+      updateFormState({ 
+        error: `Guest login failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        guestLoading: false 
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -226,7 +251,7 @@ export default function SignInPage() {
               </div>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-6 space-y-3">
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -241,6 +266,21 @@ export default function SignInPage() {
                 </svg>
                 <span className="ml-2">
                   {formState.googleLoading ? 'Connecting...' : 'Continue with Google'}
+                </span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleGuestLogin}
+                disabled={formState.guestLoading || formState.loading || formState.googleLoading}
+                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M20.5899 22C20.5899 18.13 16.7399 15 11.9999 15C7.25991 15 3.40991 18.13 3.40991 22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span className="ml-2">
+                  {formState.guestLoading ? 'Connecting...' : 'Continue as Guest'}
                 </span>
               </button>
             </div>
