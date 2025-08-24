@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import InterestSignup from '@/components/InterestSignup'
+import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
 
 async function getUserAndPayments() {
   const cookieStore = cookies()
@@ -44,12 +45,15 @@ async function getUserAndPayments() {
 export default async function BillingPage() {
   const { user, profile } = await getUserAndPayments()
 
+  // Determine the effective limit for free/guest users based on centralized quotas
+  const freeLimit = (profile?.is_guest ? GUEST_QUOTA : FREE_PLAN_LIMIT)
+
   const plans = [
     {
       name: 'Free',
       price: '$0',
       period: '/week',
-      features: ['50 enhancements/week', 'Basic analytics', 'Community support'],
+      features: [`${FREE_PLAN_LIMIT} enhancements/week`, 'Basic analytics', 'Community support'],
       current: profile?.plan === 'free' || !profile?.plan
     },
     // Commented out for now - will be needed later
@@ -99,7 +103,9 @@ export default async function BillingPage() {
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Usage this week</p>
-              <p className="text-2xl font-semibold text-gray-900">{profile?.usage_count || 0} / 50</p>
+              <p className="text-2xl font-semibold text-gray-900">
+                {profile?.usage_count || 0} / {(profile?.plan === 'free' || !profile?.plan) ? freeLimit : '∞'}
+              </p>
               <p className="text-xs text-gray-400">Weekly limit</p>
             </div>
           </div>
@@ -158,3 +164,4 @@ export default async function BillingPage() {
     </div>
   )
 }
+
