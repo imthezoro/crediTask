@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { getClientIP, isValidDeviceId } from '@/lib/rateLimit';
 
 // Initialize Supabase clients
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -10,107 +11,50 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-// Helper function to generate device ID
+// Helper function to generate device ID (kept locally; format unchanged)
 function generateDeviceId(): string {
   return 'dev_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 }
 
-// Rate limiting configuration
-const MAX_GUESTS_PER_IP = 3;
-const MAX_GUESTS_PER_DEVICE = 1;
-const IP_RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
-const DEVICE_RATE_LIMIT_WINDOW = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-// Server-side rate limiting check
-async function checkGuestCreationAllowed(deviceId: string, ipAddress: string): Promise<{ allowed: boolean; error?: string; existingGuestId?: string }> {
-  try {
-    if (!supabaseServiceKey) {
-      console.warn('Missing SUPABASE_SERVICE_ROLE_KEY - rate limiting disabled');
-      return { allowed: true };
-    }
-
-    // Check if device already has a guest account
-    const { data: existingDeviceGuest, error: deviceCheckError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id, created_at, device_id')
-      .eq('device_id', deviceId)
-      .eq('is_guest', true)
-      .gte('created_at', new Date(Date.now() - DEVICE_RATE_LIMIT_WINDOW).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(MAX_GUESTS_PER_DEVICE);
-
-    if (deviceCheckError) {
-      console.error('Error checking device guest accounts:', deviceCheckError);
-      return { allowed: true }; // Fail open
-    }
-
-    // If device already has a guest account, allow reuse
-    if (existingDeviceGuest && existingDeviceGuest.length >= MAX_GUESTS_PER_DEVICE) {
-      return {
-        allowed: true,
-        existingGuestId: existingDeviceGuest[0].id,
-        error: 'Device already has a guest account'
-      };
-    }
-
-    // Check IP-based rate limiting
-    if (ipAddress && ipAddress !== 'unknown' && ipAddress !== '::1' && ipAddress !== '127.0.0.1') {
-      const { data: ipGuests, error: ipCheckError } = await supabaseAdmin
-        .from('user_profiles')
-        .select('id, created_at, ip_address')
-        .eq('ip_address', ipAddress)
-        .eq('is_guest', true)
-        .gte('created_at', new Date(Date.now() - IP_RATE_LIMIT_WINDOW).toISOString());
-
-      if (ipCheckError) {
-        console.error('Error checking IP rate limit:', ipCheckError);
-        // Continue without IP check if there's an error (fail open)
-      } else if (ipGuests && ipGuests.length >= MAX_GUESTS_PER_IP) {
-        return {
-          allowed: false,
-          error: `Too many guest accounts created from this IP address. Please try again later or sign up for a full account.`
-        };
-      }
-    }
-
-    return { allowed: true };
-  } catch (error) {
-    console.error('Failed to check guest creation rate limit:', error);
-    return { allowed: true }; // Fail open for availability
-  }
-}
+// Rate limiting is checked via internal endpoint /api/auth/check-guest-creation
 
 export async function POST(req: NextRequest) {
   try {
     // Get device ID from request body or generate one
     const requestData = await req.json().catch(() => ({}));
-    const deviceId = requestData.device_id || generateDeviceId();
+    let deviceId: string = requestData.device_id;
+    if (!deviceId || !isValidDeviceId(deviceId)) {
+      deviceId = generateDeviceId();
+    }
     
     // Get client IP address
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0] || 
-                     req.headers.get('x-real-ip') || 
-                     req.headers.get('cf-connecting-ip') || 
-                     'unknown';
+    const clientIp = getClientIP(req);
     
     console.log('Guest login attempt:', { deviceId, clientIp });
     
-    // Check server-side rate limiting first
-    const rateLimitCheck = await checkGuestCreationAllowed(deviceId, clientIp);
-    if (!rateLimitCheck.allowed) {
-      return NextResponse.json({ 
-        error: rateLimitCheck.error || 'Guest creation not allowed' 
-      }, { status: 429 });
+    // Check server-side rate limiting via internal endpoint (single source of truth)
+    const url = new URL('/api/auth/check-guest-creation', req.url);
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: deviceId })
+    });
+    const check = await resp.json().catch(() => ({} as any));
+    if (!resp.ok) {
+      // Surface 429 with the same semantics
+      const msg = check?.error || 'Guest creation not allowed';
+      return NextResponse.json({ error: msg }, { status: resp.status });
     }
     
     let data, error;
     
     // If device has existing guest account, reuse it
-    if (rateLimitCheck.existingGuestId) {
-      console.log('Reusing existing guest account:', rateLimitCheck.existingGuestId);
+    if (check.existing_guest_id) {
+      console.log('Reusing existing guest account:', check.existing_guest_id);
       
       // Get existing user's email from auth.users table
       const { data: existingUser, error: fetchError } = await supabaseAdmin.auth.admin.getUserById(
-        rateLimitCheck.existingGuestId
+        check.existing_guest_id
       );
       
       console.log('Existing user fetch result:', { 
@@ -127,7 +71,7 @@ export async function POST(req: NextRequest) {
         console.log('Updating existing user password...');
         // Update the user's password and sign them in
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          rateLimitCheck.existingGuestId,
+          check.existing_guest_id,
           { password: tempPassword }
         );
         
@@ -212,7 +156,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Check if this is reusing an existing device account
-    const isExistingSession = !!rateLimitCheck.existingGuestId;
+    const isExistingSession = !!check.existing_guest_id;
     
     // Set cookies
     const cookieStore = cookies();

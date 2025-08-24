@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { env } from '@/lib/env';
 import { corsJson, corsHeaders } from '@/lib/cors';
 import { createClient } from '@supabase/supabase-js';
+import { getClientIP, isValidDeviceId } from '@/lib/rateLimit';
 
 const SignupSchema = z.object({
   email: z.string().email(),
@@ -53,13 +54,10 @@ export async function POST(req: NextRequest) {
 
     // If email confirmations are enabled, session may be null
     if (data?.session && data.user) {
-      const clientIp =
-        req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-        req.headers.get('x-real-ip') ||
-        'unknown';
+      const clientIp = getClientIP(req);
 
-      // If no device_id provided, generate one
-      if (!deviceId) {
+      // If no device_id provided or invalid, generate one
+      if (!deviceId || !isValidDeviceId(deviceId)) {
         deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + 
                   Date.now().toString(36);
       }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isValidDeviceId, getClientIP } from '@/lib/rateLimit';
 
 // Rate limiting configuration
 const MAX_GUESTS_PER_IP = 3;
@@ -7,31 +8,7 @@ const MAX_GUESTS_PER_DEVICE = 1;
 const IP_RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
 const DEVICE_RATE_LIMIT_WINDOW = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// Input validation
-function isValidDeviceId(deviceId: string): boolean {
-  if (typeof deviceId !== 'string') return false;
-  const deviceIdPattern = /^(dev_|temp_)[a-zA-Z0-9]{10,50}$/;
-  return deviceIdPattern.test(deviceId);
-}
-
-function getClientIP(request: NextRequest): string {
-  // Try multiple headers for IP detection
-  const forwarded = request.headers.get('x-forwarded-for');
-  const realIP = request.headers.get('x-real-ip');
-  const cfConnectingIP = request.headers.get('cf-connecting-ip');
-  
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  if (realIP) {
-    return realIP.trim();
-  }
-  if (cfConnectingIP) {
-    return cfConnectingIP.trim();
-  }
-  
-  return 'unknown';
-}
+// Input validation and IP helpers now imported from centralized module
 
 export async function POST(request: NextRequest) {
   try {

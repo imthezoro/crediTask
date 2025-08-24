@@ -1,16 +1,113 @@
-import { redis } from './redis';
+import { NextRequest } from 'next/server';
+import { supabaseAdmin } from './supabaseAdmin';
 
-const FREE_LIMIT_PER_HOUR = 20;
+// Centralized quota constants to keep behavior consistent across API routes and edge functions
+export const FREE_PLAN_LIMIT = 10; // Matches enhance-prompt free allowance
+export const GUEST_QUOTA = 10;     // Matches guest-prompt quota
 
-export async function enforceRateLimit(userId: string) {
-  const key = `rl:${userId}:${new Date().getUTCHours()}`;
-  const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, 60 * 60);
+export type PlanQuotaResult = {
+  allowed: boolean;
+  isPaidPlan: boolean;
+  isGuest: boolean;
+  usage: number;
+  quota?: number; // present when denied
+  error?: string; // human-readable message when denied
+};
+
+/**
+ * Check whether a user is allowed to proceed based on user_profiles plan/guest usage.
+ * Behavior mirrors Supabase edge functions:
+ * - Paid plan: allowed
+ * - Free plan: usage_count < 10
+ * - Guest users: usage_count < 10 (same cap)
+ */
+export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
+  const { data: profile, error } = await supabaseAdmin
+    .from('user_profiles')
+    .select('plan, is_guest, usage_count')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    throw new Error('Failed to verify user plan');
   }
-  if (count > FREE_LIMIT_PER_HOUR) {
-    throw new Error('Rate limit exceeded');
+  if (!profile) {
+    throw new Error('User profile not found');
   }
+
+  const isPaidPlan = profile.plan !== 'free';
+  const isGuest = Boolean(profile.is_guest);
+  const usage = profile.usage_count ?? 0;
+
+  if (isPaidPlan) {
+    return { allowed: true, isPaidPlan, isGuest, usage };
+  }
+
+  // Free/guest limits
+  if (isGuest && usage >= GUEST_QUOTA) {
+    return {
+      allowed: false,
+      isPaidPlan,
+      isGuest,
+      usage,
+      quota: GUEST_QUOTA,
+      error: 'Guest quota exceeded',
+    };
+  }
+  if (!isGuest && usage >= FREE_PLAN_LIMIT) {
+    return {
+      allowed: false,
+      isPaidPlan,
+      isGuest,
+      usage,
+      quota: FREE_PLAN_LIMIT,
+      error: 'Usage limit reached. Please upgrade your plan.',
+    };
+  }
+
+  return { allowed: true, isPaidPlan, isGuest, usage };
+}
+
+/**
+ * Increment usage_count for the user (post-success). Keeps behavior consistent with edge functions.
+ * Note: not atomic; consider replacing with an RPC for strict correctness if needed.
+ */
+export async function incrementUsage(userId: string): Promise<void> {
+  const { data: profile, error } = await supabaseAdmin
+    .from('user_profiles')
+    .select('usage_count')
+    .eq('id', userId)
+    .single();
+
+  if (error || !profile) return; // fail open without throwing
+
+  await supabaseAdmin
+    .from('user_profiles')
+    .update({ usage_count: (profile.usage_count ?? 0) + 1, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+}
+
+// =============================
+// Helpers for guest creation RL
+// =============================
+
+export function isValidDeviceId(deviceId: string): boolean {
+  if (typeof deviceId !== 'string') return false;
+  const deviceIdPattern = /^(dev_|temp_)[a-zA-Z0-9]{10,50}$/;
+  return deviceIdPattern.test(deviceId);
+}
+
+export function getClientIP(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const realIP = request.headers.get('x-real-ip');
+  const cfConnectingIP = request.headers.get('cf-connecting-ip');
+  const reqIp = (request as any).ip as string | undefined;
+
+  if (forwarded) return forwarded.split(',')[0].trim();
+  if (realIP) return realIP.trim();
+  if (cfConnectingIP) return cfConnectingIP.trim();
+  if (reqIp) return reqIp;
+  return 'unknown';
 }
 
 
