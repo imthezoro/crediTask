@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import InterestSignup from '@/components/InterestSignup'
+import ApiAccessSignup from '@/components/ApiAccessSignup'
 import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
 
 async function getUserAndPayments() {
@@ -156,6 +157,16 @@ export default async function BillingPage() {
 
             {/* More Credits Signup */}
             <InterestSignup />
+          </div>
+        </div>
+
+        {/* API Access */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">API Access</h2>
+          <p className="text-gray-600 mb-4">API access is under construction.</p>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-yellow-900 mb-2">Join the API waitlist</h3>
+            <ApiAccessSignup />
           </div>
         </div>
 

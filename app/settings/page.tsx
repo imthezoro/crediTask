@@ -133,36 +133,7 @@ export default async function SettingsPage() {
             </div>
           </div>
 
-          {/* API Access */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">API Access</h2>
-            <p className="text-gray-600 mb-4">
-              API access is available for Pro and Enterprise plans.
-            </p>
-            {profile?.plan === 'free' ? (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-yellow-800">
-                  Upgrade to Pro or Enterprise to access the API.
-                </p>
-                <Link
-                  href="/billing"
-                  className="inline-block mt-2 text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Upgrade Plan →
-                </Link>
-              </div>
-            ) : (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-green-800 mb-2">API Key:</p>
-                <code className="bg-gray-100 px-2 py-1 rounded text-sm">
-                  pk_live_xxxxxxxxxxxxxxxx
-                </code>
-                <button className="ml-2 text-blue-600 hover:text-blue-700 text-sm">
-                  Regenerate
-                </button>
-              </div>
-            )}
-          </div>
+          
         </div>
       </div>
     </div>
