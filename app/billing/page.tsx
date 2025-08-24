@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import InterestSignup from '@/components/InterestSignup'
 
 async function getUserAndPayments() {
   const cookieStore = cookies()
@@ -26,6 +27,7 @@ async function getUserAndPayments() {
       .eq('id', user.id)
       .single()
 
+    // Payments intentionally unused for now, but kept for future use
     const { data: payments } = await supabase
       .from('payments')
       .select('*')
@@ -40,30 +42,31 @@ async function getUserAndPayments() {
 }
 
 export default async function BillingPage() {
-  const { user, profile, payments } = await getUserAndPayments()
+  const { user, profile } = await getUserAndPayments()
 
   const plans = [
     {
       name: 'Free',
       price: '$0',
-      period: '/month',
-      features: ['100 enhancements/month', 'Basic analytics', 'Community support'],
-      current: profile?.plan === 'free'
+      period: '/week',
+      features: ['50 enhancements/week', 'Basic analytics', 'Community support'],
+      current: profile?.plan === 'free' || !profile?.plan
     },
-    {
-      name: 'Pro',
-      price: '$19',
-      period: '/month',
-      features: ['1,000 enhancements/month', 'Advanced analytics', 'Priority support', 'API access'],
-      current: profile?.plan === 'pro'
-    },
-    {
-      name: 'Enterprise',
-      price: '$99',
-      period: '/month',
-      features: ['Unlimited enhancements', 'Team management', 'Custom integrations', 'SLA'],
-      current: profile?.plan === 'enterprise'
-    }
+    // Commented out for now - will be needed later
+    // {
+    //   name: 'Pro',
+    //   price: '$19',
+    //   period: '/month',
+    //   features: ['1,000 enhancements/month', 'Advanced analytics', 'Priority support', 'API access'],
+    //   current: profile?.plan === 'pro'
+    // },
+    // {
+    //   name: 'Enterprise',
+    //   price: '$99',
+    //   period: '/month',
+    //   features: ['Unlimited enhancements', 'Team management', 'Custom integrations', 'SLA'],
+    //   current: profile?.plan === 'enterprise'
+    // }
   ]
 
   return (
@@ -95,8 +98,9 @@ export default async function BillingPage() {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-500">Usage this month</p>
-              <p className="text-2xl font-semibold text-gray-900">{profile?.usage_count || 0}</p>
+              <p className="text-sm text-gray-500">Usage this week</p>
+              <p className="text-2xl font-semibold text-gray-900">{profile?.usage_count || 0} / 50</p>
+              <p className="text-xs text-gray-400">Weekly limit</p>
             </div>
           </div>
         </div>
@@ -104,7 +108,7 @@ export default async function BillingPage() {
         {/* Available Plans */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Available Plans</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 gap-6">
             {plans.map((plan) => (
               <div
                 key={plan.name}
@@ -143,61 +147,13 @@ export default async function BillingPage() {
                 </button>
               </div>
             ))}
+
+            {/* More Credits Signup */}
+            <InterestSignup />
           </div>
         </div>
 
-        {/* Payment History */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-6">Payment History</h2>
-          {payments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No payments yet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Date</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Plan</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Amount</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Valid Period</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => (
-                    <tr key={payment.id} className="border-b border-gray-100">
-                      <td className="py-3 px-4 text-sm text-gray-900">
-                        {new Date(payment.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-900 capitalize">
-                        {payment.plan}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-900">
-                        {payment.currency.toUpperCase()} {(payment.amount_cents / 100).toFixed(2)}
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          payment.status === 'completed' 
-                            ? 'bg-green-100 text-green-800'
-                            : payment.status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {payment.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-900">
-                        {new Date(payment.valid_from).toLocaleDateString()} - {new Date(payment.valid_to).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {/* Payment History - Commented out for now as we're not taking payments */}
       </div>
     </div>
   )
