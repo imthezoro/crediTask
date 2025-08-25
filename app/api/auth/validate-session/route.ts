@@ -7,7 +7,9 @@ export async function POST(req: NextRequest) {
     // Try to use Authorization header if provided (client-side validation after OAuth)
     const authHeader = req.headers.get('authorization')
     const usingBearer = !!(authHeader && authHeader.toLowerCase().startsWith('bearer '))
-    console.log('[validate-session] usingBearer:', usingBearer)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[validate-session] usingBearer:', usingBearer)
+    }
     const supabase = usingBearer
       ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
           auth: { persistSession: false, autoRefreshToken: false },
@@ -23,12 +25,12 @@ export async function POST(req: NextRequest) {
       const { data, error: uErr } = await supabase.auth.getUser(token)
       user = data?.user || null
       error = uErr || null
-      if (uErr) console.warn('[validate-session] getUser(bearer) error:', uErr)
+      if (uErr && process.env.NODE_ENV !== 'production') console.warn('[validate-session] getUser(bearer) error:', uErr)
     } else {
       const { data, error: uErr } = await supabase.auth.getUser()
       user = data?.user || null
       error = uErr || null
-      if (uErr) console.warn('[validate-session] getUser(cookie) error:', uErr)
+      if (uErr && process.env.NODE_ENV !== 'production') console.warn('[validate-session] getUser(cookie) error:', uErr)
     }
     
     if (error || !user) {
@@ -72,7 +74,7 @@ export async function POST(req: NextRequest) {
         })
       
       if (createErr) {
-        console.error('Failed to create profile for OAuth user:', createErr)
+        if (process.env.NODE_ENV !== 'production') console.error('Failed to create profile for OAuth user:', createErr)
         return NextResponse.json({ 
           valid: false, 
           reason: 'server_error',
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (profileErr) {
-      console.warn('Profile validation error:', profileErr)
+      if (process.env.NODE_ENV !== 'production') console.warn('Profile validation error:', profileErr)
       return NextResponse.json({ 
         valid: false, 
         reason: 'deactivated',
@@ -116,7 +118,7 @@ export async function POST(req: NextRequest) {
             .eq('id', user.id)
           
           if (reactivateErr) {
-            console.error('Failed to reactivate profile:', reactivateErr)
+            if (process.env.NODE_ENV !== 'production') console.error('Failed to reactivate profile:', reactivateErr)
             return NextResponse.json({ 
               valid: false, 
               reason: 'server_error',
@@ -132,7 +134,7 @@ export async function POST(req: NextRequest) {
               .eq('email', user.email)
           }
           
-          console.log(`Reactivated account for user ${user.id} (${user.email})`)
+          if (process.env.NODE_ENV !== 'production') console.log(`Reactivated account for user ${user.id} (${user.email})`)
           return NextResponse.json({ valid: true })
         }
       } else {
@@ -149,7 +151,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ valid: true })
     
   } catch (error) {
-    console.error('Session validation failed:', error)
+    if (process.env.NODE_ENV !== 'production') console.error('Session validation failed:', error)
     return NextResponse.json({ 
       valid: false, 
       reason: 'server_error',

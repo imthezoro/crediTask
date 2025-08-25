@@ -18,7 +18,7 @@ export const createServerClient = () => {
     global: {
       headers: {
         'apikey': supabaseAnonKey,
-        'Authorization': accessToken ? `Bearer ${accessToken}` : `Bearer ${supabaseAnonKey}`
+        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
       }
     }
   })

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { authService } from '@/lib/auth-service';
 
 interface CallbackState {
@@ -10,6 +11,8 @@ interface CallbackState {
 }
 
 export default function AuthCallbackPage() {
+  const router = useRouter();
+  const processedRef = useRef(false); // prevent double-processing in StrictMode
   const [state, setState] = useState<CallbackState>({
     message: 'Completing sign-in...',
     error: null,
@@ -22,6 +25,8 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const processAuthCallback = async () => {
+      if (processedRef.current) return;
+      processedRef.current = true;
       try {
         const urlParams = new URLSearchParams(window.location.search);
         const supabase = authService.getSupabaseClient();
@@ -89,12 +94,16 @@ export default function AuthCallbackPage() {
         });
         
         // Redirect to destination (immediately)
-        const redirectTo = urlParams.get('redirectTo') || '/dashboard';
-        window.location.replace(redirectTo);
+        const redirectToRaw = urlParams.get('redirectTo') || '/dashboard';
+        const redirectTo = sanitizeRedirect(redirectToRaw);
+        router.replace(redirectTo);
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
-        console.error('Auth callback error:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.error('Auth callback error:', error);
+        }
         
         updateState({
           error: errorMessage,
@@ -103,7 +112,7 @@ export default function AuthCallbackPage() {
         });
         
         // Redirect to signin with error (immediately)
-        window.location.replace(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
+        router.replace(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
       }
     };
 
@@ -136,7 +145,7 @@ export default function AuthCallbackPage() {
     window.history.replaceState(
       {},
       document.title,
-      window.location.pathname + window.location.search
+      window.location.pathname // drop search too; callback page doesn't need it after processing
     );
 
     return data.session;
@@ -153,7 +162,25 @@ export default function AuthCallbackPage() {
     }
 
     const { data } = await supabase.auth.getSession();
+
+    // Clean the URL to remove code/state
+    window.history.replaceState({}, document.title, window.location.pathname);
     return data.session;
+  };
+
+  // Ensure redirectTo is safe and within the app
+  const sanitizeRedirect = (target: string): string => {
+    try {
+      if (!target || typeof target !== 'string') return '/dashboard';
+      // Only allow same-origin paths
+      if (target.startsWith('http://') || target.startsWith('https://')) return '/dashboard';
+      if (!target.startsWith('/')) return '/dashboard';
+      // Avoid redirecting back to callback repeatedly
+      if (target.startsWith('/auth/callback')) return '/dashboard';
+      return target || '/dashboard';
+    } catch {
+      return '/dashboard';
+    }
   };
 
   return (
