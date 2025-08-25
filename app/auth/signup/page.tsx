@@ -28,19 +28,42 @@ export default function SignUpPage() {
       return
     }
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`
-      }
-    })
+    try {
+      // Check if email is blocked before attempting signup
+      const preSignupResponse = await fetch('/api/auth/pre-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
 
-    if (error) {
-      setError(error.message)
-    } else {
-      setSuccess(true)
+      const preSignupData = await preSignupResponse.json()
+
+      if (preSignupData.blocked) {
+        setError(preSignupData.message || 'This email cannot be used for signup at this time')
+        setLoading(false)
+        return
+      }
+
+      // Proceed with signup if email is not blocked
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`
+        }
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess(true)
+      }
+    } catch (error) {
+      setError('Failed to create account. Please try again.')
     }
+    
     setLoading(false)
   }
 

@@ -41,6 +41,25 @@ export async function POST(req: NextRequest) {
       auth: { persistSession: false },
     });
 
+    // Check if email is blocked before attempting signup
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceKey) {
+      const adminClient = createClient(url, serviceKey);
+      const { data: blockedData, error: blockedError } = await adminClient
+        .from('blocked_emails')
+        .select('blocked_until')
+        .eq('email', email)
+        .single();
+
+      if (!blockedError || blockedError.code !== 'PGRST116') {
+        if (blockedData && new Date(blockedData.blocked_until) > new Date()) {
+          return corsJson({
+            error: `This email was recently used for a deactivated account and can't be reused until ${new Date(blockedData.blocked_until).toLocaleString()}`
+          }, { status: 403 });
+        }
+      }
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

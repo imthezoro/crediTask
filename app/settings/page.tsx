@@ -2,6 +2,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import AccountActions from '@/components/AccountActions'
 
 async function getUser() {
   const cookieStore = cookies()
@@ -110,27 +111,10 @@ export default async function SettingsPage() {
           {/* Account Actions */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Account Actions</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-medium text-gray-900 mb-2">Reset Password</h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Send a password reset email to your registered email address.
-                </p>
-                <button className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
-                  Reset Password
-                </button>
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="font-medium text-red-600 mb-2">Danger Zone</h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Permanently delete your account and all associated data.
-                </p>
-                <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-                  Delete Account
-                </button>
-              </div>
-            </div>
+            <AccountActions
+              userEmail={user.email ?? null}
+              isGuest={Boolean(user.email?.includes('@promptok.guest'))}
+            />
           </div>
 
           

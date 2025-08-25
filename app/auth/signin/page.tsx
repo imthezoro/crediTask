@@ -90,23 +90,43 @@ export default function SignInPage() {
     updateFormState({ loading: true, error: '' })
 
     try {
-      const supabase = authService.getSupabaseClient()
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formState.email,
-        password: formState.password,
+      // 1) Call server login API which checks profile status before issuing tokens
+      const deviceId = typeof window !== 'undefined' ? localStorage.getItem('promptok-device-id') : undefined
+      const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formState.email, password: formState.password, device_id: deviceId })
       })
 
-      if (error) {
-        throw new Error(error.message)
+      const payload = await resp.json()
+
+      if (!resp.ok) {
+        // Show server error directly (includes deactivated message)
+        throw new Error(payload?.error || 'Invalid credentials')
       }
 
-      if (data.session) {
-        authService.storeAuthData(data.session)
-        authService.notifyExtension('SIGNED_IN', data.session)
-        window.location.href = '/dashboard'
-      } else {
-        throw new Error('No session created')
+      // 2) Establish Supabase session only after server ok
+      const supabase = authService.getSupabaseClient()
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token
+      })
+      if (setErr) throw new Error(setErr.message)
+
+      // 3) Store auth locally and notify extension
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        authService.storeAuthData(session)
+        authService.notifyExtension('SIGNED_IN', session)
       }
+
+      // 4) (Optional) quick server validation, should pass since login already checked
+      try {
+        await fetch('/api/auth/validate-session', { method: 'POST', credentials: 'include' })
+      } catch {}
+
+      // 5) Navigate
+      window.location.href = '/dashboard'
     } catch (error) {
       updateFormState({ 
         error: error instanceof Error ? error.message : 'Sign in failed' 

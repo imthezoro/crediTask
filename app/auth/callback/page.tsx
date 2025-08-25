@@ -54,6 +54,25 @@ export default function AuthCallbackPage() {
           throw new Error('No valid session created');
         }
 
+        // Validate session and check if account is active
+        const validateResponse = await fetch('/api/auth/validate-session', {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const validateData = await validateResponse.json();
+
+        if (!validateData.valid) {
+          // Sign out the user immediately to clean up the session
+          await supabase.auth.signOut();
+          
+          if (validateData.reason === 'deactivated') {
+            throw new Error(validateData.message || 'This account has been deactivated. Please create a new account to continue.');
+          } else {
+            throw new Error('Session validation failed');
+          }
+        }
+
         // Store session and notify extension
         authService.storeAuthData(session);
         authService.notifyExtension('SIGNED_IN', session);

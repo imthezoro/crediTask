@@ -37,6 +37,22 @@ export async function POST(req: NextRequest) {
     if (error || !data?.session || !data.user) {
       return corsJson({ error: error?.message || 'Invalid credentials' }, { status: 401 });
     }
+
+    // Check if the user account is soft-deleted/inactive
+    const { data: profileData, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('is_active, deleted_at')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError || !profileData || !profileData.is_active) {
+      // Sign out the user immediately to clean up the session
+      await supabase.auth.signOut();
+      
+      return corsJson({ 
+        error: 'This account has been deactivated. Please create a new account to continue.' 
+      }, { status: 401 });
+    }
     
     // Get client IP address from request
     const clientIp = getClientIP(req);
@@ -59,7 +75,8 @@ export async function POST(req: NextRequest) {
     }
     
     return corsJson({ 
-      access_token: data.session.access_token, 
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
       user: data.user,
       device_id: deviceId 
     });

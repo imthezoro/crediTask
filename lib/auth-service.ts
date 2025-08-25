@@ -498,12 +498,29 @@ export class AuthService {
 
   /**
    * Validate and refresh token if needed
+   * Also checks if user account is soft-deleted
    */
   async validateAndRefreshToken(): Promise<{ valid: boolean; session?: any }> {
     try {
       const { data, error } = await this.supabase.auth.getSession();
       
       if (error || !data.session) {
+        return { valid: false };
+      }
+      
+      // Check if the user account is soft-deleted/inactive
+      const { data: profileData, error: profileError } = await this.supabase
+        .from('user_profiles')
+        .select('is_active, deleted_at')
+        .eq('id', data.session.user.id)
+        .single();
+
+      if (profileError || !profileData || !profileData.is_active) {
+        // Account is deactivated, sign out and invalidate session
+        await this.supabase.auth.signOut();
+        this.clearStoredAuthData();
+        // Also notify the extension so it clears its own session state
+        this.notifyExtension('SIGNED_OUT');
         return { valid: false };
       }
       

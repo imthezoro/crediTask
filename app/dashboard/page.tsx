@@ -34,6 +34,26 @@ export default function Dashboard() {
       
       if (session && session.user) {
         console.log('✅ Dashboard: User authenticated via session:', session.user.id)
+        // Validate session and active profile via server to enforce deactivation immediately
+        try {
+          const validateResp = await fetch('/api/auth/validate-session', {
+            method: 'POST',
+            credentials: 'include'
+          })
+          const validateData = await validateResp.json()
+          if (!validateData.valid) {
+            console.warn('❌ Dashboard: Session invalid or deactivated, redirecting.', validateData)
+            // Cleanup local state and redirect
+            localStorage.removeItem('sb-access-token')
+            localStorage.removeItem('sb-user-data')
+            router.push('/auth/signin')
+            return
+          }
+        } catch (vErr) {
+          console.error('Dashboard validate-session error:', vErr)
+          router.push('/auth/signin')
+          return
+        }
         setUser(session.user)
         
         // Get user profile

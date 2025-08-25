@@ -64,45 +64,62 @@ export async function POST(req: NextRequest) {
       });
       
       if (existingUser?.user?.email) {
-        // Generate a new temporary password for the session
-        const tempPassword = Math.random().toString(36).substring(2, 15) + 
-                            Math.random().toString(36).substring(2, 15);
-        
-        console.log('Updating existing user password...');
-        // Update the user's password and sign them in
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          check.existing_guest_id,
-          { password: tempPassword }
-        );
-        
-        console.log('Password update result:', { updateError: updateError?.message });
-        
-        if (!updateError) {
-          console.log('Signing in existing user with new password...');
-          // Sign in with the updated password
-          const signInResult = await supabase.auth.signInWithPassword({
-            email: existingUser.user.email,
-            password: tempPassword
-          });
-          
-          console.log('Sign in result:', { 
-            hasSession: !!signInResult.data?.session,
-            hasUser: !!signInResult.data?.user,
-            error: signInResult.error?.message 
-          });
-          
-          data = signInResult.data;
-          error = signInResult.error;
+        // Check if the existing user account is soft-deleted/inactive
+        const { data: profileData, error: profileError } = await supabaseAdmin
+          .from('user_profiles')
+          .select('is_active, deleted_at')
+          .eq('id', check.existing_guest_id)
+          .single();
+
+        if (profileError || !profileData || !profileData.is_active) {
+          console.log('Existing guest account is deactivated, creating new account');
+          // Don't reuse deactivated account, create new one instead
+          data = null;
+          error = null;
         } else {
-          console.error('Failed to update existing user password:', updateError);
-          error = updateError;
+          // Generate a new temporary password for the session
+          const tempPassword = Math.random().toString(36).substring(2, 15) + 
+                              Math.random().toString(36).substring(2, 15);
+          
+          console.log('Updating existing user password...');
+          // Update the user's password and sign them in
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            check.existing_guest_id,
+            { password: tempPassword }
+          );
+          
+          console.log('Password update result:', { updateError: updateError?.message });
+          
+          if (!updateError) {
+            console.log('Signing in existing user with new password...');
+            // Sign in with the updated password
+            const signInResult = await supabase.auth.signInWithPassword({
+              email: existingUser.user.email,
+              password: tempPassword
+            });
+            
+            console.log('Sign in result:', { 
+              hasSession: !!signInResult.data?.session,
+              hasUser: !!signInResult.data?.user,
+              error: signInResult.error?.message 
+            });
+            
+            data = signInResult.data;
+            error = signInResult.error;
+          } else {
+            console.error('Failed to update existing user password:', updateError);
+            error = updateError;
+          }
         }
       } else {
         console.error('Could not find existing user email');
         error = new Error('Could not find existing user');
       }
-    } else {
-      // Create new guest user
+    }
+    
+    // If we need to create a new guest user (either no existing account or existing was deactivated)
+    if (!data || !data.session) {
+      console.log('Creating new guest user...');
       const randomId = Math.random().toString(36).substring(2, 15);
       const email = `guest_${randomId}_${deviceId}@promptok.guest`;
       const password = Math.random().toString(36).substring(2, 15) + 
