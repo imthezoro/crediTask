@@ -24,16 +24,10 @@ export default function AuthCallbackPage() {
     const processAuthCallback = async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
-        const errorParam = urlParams.get('error');
-        
-        // Check for OAuth error in URL
-        if (errorParam) {
-          throw new Error(`OAuth error: ${errorParam}`);
-        }
-
         const supabase = authService.getSupabaseClient();
         let session = null;
 
+        // PRIORITY: Process tokens first, ignore error params if tokens are present
         // Handle hash-based tokens (implicit flow)
         if (window.location.hash?.includes('access_token')) {
           session = await handleHashTokens(supabase);
@@ -42,6 +36,14 @@ export default function AuthCallbackPage() {
         // Handle code-based flow (PKCE)
         if (!session) {
           session = await handleCodeExchange(supabase, urlParams);
+        }
+        
+        // Only check for OAuth error if no tokens were processed
+        if (!session) {
+          const errorParam = urlParams.get('error');
+          if (errorParam) {
+            throw new Error(`OAuth error: ${errorParam}`);
+          }
         }
         
         // Verify we have a valid session
@@ -55,9 +57,11 @@ export default function AuthCallbackPage() {
         }
 
         // Validate session and check if account is active
+        const accessToken = session?.access_token
         const validateResponse = await fetch('/api/auth/validate-session', {
           method: 'POST',
-          credentials: 'include'
+          credentials: 'include',
+          headers: accessToken ? { 'Authorization': `Bearer ${accessToken}` } : undefined
         });
 
         const validateData = await validateResponse.json();
@@ -67,6 +71,8 @@ export default function AuthCallbackPage() {
           await supabase.auth.signOut();
           
           if (validateData.reason === 'deactivated') {
+            // Set a flag so the signin page knows to skip processing hash tokens
+            try { sessionStorage.setItem('promptok-skip-oauth-hash-once', '1') } catch {}
             throw new Error(validateData.message || 'This account has been deactivated. Please create a new account to continue.');
           } else {
             throw new Error('Session validation failed');
@@ -82,11 +88,9 @@ export default function AuthCallbackPage() {
           isProcessing: false 
         });
         
-        // Redirect to destination
+        // Redirect to destination (immediately)
         const redirectTo = urlParams.get('redirectTo') || '/dashboard';
-        setTimeout(() => {
-          window.location.replace(redirectTo);
-        }, 500);
+        window.location.replace(redirectTo);
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
@@ -98,10 +102,8 @@ export default function AuthCallbackPage() {
           isProcessing: false
         });
         
-        // Redirect to signin with error after delay
-        setTimeout(() => {
-          window.location.replace(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
-        }, 2000);
+        // Redirect to signin with error (immediately)
+        window.location.replace(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
       }
     };
 

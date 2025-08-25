@@ -29,50 +29,49 @@ export default function SignInPage() {
 
   const clearError = () => updateFormState({ error: '' })
 
-  // Handle OAuth tokens in URL hash
+  // Centralize OAuth handling in /auth/callback to avoid loops
   useEffect(() => {
-    const handleOAuthTokens = async () => {
+    const handleOAuthTokens = () => {
       if (typeof window === 'undefined') return
-      
+
+      // Check if we should skip OAuth hash processing (set by callback after deactivation)
+      const skipOAuthHash = sessionStorage.getItem('promptok-skip-oauth-hash-once')
+      if (skipOAuthHash) {
+        sessionStorage.removeItem('promptok-skip-oauth-hash-once')
+        // Still process error params but don't forward tokens
+        const urlParams = new URLSearchParams(window.location.search)
+        const errorParam = urlParams.get('error')
+        if (errorParam) {
+          updateFormState({ error: decodeURIComponent(errorParam) })
+          window.history.replaceState({}, document.title, window.location.pathname)
+        }
+        return
+      }
+
+      const urlParams = new URLSearchParams(window.location.search)
       const hash = window.location.hash
-      if (!hash || !hash.includes('access_token')) return
+      
+      // Handle PKCE code flow - forward to callback with code only (no error)
+      const code = urlParams.get('code')
+      const state = urlParams.get('state')
+      if (code && state) {
+        const callbackUrl = `/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`
+        window.location.replace(callbackUrl)
+        return
+      }
 
-      try {
-        const hashParams = new URLSearchParams(hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const refreshToken = hashParams.get('refresh_token')
+      // Handle hash-based tokens - forward to callback with hash only (no error)
+      const hasTokens = !!hash && hash.includes('access_token')
+      if (hasTokens) {
+        window.location.replace(`/auth/callback${hash}`)
+        return
+      }
 
-        if (!accessToken || !refreshToken) {
-          throw new Error('Missing required tokens')
-        }
-
-        const supabase = authService.getSupabaseClient()
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
-
-        if (error) {
-          throw new Error(error.message)
-        }
-
-        // Clean URL to remove sensitive tokens
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname + window.location.search
-        )
-
-        if (data?.session) {
-          authService.storeAuthData(data.session)
-          authService.notifyExtension('SIGNED_IN', data.session)
-          window.location.replace('/dashboard')
-        }
-      } catch (error) {
-        console.error('OAuth token handling failed:', error)
-        updateFormState({ 
-          error: `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-        })
+      // Otherwise, just surface any error param (from callback or server)
+      const errorParam = urlParams.get('error')
+      if (errorParam) {
+        updateFormState({ error: decodeURIComponent(errorParam) })
+        window.history.replaceState({}, document.title, window.location.pathname)
       }
     }
 
@@ -122,7 +121,12 @@ export default function SignInPage() {
 
       // 4) (Optional) quick server validation, should pass since login already checked
       try {
-        await fetch('/api/auth/validate-session', { method: 'POST', credentials: 'include' })
+        const token = session?.access_token
+        await fetch('/api/auth/validate-session', { 
+          method: 'POST', 
+          credentials: 'include',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
+        })
       } catch {}
 
       // 5) Navigate
