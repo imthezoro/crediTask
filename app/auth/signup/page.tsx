@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,6 +17,24 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [countdown, setCountdown] = useState(3)
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!success) return
+    setCountdown(3)
+    const interval = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(interval)
+          router.replace('/auth/signin')
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [success, router])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -92,6 +111,12 @@ export default function SignUpPage() {
               We've sent you a confirmation link at <strong>{email}</strong>. 
               Click the link to activate your account.
             </p>
+            <p className="mt-4 text-sm text-gray-500">Redirecting to sign in in {countdown}…</p>
+            <div className="mt-3">
+              <Link href="/auth/signin" className="text-blue-600 hover:text-blue-500 text-sm">
+                Or click here to go to sign in now
+              </Link>
+            </div>
           </div>
         </div>
       </div>
