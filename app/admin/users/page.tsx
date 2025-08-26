@@ -2,7 +2,8 @@ import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import AdminTable from '@/components/AdminTable'
+import AdminUsersTable from '@/components/AdminUsersTable'
+import AdminNav from '@/components/AdminNav'
 
 async function getUsers() {
   const cookieStore = cookies()
@@ -25,63 +26,13 @@ async function getUsers() {
 export default async function AdminUsersPage() {
   const users = await getUsers()
 
-  const columns = [
-    { key: 'id', label: 'ID' },
-    { 
-      key: 'email', 
-      label: 'Email',
-      render: (value: string) => value && value.includes('@promptok.guest') ? 'Guest' : value
-    },
-    { 
-      key: 'plan', 
-      label: 'Plan',
-      render: (value: string) => (
-        <span className="capitalize px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-          {value || 'free'}
-        </span>
-      )
-    },
-    { key: 'usage_count', label: 'Usage Count' },
-    { 
-      key: 'plan_valid_until', 
-      label: 'Plan Valid Until',
-      render: (value: string) => value ? new Date(value).toLocaleDateString() : 'N/A'
-    },
-    { 
-      key: 'created_at', 
-      label: 'Created',
-      render: (value: string) => new Date(value).toLocaleDateString()
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (value: any, row: any) => (
-        <div className="flex space-x-2">
-          <button className="text-blue-600 hover:text-blue-700 text-sm">
-            Edit Plan
-          </button>
-          <button className="text-green-600 hover:text-green-700 text-sm">
-            Reset Usage
-          </button>
-          <button className="text-red-600 hover:text-red-700 text-sm">
-            Suspend
-          </button>
-        </div>
-      )
-    }
-  ]
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <nav className="space-x-4">
-              <Link href="/admin" className="text-blue-600 hover:text-blue-700">Dashboard</Link>
-              <Link href="/admin/payments" className="text-blue-600 hover:text-blue-700">Payments</Link>
-              <Link href="/admin/analytics" className="text-blue-600 hover:text-blue-700">Analytics</Link>
-            </nav>
+            <AdminNav />
           </div>
         </div>
       </div>
@@ -108,7 +59,7 @@ export default async function AdminUsersPage() {
           </div>
           
           <div className="p-6">
-            <AdminTable columns={columns} data={users} />
+            <AdminUsersTable users={users} />
           </div>
         </div>
 

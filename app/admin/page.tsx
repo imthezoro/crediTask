@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import KPI from '@/components/KPI'
+import AdminNav from '@/components/AdminNav'
 
 async function getAdminData() {
   const cookieStore = cookies()
@@ -64,12 +65,7 @@ export default async function AdminDashboard() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <nav className="space-x-4">
-              <Link href="/admin/users" className="text-blue-600 hover:text-blue-700">Users</Link>
-              <Link href="/admin/payments" className="text-blue-600 hover:text-blue-700">Payments</Link>
-              <Link href="/admin/analytics" className="text-blue-600 hover:text-blue-700">Analytics</Link>
-              <Link href="/admin/alerts" className="text-blue-600 hover:text-blue-700">Alerts</Link>
-            </nav>
+            <AdminNav />
           </div>
         </div>
       </div>

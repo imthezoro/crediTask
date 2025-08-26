@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
+import AdminNav from '@/components/AdminNav'
 
 async function getAnalyticsData() {
   const cookieStore = cookies()
@@ -67,11 +68,7 @@ export default async function AdminAnalyticsPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-            <nav className="space-x-4">
-              <Link href="/admin" className="text-blue-600 hover:text-blue-700">Dashboard</Link>
-              <Link href="/admin/users" className="text-blue-600 hover:text-blue-700">Users</Link>
-              <Link href="/admin/payments" className="text-blue-600 hover:text-blue-700">Payments</Link>
-            </nav>
+            <AdminNav />
           </div>
         </div>
       </div>
