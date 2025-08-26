@@ -61,25 +61,34 @@ export default function AdminNav() {
         />
       </div>
 
-      <nav className="space-x-4">
-        {items.map((item) => {
-          const active = pathname === item.href
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setLoading(true)}
-              className={
-                (active
-                  ? 'text-blue-700 font-semibold underline underline-offset-4'
-                  : 'text-blue-600 hover:text-blue-700') + ' transition-colors'
-              }
-            >
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
+      <div className="flex items-center justify-between">
+        <nav className="space-x-4">
+          {items.map((item) => {
+            const active = pathname === item.href
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setLoading(true)}
+                className={
+                  (active
+                    ? 'text-blue-700 font-semibold underline underline-offset-4'
+                    : 'text-blue-600 hover:text-blue-700') + ' transition-colors'
+                }
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
+        <Link
+          href="/dashboard"
+          onClick={() => setLoading(true)}
+          className="ml-4 inline-flex items-center rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 border border-blue-200"
+        >
+          Back to Dashboard
+        </Link>
+      </div>
     </div>
   )
 }

@@ -212,6 +212,9 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
             <nav className="space-x-4">
               <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
+              {profile?.is_admin && (
+                <Link href="/admin" className="text-blue-600 hover:text-blue-700">Admin</Link>
+              )}
               <button 
                 onClick={handleLogout}
                 className="text-red-600 hover:text-red-700"
