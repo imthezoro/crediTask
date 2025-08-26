@@ -1,11 +1,11 @@
-import { createServerClient, isUserAdmin, getUserEmailsMap } from '@/lib/supabase-server'
+import { createServerClient, createAdminClient, isUserAdmin, getUserEmailsMap } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import AdminPaymentsTable from '@/components/AdminPaymentsTable'
 import AdminNav from '@/components/AdminNav'
-import PaymentExportPanel from '@/components/PaymentExportPanel'
 
 async function getPayments() {
   const supabase = createServerClient()
+  const admin = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   
@@ -13,8 +13,8 @@ async function getPayments() {
     redirect('/dashboard')
   }
 
-  // Fetch payments
-  const { data: payments } = await supabase
+  // Fetch payments with admin client (bypasses RLS)
+  const { data: payments } = await admin
     .from('payments')
     .select('*')
     .order('created_at', { ascending: false })
@@ -110,8 +110,7 @@ export default async function AdminPaymentsPage() {
           </div>
         </div>
 
-        {/* Export Actions */}
-        <PaymentExportPanel />
+        {/* Export actions removed as per requirements */}
       </div>
     </div>
   )

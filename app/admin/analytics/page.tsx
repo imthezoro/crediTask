@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
 import AdminNav from '@/components/AdminNav'
-import AnalyticsExportPanel from '@/components/AnalyticsExportPanel'
+// Export panel removed per requirements
 
 async function getAnalyticsData() {
   const supabase = createServerClient()
@@ -202,8 +202,7 @@ export default async function AdminAnalyticsPage() {
           </div>
         </div>
 
-        {/* Export Options */}
-        <AnalyticsExportPanel />
+        {/* Export options removed as per requirements */}
       </div>
     </div>
   )

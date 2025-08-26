@@ -2,7 +2,6 @@ import { createServerClient, createAdminClient, isUserAdmin } from '@/lib/supaba
 import { redirect } from 'next/navigation'
 import AdminUsersTable from '@/components/AdminUsersTable'
 import AdminNav from '@/components/AdminNav'
-import BulkActionsPanel from '@/components/BulkActionsPanel'
 
 async function getUsers() {
   const supabase = createServerClient()
@@ -76,9 +75,6 @@ export default async function AdminUsersPage() {
             <AdminUsersTable users={users} />
           </div>
         </div>
-
-        {/* Bulk Actions */}
-        <BulkActionsPanel />
       </div>
     </div>
   )
