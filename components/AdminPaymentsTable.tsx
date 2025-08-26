@@ -30,6 +30,7 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
   
   const makeApiCall = async (paymentId: string, action: string, data?: any) => {
     setLoading(paymentId)
+    try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
     try {
       const token = document.cookie
         .split('; ')
@@ -56,11 +57,13 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       showToast('Action failed. Please try again.', 'error')
     } finally {
       setLoading(null)
+      try { window.dispatchEvent(new Event('admin:loading:end')) } catch {}
     }
   }
 
   const handleView = async (row: any) => {
     try {
+      try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
       const token = document.cookie
         .split('; ')
         .find(row => row.startsWith('sb-access-token='))
@@ -79,6 +82,8 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       }
     } catch (error) {
       showToast('Failed to load payment details', 'error')
+    } finally {
+      try { window.dispatchEvent(new Event('admin:loading:end')) } catch {}
     }
   }
   

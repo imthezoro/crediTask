@@ -30,9 +30,15 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     const t = setTimeout(() => setToast(null), 2500)
     return () => clearTimeout(t)
   }, [toast])
+
+  // End admin subtle loader when fresh users render (covers same-path query changes)
+  useEffect(() => {
+    try { window.dispatchEvent(new Event('admin:loading:end')) } catch {}
+  }, [users])
   
   const makeApiCall = async (userId: string, action: string, data?: any) => {
     setLoading(userId)
+    try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
     try {
       const token = document.cookie
         .split('; ')
@@ -59,6 +65,7 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
       showToast('Action failed. Please try again.', 'error')
     } finally {
       setLoading(null)
+      try { window.dispatchEvent(new Event('admin:loading:end')) } catch {}
     }
   }
 
@@ -87,6 +94,7 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     const nextDir: 'asc' | 'desc' = currentKey === key && currentDir === 'asc' ? 'desc' : 'asc'
     params.set('sortBy', key)
     params.set('sortDir', nextDir)
+    try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
     router.push(`/admin/users?${params.toString()}`)
   }
 
@@ -121,6 +129,12 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
       render: (value: string) => formatDate(value)
     },
     {
+      key: 'updated_at',
+      label: 'Updated',
+      sortable: true,
+      render: (value: string) => formatDate(value)
+    },
+    {
       key: 'is_active',
       label: 'Status',
       sortable: true,
@@ -131,6 +145,12 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
           {value ? 'Active' : 'Suspended'}
         </span>
       )
+    },
+    {
+      key: 'deleted_at',
+      label: 'Deleted At',
+      sortable: true,
+      render: (value: string) => (value ? formatDate(value) : '—')
     },
     {
       key: 'actions',
@@ -179,7 +199,7 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
 
       {/* Non-blocking loading overlay */}
       {loading && (
-        <div className="pointer-events-none fixed inset-0 flex items-end justify-end p-4 z-40">
+        <div className="pointer-events-none fixed inset-0 flex items-end justify-end p-4 z-50">
           <div className="bg-white/80 backdrop-blur px-3 py-2 rounded shadow text-sm flex items-center gap-2">
             <svg className="animate-spin h-4 w-4 text-gray-800" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>

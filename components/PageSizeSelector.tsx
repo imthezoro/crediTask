@@ -16,6 +16,7 @@ export default function PageSizeSelector({ action, pageSize, params }: Props) {
     if (formRef.current) {
       const pageInput = formRef.current.querySelector<HTMLInputElement>('input[name="page"]')
       if (pageInput) pageInput.value = '1'
+      try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
       formRef.current.submit()
     }
   }
