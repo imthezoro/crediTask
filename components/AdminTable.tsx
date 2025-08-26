@@ -4,15 +4,19 @@ interface Column {
   key: string
   label: string
   render?: (value: any, row: any) => React.ReactNode
+  sortable?: boolean
 }
 
 interface AdminTableProps {
   columns: Column[]
   data: any[]
   loading?: boolean
+  sortBy?: string
+  sortDir?: 'asc' | 'desc'
+  onSort?: (key: string) => void
 }
 
-export default function AdminTable({ columns, data, loading }: AdminTableProps) {
+export default function AdminTable({ columns, data, loading, sortBy, sortDir, onSort }: AdminTableProps) {
   if (loading) {
     return (
       <div className="animate-pulse">
@@ -36,7 +40,25 @@ export default function AdminTable({ columns, data, loading }: AdminTableProps) 
                 key={column.key}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
-                {column.label}
+                {onSort && column.sortable ? (
+                  <button
+                    type="button"
+                    onClick={() => onSort(column.key)}
+                    className="flex items-center gap-1 select-none hover:text-gray-700"
+                    aria-label={`Sort by ${column.label}`}
+                  >
+                    <span>{column.label}</span>
+                    <span className="text-[10px] leading-none">
+                      {sortBy === column.key ? (
+                        sortDir === 'asc' ? '▲' : '▼'
+                      ) : (
+                        '↕'
+                      )}
+                    </span>
+                  </button>
+                ) : (
+                  column.label
+                )}
               </th>
             ))}
           </tr>

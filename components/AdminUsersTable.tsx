@@ -2,7 +2,7 @@
 
 import AdminTable from '@/components/AdminTable'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 
 interface AdminUsersTableProps {
@@ -11,7 +11,16 @@ interface AdminUsersTableProps {
 
 export default function AdminUsersTable({ users }: AdminUsersTableProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState<string | null>(null)
+  const formatDate = (s: string) => {
+    if (!s) return 'N/A'
+    try {
+      return new Date(s).toISOString().slice(0, 10) // YYYY-MM-DD in UTC
+    } catch {
+      return 'N/A'
+    }
+  }
   
   const makeApiCall = async (userId: string, action: string, data?: any) => {
     setLoading(userId)
@@ -69,6 +78,18 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     }
   }
 
+  const sortBy = searchParams.get('sortBy') || 'created_at'
+  const sortDir = (searchParams.get('sortDir') as 'asc' | 'desc') || 'desc'
+  const onSort = (key: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    const currentKey = params.get('sortBy') || 'created_at'
+    const currentDir = (params.get('sortDir') as 'asc' | 'desc') || 'desc'
+    const nextDir: 'asc' | 'desc' = currentKey === key && currentDir === 'asc' ? 'desc' : 'asc'
+    params.set('sortBy', key)
+    params.set('sortDir', nextDir)
+    router.push(`/admin/users?${params.toString()}`)
+  }
+
   const columns = [
     { key: 'id', label: 'ID' },
     {
@@ -79,26 +100,30 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     {
       key: 'plan',
       label: 'Plan',
+      sortable: true,
       render: (value: string) => (
         <span className="capitalize px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
           {value || 'free'}
         </span>
       )
     },
-    { key: 'usage_count', label: 'Usage Count' },
+    { key: 'usage_count', label: 'Usage Count', sortable: true },
     {
       key: 'plan_valid_until',
       label: 'Plan Valid Until',
-      render: (value: string) => (value ? new Date(value).toLocaleDateString() : 'N/A')
+      sortable: true,
+      render: (value: string) => formatDate(value)
     },
     {
       key: 'created_at',
       label: 'Created',
-      render: (value: string) => new Date(value).toLocaleDateString()
+      sortable: true,
+      render: (value: string) => formatDate(value)
     },
     {
       key: 'is_active',
       label: 'Status',
+      sortable: true,
       render: (value: boolean) => (
         <span className={`px-2 py-1 rounded-full text-xs ${
           value ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -148,5 +173,5 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     }
   ]
 
-  return <AdminTable columns={columns} data={users} />
+  return <AdminTable columns={columns} data={users} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
 }

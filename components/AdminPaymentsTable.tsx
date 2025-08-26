@@ -11,6 +11,14 @@ interface AdminPaymentsTableProps {
 export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
+  const formatDate = (s: string) => {
+    if (!s) return 'N/A'
+    try {
+      return new Date(s).toISOString().slice(0, 10) // YYYY-MM-DD in UTC
+    } catch {
+      return 'N/A'
+    }
+  }
   
   const makeApiCall = async (paymentId: string, action: string, data?: any) => {
     setLoading(paymentId)
@@ -58,7 +66,8 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
 
       if (response.ok) {
         const payment = await response.json()
-        alert(`Payment Details:\nID: ${payment.id}\nUser: ${payment.user_email}\nAmount: ${payment.currency?.toUpperCase()} ${(payment.amount_cents / 100).toFixed(2)}\nStatus: ${payment.status}\nProvider: ${payment.provider}\nCreated: ${new Date(payment.created_at).toLocaleString()}`)
+        const created = payment.created_at ? new Date(payment.created_at).toISOString() : 'N/A'
+        alert(`Payment Details\nID: ${payment.id}\nUser: ${payment.user_email}\nAmount: ${payment.currency?.toUpperCase()} ${(payment.amount_cents / 100).toFixed(2)}\nStatus: ${payment.status}\nProvider: ${payment.provider}\nCreated: ${created}`)
       }
     } catch (error) {
       alert('Failed to load payment details')
@@ -116,7 +125,7 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       )
     },
     { key: 'provider', label: 'Provider', render: (value: string) => <span className="capitalize">{value}</span> },
-    { key: 'created_at', label: 'Date', render: (value: string) => new Date(value).toLocaleDateString() },
+    { key: 'created_at', label: 'Date', render: (value: string) => formatDate(value) },
     {
       key: 'actions',
       label: 'Actions',
