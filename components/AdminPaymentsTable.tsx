@@ -1,31 +1,88 @@
 'use client'
 
 import AdminTable from '@/components/AdminTable'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface AdminPaymentsTableProps {
   payments: any[]
 }
 
 export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps) {
-  const handleView = (row: any) => {
-    console.log('View payment', row)
-    alert(`View payment ${row.id}`)
+  const router = useRouter()
+  const [loading, setLoading] = useState<string | null>(null)
+  
+  const makeApiCall = async (paymentId: string, action: string, data?: any) => {
+    setLoading(paymentId)
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-access-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/admin/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action, ...data })
+      })
+
+      if (!response.ok) {
+        throw new Error('Action failed')
+      }
+
+      const result = await response.json()
+      alert(result.message || 'Action completed successfully')
+      router.refresh()
+    } catch (error) {
+      alert('Action failed. Please try again.')
+    } finally {
+      setLoading(null)
+    }
   }
+
+  const handleView = async (row: any) => {
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('sb-access-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/admin/payments/${row.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const payment = await response.json()
+        alert(`Payment Details:\nID: ${payment.id}\nUser: ${payment.user_email}\nAmount: ${payment.currency?.toUpperCase()} ${(payment.amount_cents / 100).toFixed(2)}\nStatus: ${payment.status}\nProvider: ${payment.provider}\nCreated: ${new Date(payment.created_at).toLocaleString()}`)
+      }
+    } catch (error) {
+      alert('Failed to load payment details')
+    }
+  }
+  
   const handleMarkCompleted = (row: any) => {
-    console.log('Mark completed', row)
-    alert(`Mark payment ${row.id} as completed`)
+    if (confirm('Mark this payment as completed?')) {
+      makeApiCall(row.id, 'mark-completed')
+    }
   }
+  
   const handleRefund = (row: any) => {
-    console.log('Refund', row)
-    alert(`Refund payment ${row.id}`)
+    if (confirm('Process refund for this payment?')) {
+      makeApiCall(row.id, 'refund')
+    }
   }
 
   const columns = [
     { key: 'id', label: 'Payment ID' },
     {
-      key: 'user_profiles',
+      key: 'user_email',
       label: 'User Email',
-      render: (value: any) => value?.email || 'N/A'
+      render: (value: string) => value || 'N/A'
     },
     {
       key: 'plan',
@@ -65,12 +122,29 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       label: 'Actions',
       render: (_: any, row: any) => (
         <div className="flex space-x-2">
-          <button onClick={() => handleView(row)} className="text-blue-600 hover:text-blue-700 text-sm">View Details</button>
+          <button 
+            onClick={() => handleView(row)} 
+            className="text-blue-600 hover:text-blue-700 text-sm"
+          >
+            View Details
+          </button>
           {row.status === 'pending' && (
-            <button onClick={() => handleMarkCompleted(row)} className="text-green-600 hover:text-green-700 text-sm">Mark Completed</button>
+            <button 
+              onClick={() => handleMarkCompleted(row)} 
+              disabled={loading === row.id}
+              className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
+            >
+              Mark Completed
+            </button>
           )}
           {row.status === 'completed' && (
-            <button onClick={() => handleRefund(row)} className="text-red-600 hover:text-red-700 text-sm">Refund</button>
+            <button 
+              onClick={() => handleRefund(row)} 
+              disabled={loading === row.id}
+              className="text-red-600 hover:text-red-700 text-sm disabled:opacity-50"
+            >
+              Refund
+            </button>
           )}
         </div>
       )

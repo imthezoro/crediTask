@@ -42,6 +42,10 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "saas-boilerplate-temp/**",
+    "supabase/functions/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

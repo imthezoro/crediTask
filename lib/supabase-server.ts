@@ -45,5 +45,27 @@ export async function isUserAdmin(userId: string): Promise<boolean> {
     .single()
     
   if (error || !data) return false
-  return data.is_admin || false
+  return !!(data as { is_admin?: boolean }).is_admin
+}
+
+// Helper: get a single user's email by ID via Admin API
+export async function getUserEmailById(userId: string): Promise<string | null> {
+  try {
+    const admin = createAdminClient()
+    const { data } = await admin.auth.admin.getUserById(userId)
+    return data?.user?.email ?? null
+  } catch {
+    return null
+  }
+}
+
+// Helper: build an ID->email map for a set of user IDs via Admin API
+export async function getUserEmailsMap(userIds: string[]): Promise<Record<string, string>> {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean))) as string[]
+  const result: Record<string, string> = {}
+  for (const id of uniqueIds) {
+    const email = await getUserEmailById(id)
+    if (email) result[id] = email
+  }
+  return result
 }

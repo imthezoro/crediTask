@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AdminIncidentsTable from '@/components/AdminIncidentsTable'
 import AdminNav from '@/components/AdminNav'
+import CreateIncidentForm from '@/components/CreateIncidentForm'
 
 async function getIncidents() {
   const cookieStore = cookies()
@@ -71,44 +72,7 @@ export default async function AdminAlertsPage() {
         </div>
 
         {/* Create New Incident */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Create Manual Incident</h2>
-          <form className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                placeholder="Brief incident description"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
-              <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                placeholder="Detailed incident description and impact"
-              ></textarea>
-            </div>
-            <div className="md:col-span-2">
-              <button
-                type="submit"
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Create Incident
-              </button>
-            </div>
-          </form>
-        </div>
+        <CreateIncidentForm />
 
         {/* Incidents Table */}
         <div className="bg-white rounded-lg shadow">

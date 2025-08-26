@@ -1,13 +1,12 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { createServerClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import AdminUsersTable from '@/components/AdminUsersTable'
 import AdminNav from '@/components/AdminNav'
+import BulkActionsPanel from '@/components/BulkActionsPanel'
 
 async function getUsers() {
-  const cookieStore = cookies()
   const supabase = createServerClient()
+  const adminClient = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   
@@ -15,12 +14,27 @@ async function getUsers() {
     redirect('/dashboard')
   }
 
-  const { data: users } = await supabase
+  const { data: users } = await adminClient
     .from('user_profiles')
     .select('*')
     .order('created_at', { ascending: false })
 
-  return users || []
+  const profiles = users || []
+
+  // Build email map via Admin API
+  const { data: authUsers } = await adminClient.auth.admin.listUsers()
+  const emailMap = (authUsers?.users || []).reduce((acc: any, u: any) => {
+    acc[u.id] = u.email
+    return acc
+  }, {} as Record<string, string>)
+
+  // Enrich profiles with email field expected by AdminUsersTable
+  const enriched = profiles.map((p: any) => ({
+    ...p,
+    email: emailMap[p.id] || 'N/A'
+  }))
+
+  return enriched
 }
 
 export default async function AdminUsersPage() {
@@ -64,20 +78,7 @@ export default async function AdminUsersPage() {
         </div>
 
         {/* Bulk Actions */}
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Bulk Actions</h3>
-          <div className="flex space-x-4">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              Export Users
-            </button>
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-              Send Notification
-            </button>
-            <button className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors">
-              Reset Usage (All)
-            </button>
-          </div>
-        </div>
+        <BulkActionsPanel />
       </div>
     </div>
   )

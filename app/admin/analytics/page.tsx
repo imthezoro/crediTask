@@ -1,14 +1,13 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { createServerClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
 import AdminNav from '@/components/AdminNav'
+import AnalyticsExportPanel from '@/components/AnalyticsExportPanel'
 
 async function getAnalyticsData() {
-  const cookieStore = cookies()
   const supabase = createServerClient()
+  const admin = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   
@@ -18,17 +17,38 @@ async function getAnalyticsData() {
 
   // Get usage data for last 7 days
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  const { data: weeklyUsage } = await supabase
+  const { data: weeklyUsage } = await admin
     .from('prompt_sessions')
-    .select('created_at')
+    .select('created_at, status')
     .gte('created_at', sevenDaysAgo.toISOString())
 
   // Get usage data for last 30 days
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const { data: monthlyUsage } = await supabase
+  const { data: monthlyUsage } = await admin
     .from('prompt_sessions')
-    .select('created_at')
+    .select('created_at, status')
     .gte('created_at', thirtyDaysAgo.toISOString())
+
+  // Get user engagement data
+  const { count: dailyActiveUsers } = await admin
+    .from('prompt_sessions')
+    .select('user_id', { count: 'exact', head: true })
+    .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+
+  const { count: weeklyActiveUsers } = await admin
+    .from('prompt_sessions')
+    .select('user_id', { count: 'exact', head: true })
+    .gte('created_at', sevenDaysAgo.toISOString())
+
+  const { count: monthlyActiveUsers } = await admin
+    .from('prompt_sessions')
+    .select('user_id', { count: 'exact', head: true })
+    .gte('created_at', thirtyDaysAgo.toISOString())
+
+  // Get feature usage stats
+  const totalSessions = monthlyUsage?.length || 0
+  const completedSessions = monthlyUsage?.filter(s => s.status === 'completed').length || 0
+  const failedSessions = monthlyUsage?.filter(s => s.status === 'failed').length || 0
 
   // Process data for charts
   const processUsageData = (data: any[], days: number) => {
@@ -55,12 +75,22 @@ async function getAnalyticsData() {
     weeklyData,
     monthlyData,
     totalWeekly: weeklyUsage?.length || 0,
-    totalMonthly: monthlyUsage?.length || 0
+    totalMonthly: monthlyUsage?.length || 0,
+    engagement: {
+      dailyActiveUsers: dailyActiveUsers || 0,
+      weeklyActiveUsers: weeklyActiveUsers || 0,
+      monthlyActiveUsers: monthlyActiveUsers || 0
+    },
+    features: {
+      promptEnhancement: Math.round((completedSessions / Math.max(totalSessions, 1)) * 100),
+      analyticsUsage: Math.round((dailyActiveUsers || 0) / Math.max(monthlyActiveUsers || 1, 1) * 100),
+      apiAccess: Math.round((failedSessions / Math.max(totalSessions, 1)) * 100)
+    }
   }
 }
 
 export default async function AdminAnalyticsPage() {
-  const { weeklyData, monthlyData, totalWeekly, totalMonthly } = await getAnalyticsData()
+  const { weeklyData, monthlyData, totalWeekly, totalMonthly, engagement, features } = await getAnalyticsData()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -117,30 +147,30 @@ export default async function AdminAnalyticsPage() {
         {/* Detailed Analytics */}
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Features</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Feature Usage</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">Prompt Enhancement</span>
-                <span className="text-gray-900 font-medium">85%</span>
+                <span className="text-gray-700">Success Rate</span>
+                <span className="text-gray-900 font-medium">{features.promptEnhancement}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full" style={{ width: '85%' }}></div>
+                <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${features.promptEnhancement}%` }}></div>
               </div>
               
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">Analytics Dashboard</span>
-                <span className="text-gray-900 font-medium">65%</span>
+                <span className="text-gray-700">Daily Engagement</span>
+                <span className="text-gray-900 font-medium">{features.analyticsUsage}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-600 h-2 rounded-full" style={{ width: '65%' }}></div>
+                <div className="bg-green-600 h-2 rounded-full" style={{ width: `${features.analyticsUsage}%` }}></div>
               </div>
               
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">API Access</span>
-                <span className="text-gray-900 font-medium">35%</span>
+                <span className="text-gray-700">Error Rate</span>
+                <span className="text-gray-900 font-medium">{features.apiAccess}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '35%' }}></div>
+                <div className="bg-yellow-600 h-2 rounded-full" style={{ width: `${features.apiAccess}%` }}></div>
               </div>
             </div>
           </div>
@@ -150,43 +180,30 @@ export default async function AdminAnalyticsPage() {
             <div className="space-y-4">
               <div className="flex justify-between">
                 <span className="text-gray-700">Daily Active Users</span>
-                <span className="text-gray-900 font-medium">1,234</span>
+                <span className="text-gray-900 font-medium">{engagement.dailyActiveUsers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-700">Weekly Active Users</span>
-                <span className="text-gray-900 font-medium">5,678</span>
+                <span className="text-gray-900 font-medium">{engagement.weeklyActiveUsers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-700">Monthly Active Users</span>
-                <span className="text-gray-900 font-medium">12,345</span>
+                <span className="text-gray-900 font-medium">{engagement.monthlyActiveUsers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-700">Avg Session Duration</span>
-                <span className="text-gray-900 font-medium">8m 32s</span>
+                <span className="text-gray-700">Weekly Usage</span>
+                <span className="text-gray-900 font-medium">{totalWeekly.toLocaleString()} prompts</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-700">Retention Rate (7d)</span>
-                <span className="text-gray-900 font-medium">78%</span>
+                <span className="text-gray-700">Monthly Usage</span>
+                <span className="text-gray-900 font-medium">{totalMonthly.toLocaleString()} prompts</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Export Options */}
-        <div className="mt-8 bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Export Analytics</h3>
-          <div className="flex space-x-4">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              Export CSV
-            </button>
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-              Generate Report
-            </button>
-            <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-              Schedule Report
-            </button>
-          </div>
-        </div>
+        <AnalyticsExportPanel />
       </div>
     </div>
   )

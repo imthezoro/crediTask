@@ -1,12 +1,10 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { createServerClient, isUserAdmin, getUserEmailsMap } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import AdminPaymentsTable from '@/components/AdminPaymentsTable'
 import AdminNav from '@/components/AdminNav'
+import PaymentExportPanel from '@/components/PaymentExportPanel'
 
 async function getPayments() {
-  const cookieStore = cookies()
   const supabase = createServerClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -15,15 +13,24 @@ async function getPayments() {
     redirect('/dashboard')
   }
 
+  // Fetch payments
   const { data: payments } = await supabase
     .from('payments')
-    .select(`
-      *,
-      user_profiles!inner(email)
-    `)
+    .select('*')
     .order('created_at', { ascending: false })
 
-  return payments || []
+  const list = payments || []
+
+  // Enrich with user emails via Admin API (auth.users)
+  const userIds = Array.from(new Set(list.map(p => p.user_id).filter(Boolean))) as string[]
+  const emailMap = await getUserEmailsMap(userIds)
+
+  const enriched = list.map(p => ({
+    ...p,
+    user_email: emailMap[p.user_id] || 'N/A'
+  }))
+
+  return enriched
 }
 
 export default async function AdminPaymentsPage() {
@@ -104,20 +111,7 @@ export default async function AdminPaymentsPage() {
         </div>
 
         {/* Export Actions */}
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Export & Reports</h3>
-          <div className="flex space-x-4">
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-              Export CSV
-            </button>
-            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-              Monthly Report
-            </button>
-            <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors">
-              Tax Report
-            </button>
-          </div>
-        </div>
+        <PaymentExportPanel />
       </div>
     </div>
   )
