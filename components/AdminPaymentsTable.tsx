@@ -1,7 +1,7 @@
 'use client'
 
 import AdminTable from '@/components/AdminTable'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface AdminPaymentsTableProps {
@@ -11,6 +11,8 @@ interface AdminPaymentsTableProps {
 export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps) {
   const router = useRouter()
   const [loading, setLoading] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<null | { label: string; onConfirm: () => void }>(null)
   const formatDate = (s: string) => {
     if (!s) return 'N/A'
     try {
@@ -19,6 +21,12 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       return 'N/A'
     }
   }
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => setToast({ message, type })
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 2500)
+    return () => clearTimeout(t)
+  }, [toast])
   
   const makeApiCall = async (paymentId: string, action: string, data?: any) => {
     setLoading(paymentId)
@@ -42,10 +50,10 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       }
 
       const result = await response.json()
-      alert(result.message || 'Action completed successfully')
+      showToast(result.message || 'Action completed successfully', 'success')
       router.refresh()
     } catch (error) {
-      alert('Action failed. Please try again.')
+      showToast('Action failed. Please try again.', 'error')
     } finally {
       setLoading(null)
     }
@@ -66,24 +74,20 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
 
       if (response.ok) {
         const payment = await response.json()
-        const created = payment.created_at ? new Date(payment.created_at).toISOString() : 'N/A'
-        alert(`Payment Details\nID: ${payment.id}\nUser: ${payment.user_email}\nAmount: ${payment.currency?.toUpperCase()} ${(payment.amount_cents / 100).toFixed(2)}\nStatus: ${payment.status}\nProvider: ${payment.provider}\nCreated: ${created}`)
+        // Could show a small inline details panel; using a toast for now
+        showToast('Loaded payment details', 'success')
       }
     } catch (error) {
-      alert('Failed to load payment details')
+      showToast('Failed to load payment details', 'error')
     }
   }
   
   const handleMarkCompleted = (row: any) => {
-    if (confirm('Mark this payment as completed?')) {
-      makeApiCall(row.id, 'mark-completed')
-    }
+    setConfirmAction({ label: 'Mark this payment as completed?', onConfirm: () => makeApiCall(row.id, 'mark-completed') })
   }
   
   const handleRefund = (row: any) => {
-    if (confirm('Process refund for this payment?')) {
-      makeApiCall(row.id, 'refund')
-    }
+    setConfirmAction({ label: 'Process refund for this payment?', onConfirm: () => makeApiCall(row.id, 'refund') })
   }
 
   const columns = [
@@ -160,5 +164,42 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
     }
   ]
 
-  return <AdminTable columns={columns} data={payments} />
+  return (
+    <div className="relative">
+      <AdminTable columns={columns} data={payments} />
+
+      {loading && (
+        <div className="pointer-events-none fixed inset-0 flex items-end justify-end p-4 z-40">
+          <div className="bg-white/80 backdrop-blur px-3 py-2 rounded shadow text-sm flex items-center gap-2">
+            <svg className="animate-spin h-4 w-4 text-gray-800" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            Processing...
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded shadow text-sm ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+          {toast.message}
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow p-4 w-80">
+            <div className="text-sm text-gray-800 mb-4">{confirmAction.label}</div>
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-1 text-sm" onClick={() => setConfirmAction(null)}>Cancel</button>
+              <button
+                className="px-3 py-1 bg-gray-900 text-white rounded text-sm"
+                onClick={() => { const fn = confirmAction.onConfirm; setConfirmAction(null); fn(); }}
+              >Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }

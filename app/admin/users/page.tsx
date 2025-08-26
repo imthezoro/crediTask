@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import AdminUsersTable from '@/components/AdminUsersTable'
 import AdminNav from '@/components/AdminNav'
 import Link from 'next/link'
+import PageSizeSelector from '@/components/PageSizeSelector'
 
 type Query = {
   page: number
@@ -135,24 +136,23 @@ export default async function AdminUsersPage({ searchParams }: { searchParams?: 
                 <input type="number" name="minUsage" placeholder="Min usage" defaultValue={minUsage ?? ''} className="px-3 py-2 border border-gray-300 rounded-md text-sm w-28" />
                 <input type="number" name="maxUsage" placeholder="Max usage" defaultValue={maxUsage ?? ''} className="px-3 py-2 border border-gray-300 rounded-md text-sm w-28" />
                 <button type="submit" className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm">Apply</button>
+                <Link href="/admin/users" className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700">Clear Filters</Link>
               </form>
-              {/* Separate compact page-size control */}
-              <form method="GET" className="flex items-center" title="Rows per page">
-                {/* preserve current filters/sort/search in the page-size form */}
-                <input type="hidden" name="q" value={q} />
-                <input type="hidden" name="plan" value={plan || ''} />
-                <input type="hidden" name="status" value={status || ''} />
-                <input type="hidden" name="sortBy" value={sortBy} />
-                <input type="hidden" name="sortDir" value={sortDir} />
-                <input type="hidden" name="minUsage" value={minUsage ?? ''} />
-                <input type="hidden" name="maxUsage" value={maxUsage ?? ''} />
-                <span className="text-gray-500 text-xs mr-1" aria-hidden>📄</span>
-                <select name="pageSize" defaultValue={String(pageSize)} className="px-2 py-1 border border-gray-300 rounded-md text-xs">
-                  <option value="10">10</option>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                </select>
-              </form>
+              {/* Separate compact page-size control (auto-submit on change) */}
+              <PageSizeSelector
+                action="/admin/users"
+                pageSize={pageSize}
+                params={{
+                  q,
+                  plan: plan || '',
+                  status: status || '',
+                  sortBy,
+                  sortDir,
+                  minUsage: (minUsage ?? ''),
+                  maxUsage: (maxUsage ?? ''),
+                  page
+                }}
+              />
               </div>
             </div>
           </div>
