@@ -48,14 +48,18 @@ export function addSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   
-  // Content Security Policy - Production-ready without unsafe directives
+  // Content Security Policy - Next.js compatible
+  const isDev = process.env.NODE_ENV === 'development'
+  
   const csp = [
     "default-src 'self'",
-    "script-src 'self'", // Removed unsafe-inline and unsafe-eval for security
-    "style-src 'self' 'unsafe-inline'", // Keep for CSS-in-JS frameworks
+    isDev 
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'" // Allow for Next.js dev mode
+      : "script-src 'self' 'unsafe-inline'", // Production: allow inline but not eval
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:* http://localhost:*", // Allow dev server
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'"
