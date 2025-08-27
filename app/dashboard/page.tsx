@@ -15,14 +15,14 @@ export default async function Dashboard() {
     redirect('/auth/signin')
   }
   
-  // Get user profile
-  const { data: profile } = await supabase
+  // Get user profile with optimized query (select only needed fields)
+  const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('*')
+    .select('plan, usage_count, plan_valid_until, is_active')
     .eq('id', user.id)
     .single()
   
-  if (!profile?.is_active) {
+  if (profileError || !profile?.is_active) {
     redirect('/auth/signin?error=Account is not active')
   }
 

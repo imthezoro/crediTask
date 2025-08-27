@@ -1,41 +1,33 @@
-import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import AccountActions from '@/components/AccountActions'
-
-async function getUser() {
-  const cookieStore = cookies()
-  const accessToken = cookieStore.get('sb-access-token')?.value
-  
-  if (!accessToken) {
-    redirect('/auth/signin')
-  }
-
-  const supabase = createServerClient()
-  
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
-    
-    if (error || !user) {
-      redirect('/auth/signin')
-    }
-
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    return { user, profile }
-  } catch (error) {
-    console.error('Settings page error:', error)
-    redirect('/auth/signin')
-  }
-}
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { LogoutButton } from '@/components/auth/logout-button'
+import { DeleteAccountButton } from '@/components/auth/delete-account-button'
 
 export default async function SettingsPage() {
-  const { user, profile } = await getUser()
+  const supabase = await createClient()
+  
+  // Get the current user
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (error || !user) {
+    redirect('/auth/signin')
+  }
+  
+  // Get user profile with optimized query (select only needed fields)
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('plan, usage_count, is_active')
+    .eq('id', user.id)
+    .single()
+  
+  if (profileError || !profile?.is_active) {
+    redirect('/auth/signin?error=Account is not active')
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -43,9 +35,10 @@ export default async function SettingsPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-            <nav className="space-x-4">
+            <nav className="flex items-center space-x-4">
               <Link href="/dashboard" className="text-blue-600 hover:text-blue-700">Dashboard</Link>
               <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
+              <LogoutButton />
             </nav>
           </div>
         </div>
@@ -54,68 +47,68 @@ export default async function SettingsPage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="space-y-6">
           {/* Profile Settings */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Profile Information</h2>
-            <form className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+              <CardDescription>View your account details and current plan</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
                   id="email"
-                  value={user.email?.includes('@promptok.guest') ? 'Guest' : (user.email || '')}
+                  type="email"
+                  value={user.email?.includes('@promptok.guest') ? 'Guest Account' : (user.email || '')}
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+                  className="bg-muted"
                 />
-                <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
               </div>
               
-              <div>
-                <label htmlFor="plan" className="block text-sm font-medium text-gray-700 mb-1">
-                  Current Plan
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <Label htmlFor="plan">Current Plan</Label>
+                <Input
                   id="plan"
                   value={profile?.plan || 'Free'}
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 capitalize"
+                  className="bg-muted capitalize"
                 />
               </div>
 
-              <div>
-                <label htmlFor="usage" className="block text-sm font-medium text-gray-700 mb-1">
-                  Usage Count
-                </label>
-                <input
-                  type="number"
+              <div className="space-y-2">
+                <Label htmlFor="usage">Usage Count</Label>
+                <Input
                   id="usage"
+                  type="number"
                   value={profile?.usage_count || 0}
                   disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+                  className="bg-muted"
                 />
               </div>
 
               <div className="pt-4">
-                <Link
-                  href="/billing"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Manage Plan
-                </Link>
+                <Button asChild>
+                  <Link href="/billing">
+                    Manage Plan
+                  </Link>
+                </Button>
               </div>
-            </form>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Account Actions */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Account Actions</h2>
-            <AccountActions
-              userEmail={user.email ?? null}
-              isGuest={Boolean(user.email?.includes('@promptok.guest'))}
-            />
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Actions</CardTitle>
+              <CardDescription>Manage your account settings and data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DeleteAccountButton 
+                userEmail={user.email || ''}
+                isGuest={Boolean(user.email?.includes('@promptok.guest'))}
+              />
+            </CardContent>
+          </Card>
 
           
         </div>

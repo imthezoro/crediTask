@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { profileCache } from '@/lib/profile-cache'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -42,15 +43,32 @@ export async function middleware(request: NextRequest) {
 
   // Check if authenticated user has active profile for protected routes
   if (user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .select('is_active')
-      .eq('id', user.id)
-      .single()
+    // Try cache first
+    let isActive = profileCache.get(user.id)
+    
+    if (isActive === null) {
+      // Cache miss - query database
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('is_active')
+        .eq('id', user.id)
+        .single()
 
-    if (error || !profile?.is_active) {
+      if (error) {
+        // Database error - sign out for security
+        await supabase.auth.signOut()
+        return NextResponse.redirect(new URL('/auth/signin?error=Account verification failed', request.url))
+      }
+
+      isActive = Boolean(profile?.is_active)
+      // Cache the result
+      profileCache.set(user.id, isActive)
+    }
+
+    if (!isActive) {
       // Sign out inactive users
       await supabase.auth.signOut()
+      profileCache.invalidate(user.id) // Clear cache for inactive user
       return NextResponse.redirect(new URL('/auth/signin?error=Account is not active', request.url))
     }
   }
