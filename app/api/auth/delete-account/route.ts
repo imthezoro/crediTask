@@ -1,18 +1,31 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { deleteAccountSchema, validateRequest } from '@/lib/validation'
+import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP } from '@/lib/security-middleware'
+import { SecurityUtils } from '@/lib/security-utils'
 
 export async function POST(request: NextRequest) {
+  // Apply security middleware
+  const securityCheck = await securityMiddleware(request, 'delete-account', {
+    requireOriginValidation: true,
+    rateLimitType: 'auth-sensitive'
+  })
+  
+  if (!securityCheck.allowed) {
+    return addSecurityHeaders(securityCheck.response!)
+  }
+
   try {
     const body = await request.json()
     
     // Validate request body
     const validation = validateRequest(deleteAccountSchema, body)
     if (!validation.success) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: validation.error },
         { status: 400 }
       )
+      return addSecurityHeaders(response)
     }
     
     const { userId, userEmail, isGuest } = validation.data!
@@ -61,17 +74,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({
+    // Record successful operation for rate limiting using SecurityUtils
+    const clientIP = getClientIP(request)
+    const userAgent = request.headers.get('user-agent') || ''
+    const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'delete-account')
+    rateLimiter.recordSuccess(identifier, 'delete-account', 'auth-sensitive')
+    
+    const response = NextResponse.json({
       success: true,
       message: 'Account has been successfully deactivated',
       data
     })
+    
+    return addSecurityHeaders(response)
 
   } catch (error) {
     console.error('Delete account API error:', error)
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
     )
+    return addSecurityHeaders(response)
   }
 }

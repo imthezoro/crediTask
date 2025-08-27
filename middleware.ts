@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { profileCache } from '@/lib/profile-cache'
+import { NextRequest, NextResponse } from 'next/server'
+import { profileCache } from './lib/profile-cache'
+import { addSecurityHeaders } from './lib/security-middleware'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -38,7 +38,8 @@ export async function middleware(request: NextRequest) {
 
   // Redirect unauthenticated users to signin for protected routes
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/auth/signin', request.url))
+    const redirectResponse = NextResponse.redirect(new URL('/auth/signin', request.url))
+    return addSecurityHeaders(redirectResponse)
   }
 
   // Check if authenticated user has active profile for protected routes
@@ -69,16 +70,18 @@ export async function middleware(request: NextRequest) {
       // Sign out inactive users
       await supabase.auth.signOut()
       profileCache.invalidate(user.id) // Clear cache for inactive user
-      return NextResponse.redirect(new URL('/auth/signin?error=Account is not active', request.url))
+      const redirectResponse = NextResponse.redirect(new URL('/auth/signin?error=Account is not active', request.url))
+      return addSecurityHeaders(redirectResponse)
     }
   }
 
   // Redirect authenticated users away from auth pages
   if (user && request.nextUrl.pathname.startsWith('/auth/')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+    return addSecurityHeaders(redirectResponse)
   }
 
-  return response
+  return addSecurityHeaders(response)
 }
 
 export const config = {
