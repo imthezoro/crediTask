@@ -1,95 +1,94 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const url = new URL(request.url)
-    const search = url.searchParams.get('search')
-    const plan = url.searchParams.get('plan')
-    const status = url.searchParams.get('status')
-    const limit = parseInt(url.searchParams.get('limit') || '50')
-    const offset = parseInt(url.searchParams.get('offset') || '0')
+    const page = Math.max(parseInt(url.searchParams.get('page') || '1'), 1)
+    const pageSize = Math.min(Math.max(parseInt(url.searchParams.get('pageSize') || '20'), 5), 100)
+    const plan = url.searchParams.get('plan') || undefined
+    const status = url.searchParams.get('status') || undefined
+    const sortBy = (url.searchParams.get('sortBy') as 'created_at' | 'plan' | 'usage_count' | 'is_active') || 'created_at'
+    const sortDir = (url.searchParams.get('sortDir') as 'asc' | 'desc') || 'desc'
+    const minUsage = url.searchParams.get('minUsage') ? Number(url.searchParams.get('minUsage')) : undefined
+    const maxUsage = url.searchParams.get('maxUsage') ? Number(url.searchParams.get('maxUsage')) : undefined
+    const search = url.searchParams.get('q') || ''
 
-    let query = supabase
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    // Fetch current page with total count using admin client
+    let query = admin
       .from('user_profiles')
-      .select(`
-        id,
-        plan,
-        usage_count,
-        plan_valid_until,
-        created_at,
-        updated_at,
-        is_active,
-        is_admin,
-        is_guest,
-        device_id,
-        ip_address
-      `)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+      .select('*', { count: 'exact' })
 
-    // Apply filters
-    if (plan && plan !== 'all') {
+    // Server-side filters
+    if (plan) {
       query = query.eq('plan', plan)
     }
-    
     if (status === 'active') {
       query = query.eq('is_active', true)
-    } else if (status === 'inactive') {
+    } else if (status === 'suspended') {
       query = query.eq('is_active', false)
     }
+    if (typeof minUsage === 'number' && !Number.isNaN(minUsage)) {
+      query = query.gte('usage_count', minUsage)
+    }
+    if (typeof maxUsage === 'number' && !Number.isNaN(maxUsage)) {
+      query = query.lte('usage_count', maxUsage)
+    }
 
-    const { data: users, error: usersError } = await query
+    // Sorting
+    const sortAsc = sortDir === 'asc'
+    query = query.order(sortBy, { ascending: sortAsc, nullsFirst: sortAsc })
+
+    const { data: users, count, error: usersError } = await query.range(from, to)
 
     if (usersError) {
       return NextResponse.json({ error: usersError.message }, { status: 500 })
     }
 
-    // Get user emails from auth.users (admin can access)
-    const userIds = users?.map(u => u.id) || []
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
-    
-    const emailMap = authUsers.users.reduce((acc: any, user) => {
-      acc[user.id] = user.email
-      return acc
-    }, {})
+    const profiles = users || []
 
-    // Combine profile data with emails
-    const enrichedUsers = users?.map(user => ({
-      ...user,
-      email: emailMap[user.id] || 'N/A'
-    })) || []
+    // Build email map for only current page via Admin API
+    const userIds = profiles.map((p: any) => p.id)
+    const emailMap: Record<string, string> = {}
+    for (const id of userIds) {
+      try {
+        const { data } = await admin.auth.admin.getUserById(id)
+        if (data?.user?.email) emailMap[id] = data.user.email
+      } catch {}
+    }
 
-    // Apply search filter after enriching with emails
-    let filteredUsers = enrichedUsers
+    // Enrich profiles with email field
+    let enrichedUsers = profiles.map((p: any) => ({
+      ...p,
+      email: emailMap[p.id] || 'N/A'
+    }))
+
+    // Apply email search filter (client-side for current page)
     if (search) {
-      const searchLower = search.toLowerCase()
-      filteredUsers = enrichedUsers.filter(user => 
-        user.email.toLowerCase().includes(searchLower) ||
-        user.id.toLowerCase().includes(searchLower) ||
-        user.plan.toLowerCase().includes(searchLower)
+      enrichedUsers = enrichedUsers.filter((u: any) => 
+        (u.email || '').toLowerCase().includes(search.toLowerCase())
       )
     }
 
     return NextResponse.json({
-      users: filteredUsers,
-      total: filteredUsers.length
+      users: enrichedUsers,
+      total: count || 0,
+      page,
+      pageSize,
+      totalPages: Math.max(Math.ceil((count || 0) / pageSize), 1)
     })
 
   } catch (error) {
