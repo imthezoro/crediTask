@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase-server'
+import { createClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,9 @@ export default async function Dashboard() {
     redirect('/auth/signin?error=Account is not active')
   }
 
+  // Check if user is admin
+  const userIsAdmin = await isUserAdmin(user.id)
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -36,6 +39,11 @@ export default async function Dashboard() {
             <nav className="flex items-center space-x-4">
               <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
               <Link href="/settings" className="text-blue-600 hover:text-blue-700">Settings</Link>
+              {userIsAdmin && (
+                <Link href="/admin" className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium">
+                  Admin
+                </Link>
+              )}
               <LogoutButton />
             </nav>
           </div>
