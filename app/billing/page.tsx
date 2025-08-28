@@ -1,50 +1,30 @@
-import { createServerClient } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import InterestSignup from '@/components/InterestSignup'
 import ApiAccessSignup from '@/components/ApiAccessSignup'
 import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
 
-async function getUserAndPayments() {
-  const cookieStore = cookies()
-  const accessToken = cookieStore.get('sb-access-token')?.value
-  
-  if (!accessToken) {
-    redirect('/auth/signin')
-  }
-
-  const supabase = createServerClient()
-  
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser(accessToken)
-    
-    if (error || !user) {
-      redirect('/auth/signin')
-    }
-
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    // Payments intentionally unused for now, but kept for future use
-    const { data: payments } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    return { user, profile, payments: payments || [] }
-  } catch (error) {
-    console.error('Billing page error:', error)
-    redirect('/auth/signin')
-  }
-}
-
 export default async function BillingPage() {
-  const { user, profile } = await getUserAndPayments()
+  const supabase = await createClient()
+  
+  // Get the current user
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (error || !user) {
+    redirect('/auth/signin')
+  }
+  
+  // Get user profile with optimized query (select only needed fields)
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('plan, usage_count, plan_valid_until, is_active, is_guest')
+    .eq('id', user.id)
+    .single()
+  
+  if (profileError || !profile?.is_active) {
+    redirect('/auth/signin?error=Account is not active')
+  }
 
   // Determine the effective limit for free/guest users based on centralized quotas
   const freeLimit = (profile?.is_guest ? GUEST_QUOTA : FREE_PLAN_LIMIT)
