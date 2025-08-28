@@ -1,5 +1,4 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
-import { cookies } from 'next/headers'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import AdminIncidentsTable from '@/components/AdminIncidentsTable'
@@ -7,12 +6,17 @@ import AdminNav from '@/components/AdminNav'
 import CreateIncidentForm from '@/components/CreateIncidentForm'
 
 async function getIncidents() {
-  const cookieStore = cookies()
-  const supabase = createServerClient()
+  const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  // Get the current user
+  const { data: { user }, error } = await supabase.auth.getUser()
   
-  if (!user || !(await isUserAdmin(user.id))) {
+  if (error || !user) {
+    redirect('/auth/signin')
+  }
+  
+  // Check admin privileges
+  if (!(await isUserAdmin(user.id))) {
     redirect('/dashboard')
   }
 

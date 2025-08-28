@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase-server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createServerClient()
+    const supabase = await createClient()
 
     // Try to map to current user if logged in
     let user_id: string | null = null

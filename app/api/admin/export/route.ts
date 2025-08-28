@@ -1,4 +1,4 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
     }
 
-    const supabase = createServerClient()
+    const supabase = await createClient()
     
     // Get user from token
     const { data: { user }, error } = await supabase.auth.getUser(token)

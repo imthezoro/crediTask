@@ -1,10 +1,10 @@
-import { createServerClient, createAdminClient, isUserAdmin, getUserEmailsMap } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin, getUserEmailsMap } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import AdminPaymentsTable from '@/components/AdminPaymentsTable'
 import AdminNav from '@/components/AdminNav'
 
 async function getPayments() {
-  const supabase = createServerClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,8 +22,7 @@ async function getPayments() {
   const list = payments || []
 
   // Enrich with user emails via Admin API (auth.users)
-  const userIds = Array.from(new Set(list.map(p => p.user_id).filter(Boolean))) as string[]
-  const emailMap = await getUserEmailsMap(userIds)
+  const emailMap = await getUserEmailsMap()
 
   const enriched = list.map(p => ({
     ...p,

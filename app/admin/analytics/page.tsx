@@ -1,4 +1,4 @@
-import { createServerClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
@@ -6,7 +6,7 @@ import AdminNav from '@/components/AdminNav'
 // Export panel removed per requirements
 
 async function getAnalyticsData() {
-  const supabase = createServerClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()

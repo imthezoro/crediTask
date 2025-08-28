@@ -1,11 +1,11 @@
 import AdminNav from '@/components/AdminNav'
-import { createServerClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import KPI from '@/components/KPI'
 import Link from 'next/link'
 
 async function getAdminData() {
-  const supabase = createServerClient()
+  const supabase = await createClient()
   const admin = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()

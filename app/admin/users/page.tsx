@@ -1,4 +1,4 @@
-import { createServerClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import AdminUsersTable from '@/components/AdminUsersTable'
 import AdminNav from '@/components/AdminNav'
@@ -17,7 +17,7 @@ type Query = {
 }
 
 async function getUsers(q: Query) {
-  const supabase = createServerClient()
+  const supabase = await createClient()
   const adminClient = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()

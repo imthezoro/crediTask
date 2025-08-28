@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
+import { createClient, createAdminClient } from '@/lib/supabase-server'
 // TODO: Install prom-client dependency and uncomment below
 // import { register, Counter, Gauge, collectDefaultMetrics } from 'prom-client'
 
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   // TODO: Install prom-client dependency and uncomment the implementation below
   
   try {
-    const supabase = createServerClient()
+    const supabase = await createClient()
 
     // Get metrics from database for basic text response
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -92,7 +92,7 @@ const responseTimeHistogram = new Gauge({
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient()
+    const supabase = await createClient()
 
     // Get metrics from database
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
