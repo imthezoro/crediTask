@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, isUserAdmin } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user || !(await isUserAdmin(user.id))) {
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const { count: activeIncidents } = await supabase
       .from('incidents')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
+      .eq('status', 'active')
 
     // Normalize nullable counts
     const safeRecentErrors = recentErrors ?? 0

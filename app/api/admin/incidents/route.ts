@@ -1,35 +1,35 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const url = new URL(request.url)
+    const page = Math.max(parseInt(url.searchParams.get('page') || '1'), 1)
+    const pageSize = Math.min(Math.max(parseInt(url.searchParams.get('pageSize') || '20'), 5), 100)
     const status = url.searchParams.get('status')
     const severity = url.searchParams.get('severity')
-    const limit = parseInt(url.searchParams.get('limit') || '50')
-    const offset = parseInt(url.searchParams.get('offset') || '0')
+    const sortBy = (url.searchParams.get('sortBy') as 'created_at' | 'status' | 'severity') || 'created_at'
+    const sortDir = (url.searchParams.get('sortDir') as 'asc' | 'desc') || 'desc'
 
-    let query = supabase
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    // Fetch current page with total count using admin client
+    let query = admin
       .from('incidents')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+      .select('*', { count: 'exact' })
+      .order(sortBy, { ascending: sortDir === 'asc' })
+      .range(from, to)
 
     // Apply filters
     if (status && status !== 'all') {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('severity', severity)
     }
 
-    const { data: incidents, error: incidentsError } = await query
+    const { data: incidents, count, error: incidentsError } = await query
 
     if (incidentsError) {
       return NextResponse.json({ error: incidentsError.message }, { status: 500 })
@@ -48,7 +48,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       incidents: incidents || [],
-      total: incidents?.length || 0
+      total: count || 0,
+      page,
+      pageSize,
+      totalPages: Math.max(Math.ceil((count || 0) / pageSize), 1)
     })
 
   } catch (error) {
@@ -62,17 +65,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -85,7 +82,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
-    const { data: incident, error: createError } = await supabase
+    const { data: incident, error: createError } = await admin
       .from('incidents')
       .insert({
         title,

@@ -40,7 +40,7 @@ export default async function Dashboard() {
               <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
               <Link href="/settings" className="text-blue-600 hover:text-blue-700">Settings</Link>
               {userIsAdmin && (
-                <Link href="/admin" className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium">
+                <Link href="/admin/dashboard" className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium">
                   Admin
                 </Link>
               )}

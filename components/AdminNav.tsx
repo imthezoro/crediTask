@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 const items = [
-  { href: '/admin', label: 'Dashboard' },
+  { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/payments', label: 'Payments' },
   { href: '/admin/analytics', label: 'Analytics' },

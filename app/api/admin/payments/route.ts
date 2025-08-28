@@ -1,19 +1,13 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +19,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(url.searchParams.get('limit') || '50')
     const offset = parseInt(url.searchParams.get('offset') || '0')
 
-    let query = supabase
+    let query = admin
       .from('payments')
       .select(`
         *,
@@ -51,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     // Get user emails for payments
     const userIds = payments?.map(p => p.user_id) || []
-    const { data: authUsers } = await supabase.auth.admin.listUsers()
+    const { data: authUsers } = await admin.auth.admin.listUsers()
     
     const emailMap = authUsers.users.reduce((acc: any, user) => {
       acc[user.id] = user.email

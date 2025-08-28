@@ -1,4 +1,4 @@
-import { createServerClient } from './supabase-server'
+import { createClient } from './supabase-server'
 
 export interface PaymentData {
   provider: 'stripe' | 'razorpay'
@@ -13,7 +13,7 @@ export interface PaymentData {
 }
 
 export async function reconcilePayment(paymentData: PaymentData) {
-  const supabase = createServerClient()
+  const supabase = await createClient()
   
   // Insert payment record
   const { data: payment, error: paymentError } = await supabase

@@ -1,4 +1,4 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -6,17 +6,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +19,7 @@ export async function GET(
     const paymentId = params.id
 
     // Get payment details
-    const { data: payment, error: paymentError } = await supabase
+    const { data: payment, error: paymentError } = await admin
       .from('payments')
       .select('*')
       .eq('id', paymentId)
@@ -36,7 +30,7 @@ export async function GET(
     }
 
     // Get user email
-    const { data: authUser } = await supabase.auth.admin.getUserById(payment.user_id)
+    const { data: authUser } = await admin.auth.admin.getUserById(payment.user_id)
 
     return NextResponse.json({
       ...payment,
@@ -57,17 +51,11 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -78,7 +66,7 @@ export async function PATCH(
     const { action, ...updateData } = body
 
     if (action === 'mark-completed') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('payments')
         .update({ 
           status: 'completed',
@@ -94,7 +82,7 @@ export async function PATCH(
     }
 
     if (action === 'refund') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('payments')
         .update({ 
           status: 'refunded',
@@ -110,7 +98,7 @@ export async function PATCH(
     }
 
     if (action === 'mark-failed') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('payments')
         .update({ 
           status: 'failed',
@@ -140,7 +128,7 @@ export async function PATCH(
 
     filteredData.updated_at = new Date().toISOString()
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('payments')
       .update(filteredData)
       .eq('id', paymentId)

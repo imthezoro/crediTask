@@ -1,4 +1,4 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -6,17 +6,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +19,7 @@ export async function GET(
     const incidentId = params.id
 
     // Get incident details
-    const { data: incident, error: incidentError } = await supabase
+    const { data: incident, error: incidentError } = await admin
       .from('incidents')
       .select('*')
       .eq('id', incidentId)
@@ -51,17 +45,11 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -72,7 +60,7 @@ export async function PATCH(
     const { action, ...updateData } = body
 
     if (action === 'resolve') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('incidents')
         .update({ 
           status: 'resolved',
@@ -89,7 +77,7 @@ export async function PATCH(
     }
 
     if (action === 'investigating') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('incidents')
         .update({ 
           status: 'investigating',
@@ -105,7 +93,7 @@ export async function PATCH(
     }
 
     if (action === 'reopen') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('incidents')
         .update({ 
           status: 'active',
@@ -143,7 +131,7 @@ export async function PATCH(
       filteredData.resolved_at = null
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('incidents')
       .update(filteredData)
       .eq('id', incidentId)
@@ -168,17 +156,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -186,7 +168,7 @@ export async function DELETE(
 
     const incidentId = params.id
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await admin
       .from('incidents')
       .delete()
       .eq('id', incidentId)

@@ -1,4 +1,4 @@
-import { createServerClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -6,17 +6,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,7 +19,7 @@ export async function GET(
     const userId = params.id
 
     // Get user profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await admin
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
@@ -36,10 +30,10 @@ export async function GET(
     }
 
     // Get user email from auth
-    const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+    const { data: authUser } = await admin.auth.admin.getUserById(userId)
     
     // Get user's prompt sessions
-    const { data: sessions } = await supabase
+    const { data: sessions } = await admin
       .from('prompt_sessions')
       .select('*')
       .eq('user_id', userId)
@@ -47,7 +41,7 @@ export async function GET(
       .limit(10)
 
     // Get user's payments
-    const { data: payments } = await supabase
+    const { data: payments } = await admin
       .from('payments')
       .select('*')
       .eq('user_id', userId)
@@ -77,17 +71,11 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    const supabase = await createClient()
+    const admin = createAdminClient()
     
-    if (!token) {
-      return NextResponse.json({ error: 'No authorization token' }, { status: 401 })
-    }
-
-    const supabase = createServerClient()
-    
-    // Get user from token
-    const { data: { user }, error } = await supabase.auth.getUser(token)
+    // Get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error || !user || !(await isUserAdmin(user.id))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -98,7 +86,7 @@ export async function PATCH(
     const { action, ...updateData } = body
 
     if (action === 'reset-usage') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('user_profiles')
         .update({ usage_count: 0 })
         .eq('id', userId)
@@ -111,7 +99,7 @@ export async function PATCH(
     }
 
     if (action === 'suspend') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('user_profiles')
         .update({ 
           is_active: false,
@@ -124,12 +112,12 @@ export async function PATCH(
       }
 
       // Add to blocked emails if email exists
-      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const { data: authUser } = await admin.auth.admin.getUserById(userId)
       if (authUser.user?.email) {
         const blockedUntil = new Date()
         blockedUntil.setDate(blockedUntil.getDate() + 30) // Block for 30 days
 
-        await supabase
+        await admin
           .from('blocked_emails')
           .upsert({
             email: authUser.user.email,
@@ -141,7 +129,7 @@ export async function PATCH(
     }
 
     if (action === 'reactivate') {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await admin
         .from('user_profiles')
         .update({ 
           is_active: true,
@@ -154,9 +142,9 @@ export async function PATCH(
       }
 
       // Remove from blocked emails
-      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const { data: authUser } = await admin.auth.admin.getUserById(userId)
       if (authUser.user?.email) {
-        await supabase
+        await admin
           .from('blocked_emails')
           .delete()
           .eq('email', authUser.user.email)
@@ -169,16 +157,16 @@ export async function PATCH(
     const allowedFields = ['plan', 'plan_valid_until', 'is_admin']
     const filteredData = Object.keys(updateData)
       .filter(key => allowedFields.includes(key))
-      .reduce((obj: any, key) => {
-        obj[key] = updateData[key]
-        return obj
+      .reduce((acc: Record<string, string>, key) => {
+        acc[key] = updateData[key]
+        return acc
       }, {})
 
     if (Object.keys(filteredData).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('user_profiles')
       .update(filteredData)
       .eq('id', userId)
