@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import KPI from '@/components/KPI'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
+import { GuestCleanupButton } from '@/components/GuestCleanupButton'
 
 async function getAdminData() {
   const { user, isAdmin } = await getHeaderData()
@@ -183,6 +184,11 @@ export default async function AdminDashboard() {
             value={activeAlerts}
             trend={activeAlerts > 0 ? "down" : "neutral"}
           />
+        </div>
+
+        {/* Guest Cleanup Section */}
+        <div className="mb-8">
+          <GuestCleanupButton />
         </div>
       </div>
     </div>
