@@ -1,23 +1,22 @@
-import AdminNav from '@/components/AdminNav'
-import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import KPI from '@/components/KPI'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 
 async function getAdminData() {
-  const supabase = await createClient()
-  const admin = createAdminClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  // Get the current user
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+  if (!user) {
     redirect('/auth/signin')
   }
   
   // Check admin privileges
-  if (!(await isUserAdmin(user.id))) {
+  if (!isAdmin) {
     redirect('/dashboard')
   }
+
+  const admin = createAdminClient()
 
   // Get current counts
   const { count: totalUsers } = await admin
@@ -128,16 +127,11 @@ export default async function AdminDashboard() {
     hasActiveIncidents,
   } = await getAdminData()
 
+  const { user, isAdmin } = await getHeaderData()
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <AdminNav />
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="Admin Dashboard" />
 
       <div className="container mx-auto px-4 py-8">
         {/* System status strip */}

@@ -1,25 +1,25 @@
-import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 import Link from 'next/link'
 import AdminIncidentsTable from '@/components/AdminIncidentsTable'
 import AdminNav from '@/components/AdminNav'
 import CreateIncidentForm from '@/components/CreateIncidentForm'
 
 async function getIncidents() {
-  const supabase = await createClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  // Get the current user
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+  if (!user) {
     redirect('/auth/signin')
   }
   
   // Check admin privileges
-  if (!(await isUserAdmin(user.id))) {
+  if (!isAdmin) {
     redirect('/dashboard')
   }
 
+  const supabase = await createClient()
   const { data: incidents } = await supabase
     .from('incidents')
     .select('*')
@@ -28,8 +28,9 @@ async function getIncidents() {
   return incidents || []
 }
 
-export default async function AdminAlertsPage() {
+export default async function AdminAlerts() {
   const incidents = await getIncidents()
+  const { user, isAdmin } = await getHeaderData()
 
   const activeIncidents = incidents.filter(i => i.status === 'active').length
   const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length
@@ -37,14 +38,7 @@ export default async function AdminAlertsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">System Alerts</h1>
-            <AdminNav />
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="System Alerts" />
 
       <div className="container mx-auto px-4 py-8">
         {/* Alert Stats */}

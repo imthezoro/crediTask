@@ -1,19 +1,25 @@
-import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
-import AdminNav from '@/components/AdminNav'
 // Export panel removed per requirements
 
 async function getAnalyticsData() {
-  const supabase = await createClient()
-  const admin = createAdminClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/auth/signin')
+  }
   
-  if (!user || !(await isUserAdmin(user.id))) {
+  // Check admin privileges
+  if (!isAdmin) {
     redirect('/dashboard')
   }
+
+
+  const admin = createAdminClient()
 
   // Get usage data for last 7 days
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -91,17 +97,11 @@ async function getAnalyticsData() {
 
 export default async function AdminAnalyticsPage() {
   const { weeklyData, monthlyData, totalWeekly, totalMonthly, engagement, features } = await getAnalyticsData()
+  const { user, isAdmin } = await getHeaderData()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-            <AdminNav />
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="Analytics" />
 
       <div className="container mx-auto px-4 py-8">
         {/* Summary KPIs */}

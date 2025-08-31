@@ -1,17 +1,22 @@
-import { createClient, createAdminClient, isUserAdmin, getUserEmailsMap } from '@/lib/supabase-server'
+import { createAdminClient, getUserEmailsMap } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import AdminPaymentsTable from '@/components/AdminPaymentsTable'
-import AdminNav from '@/components/AdminNav'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 
 async function getPayments() {
-  const supabase = await createClient()
-  const admin = createAdminClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/auth/signin')
+  }
   
-  if (!user || !(await isUserAdmin(user.id))) {
+  // Check admin privileges
+  if (!isAdmin) {
     redirect('/dashboard')
   }
+
+  const admin = createAdminClient()
 
   // Fetch payments with admin client (bypasses RLS)
   const { data: payments } = await admin
@@ -34,6 +39,7 @@ async function getPayments() {
 
 export default async function AdminPaymentsPage() {
   const payments = await getPayments()
+  const { user, isAdmin } = await getHeaderData()
 
   const totalRevenue = payments
     .filter(p => p.status === 'completed')
@@ -45,14 +51,7 @@ export default async function AdminPaymentsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Payment Management</h1>
-            <AdminNav />
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="Payments" />
 
       <div className="container mx-auto px-4 py-8">
         {/* Payment Stats */}

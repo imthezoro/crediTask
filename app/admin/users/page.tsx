@@ -1,38 +1,24 @@
-import { createClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import AdminNav from '@/components/AdminNav'
 import AdminUsersClient from '@/components/AdminUsersClient'
 import { Suspense } from 'react'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 
-async function checkAdminAccess() {
-  const supabase = await createClient()
+export default async function AdminUsersPage() {
+  const { user, isAdmin } = await getHeaderData()
   
-  // Get the current user
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+  if (!user) {
     redirect('/auth/signin')
   }
   
   // Check admin privileges
-  if (!(await isUserAdmin(user.id))) {
+  if (!isAdmin) {
     redirect('/dashboard')
   }
-}
-
-export default async function AdminUsersPage() {
-  await checkAdminAccess()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <AdminNav />
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="User Management" />
 
       <div className="container mx-auto px-4 py-8">
         <Suspense fallback={

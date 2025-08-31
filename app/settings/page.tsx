@@ -5,16 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { LogoutButton } from '@/components/auth/logout-button'
 import { DeleteAccountButton } from '@/components/auth/delete-account-button'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  // Get the current user
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+  if (!user) {
     redirect('/auth/signin')
   }
   
@@ -31,18 +30,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-            <nav className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-blue-600 hover:text-blue-700">Dashboard</Link>
-              <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
-              <LogoutButton />
-            </nav>
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="Settings" />
 
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="space-y-6">

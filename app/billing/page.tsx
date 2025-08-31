@@ -1,17 +1,18 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
+import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
 import InterestSignup from '@/components/InterestSignup'
 import ApiAccessSignup from '@/components/ApiAccessSignup'
-import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
 
 export default async function BillingPage() {
   const supabase = await createClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  // Get the current user
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+  if (!user) {
     redirect('/auth/signin')
   }
   
@@ -56,17 +57,7 @@ export default async function BillingPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Billing</h1>
-            <nav className="space-x-4">
-              <Link href="/dashboard" className="text-blue-600 hover:text-blue-700">Dashboard</Link>
-              <Link href="/settings" className="text-blue-600 hover:text-blue-700">Settings</Link>
-            </nav>
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="Billing" />
 
       <div className="container mx-auto px-4 py-8">
         {/* Current Plan */}

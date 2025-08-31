@@ -1,17 +1,16 @@
-import { createClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { LogoutButton } from '@/components/auth/logout-button'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 
 export default async function Dashboard() {
   const supabase = await createClient()
+  const { user, isAdmin } = await getHeaderData()
   
-  // Get the current user
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+  if (!user) {
     redirect('/auth/signin')
   }
   
@@ -26,29 +25,9 @@ export default async function Dashboard() {
     redirect('/auth/signin?error=Account is not active')
   }
 
-  // Check if user is admin
-  const userIsAdmin = await isUserAdmin(user.id)
-
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <nav className="flex items-center space-x-4">
-              <Link href="/billing" className="text-blue-600 hover:text-blue-700">Billing</Link>
-              <Link href="/settings" className="text-blue-600 hover:text-blue-700">Settings</Link>
-              {userIsAdmin && (
-                <Link href="/admin/dashboard" className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium">
-                  Admin
-                </Link>
-              )}
-              <LogoutButton />
-            </nav>
-          </div>
-        </div>
-      </div>
+      <Header user={user} isAdmin={isAdmin} pageTitle="Dashboard" />
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid md:grid-cols-3 gap-6 mb-8">
