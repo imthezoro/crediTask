@@ -1,6 +1,11 @@
 import Link from 'next/link'
+import { getHeaderData } from '@/lib/header-utils'
+import Header from '@/components/Header'
 
-export default function PricingPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function PricingPage() {
+  const { user, isAdmin } = await getHeaderData()
   const plans = [
     {
       name: 'Free',
@@ -12,8 +17,8 @@ export default function PricingPage() {
         'Chrome extension access',
         'Community support'
       ],
-      cta: 'Get Started',
-      href: '/auth/signup',
+      cta: user ? 'Current Plan' : 'Get Started',
+      href: user ? '/dashboard' : '/auth/signup',
       popular: false
     },
     {
@@ -27,8 +32,8 @@ export default function PricingPage() {
         'Custom templates',
         'API access'
       ],
-      cta: 'Upgrade to Pro',
-      href: '/billing',
+      cta: user ? 'Upgrade to Pro' : 'Sign Up for Pro',
+      href: user ? '/billing' : '/auth/signup',
       popular: true
     },
     {
@@ -42,15 +47,17 @@ export default function PricingPage() {
         'Dedicated support',
         'SLA guarantee'
       ],
-      cta: 'Contact Sales',
-      href: '/billing',
+      cta: user ? 'Contact Sales' : 'Sign Up for Enterprise',
+      href: user ? '/billing' : '/auth/signup',
       popular: false
     }
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 py-16">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-gray-50">
+      <Header user={user} isAdmin={isAdmin} pageTitle="Pricing" />
+      
+      <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Simple, Transparent Pricing
@@ -113,9 +120,20 @@ export default function PricingPage() {
           <p className="text-gray-600 mb-4">
             All plans include a 14-day free trial. No credit card required.
           </p>
-          <Link href="/auth/signup" className="text-blue-600 hover:text-blue-700 font-medium">
-            Start your free trial →
-          </Link>
+          {user ? (
+            <div className="space-x-4">
+              <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 font-medium">
+                Go to Dashboard →
+              </Link>
+              <Link href="/billing" className="text-blue-600 hover:text-blue-700 font-medium">
+                Manage Billing →
+              </Link>
+            </div>
+          ) : (
+            <Link href="/auth/signup" className="text-blue-600 hover:text-blue-700 font-medium">
+              Start your free trial →
+            </Link>
+          )}
         </div>
       </div>
     </div>
