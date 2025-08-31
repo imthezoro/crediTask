@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
+import { authService } from '@/lib/auth-service'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,7 @@ export function LoginForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [errorType, setErrorType] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
@@ -21,6 +23,7 @@ export function LoginForm() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setErrorType('')
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -47,6 +50,7 @@ export function LoginForm() {
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError('')
+    setErrorType('')
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -66,6 +70,29 @@ export function LoginForm() {
     }
   }
 
+  const handleGuestSignIn = async () => {
+    setLoading(true)
+    setError('')
+    setErrorType('')
+
+    try {
+      const result = await authService.signInAsGuest()
+
+      if (!result.success) {
+        setError(result.error || 'Failed to create guest session')
+        setErrorType(result.errorType || '')
+        return
+      }
+
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      setError('An unexpected error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="space-y-1">
@@ -77,8 +104,25 @@ export function LoginForm() {
       <CardContent className="space-y-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+            <div className={`p-3 text-sm border rounded-md ${
+              errorType === 'RATE_LIMIT' 
+                ? 'text-orange-700 bg-orange-50 border-orange-200' 
+                : 'text-red-600 bg-red-50 border-red-200'
+            }`}>
+              {errorType === 'RATE_LIMIT' && (
+                <div className="flex items-center mb-1">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-medium">Rate Limit Reached</span>
+                </div>
+              )}
               {error}
+              {errorType === 'RATE_LIMIT' && (
+                <div className="mt-2 text-xs text-orange-600">
+                  This helps protect our service. You can try signing up for a permanent account instead.
+                </div>
+              )}
             </div>
           )}
           
@@ -147,6 +191,19 @@ export function LoginForm() {
             />
           </svg>
           Continue with Google
+        </Button>
+
+        <Button
+          variant="secondary"
+          className="w-full"
+          onClick={handleGuestSignIn}
+          disabled={loading}
+        >
+          <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          Continue as Guest
         </Button>
 
         <div className="text-center text-sm">
