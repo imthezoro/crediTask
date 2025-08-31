@@ -236,14 +236,23 @@ export function detectSuspiciousActivity(request: NextRequest): boolean {
   const userAgent = request.headers.get('user-agent') || ''
   const ip = getClientIP(request)
   const url = request.url
+  // Parse URL to separate pathname from query to reduce false positives
+  let queryString = ''
+  try {
+    const parsed = new URL(url)
+    queryString = parsed.search || ''
+  } catch {
+    // If URL parsing fails, keep empty queryString
+  }
   
   // Check for XSS patterns in URL or headers
   if (SecurityUtils.detectXss(url) || SecurityUtils.detectXss(userAgent)) {
     return true
   }
   
-  // Check for SQL injection patterns
-  if (SecurityUtils.detectSqlInjection(url)) {
+  // Check for SQL injection patterns only in the query string, not the path
+  // This avoids false positives like the word "delete" in "/api/auth/delete-account"
+  if (SecurityUtils.detectSqlInjection(queryString)) {
     return true
   }
   
