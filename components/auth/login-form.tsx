@@ -9,13 +9,14 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { getAuthErrorDetails } from '@/lib/auth-errors'
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [errorType, setErrorType] = useState('')
+  const [errorType, setErrorType] = useState<'error' | 'warning' | 'RATE_LIMIT'>('error')
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -24,7 +25,10 @@ export function LoginForm() {
   useEffect(() => {
     const urlError = searchParams.get('error')
     if (urlError) {
-      setError(decodeURIComponent(urlError))
+      const errorDetails = getAuthErrorDetails(decodeURIComponent(urlError))
+      setError(errorDetails.message)
+      setErrorType(errorDetails.type === 'warning' ? 'RATE_LIMIT' : 'error')
+      
       // Clean URL after showing error
       const url = new URL(window.location.href)
       url.searchParams.delete('error')
@@ -36,7 +40,7 @@ export function LoginForm() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setErrorType('')
+    setErrorType('error')
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -54,7 +58,9 @@ export function LoginForm() {
         router.refresh()
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
+      setError(errorDetails.message)
+      setErrorType(errorDetails.type)
     } finally {
       setLoading(false)
     }
@@ -63,7 +69,7 @@ export function LoginForm() {
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError('')
-    setErrorType('')
+    setErrorType('error')
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -77,7 +83,9 @@ export function LoginForm() {
         setError(error.message)
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
+      setError(errorDetails.message)
+      setErrorType(errorDetails.type)
     } finally {
       setLoading(false)
     }
@@ -86,21 +94,23 @@ export function LoginForm() {
   const handleGuestSignIn = async () => {
     setLoading(true)
     setError('')
-    setErrorType('')
+    setErrorType('error')
 
     try {
       const result = await authService.signInAsGuest()
 
       if (!result.success) {
         setError(result.error || 'Failed to create guest session')
-        setErrorType(result.errorType || '')
+        setErrorType((result.errorType as 'error' | 'warning' | 'RATE_LIMIT') || 'error')
         return
       }
 
       router.push('/dashboard')
       router.refresh()
     } catch (err) {
-      setError('An unexpected error occurred')
+      const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
+      setError(errorDetails.message)
+      setErrorType(errorDetails.type)
     } finally {
       setLoading(false)
     }

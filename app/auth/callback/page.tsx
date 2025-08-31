@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
+import { AuthErrors, createErrorUrl } from '@/lib/auth-errors'
 
 export default function AuthCallbackPage() {
   const router = useRouter()
@@ -15,7 +16,7 @@ export default function AuthCallbackPage() {
         
         if (error) {
           console.error('Auth callback error:', error)
-          router.push('/auth/signin?error=' + encodeURIComponent(error.message))
+          router.push(createErrorUrl('/auth/signin', AuthErrors.AUTHENTICATION_FAILED))
           return
         }
 
@@ -29,7 +30,7 @@ export default function AuthCallbackPage() {
 
           if (profileError || !profile?.is_active) {
             await supabase.auth.signOut()
-            router.push('/auth/signin?error=' + encodeURIComponent('Account is not active'))
+            router.push(createErrorUrl('/auth/signin', AuthErrors.ACCOUNT_DEACTIVATED))
             return
           }
 
@@ -39,7 +40,7 @@ export default function AuthCallbackPage() {
         }
       } catch (error) {
         console.error('Unexpected error:', error)
-        router.push('/auth/signin?error=' + encodeURIComponent('Authentication failed'))
+        router.push(createErrorUrl('/auth/signin', AuthErrors.AUTHENTICATION_FAILED))
       }
     }
 

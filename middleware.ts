@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { profileCache } from './lib/profile-cache'
 import { addSecurityHeaders } from './lib/security-middleware'
+import { AuthErrors, createErrorUrl } from './lib/auth-errors'
 
 // Helper function to check user profile status with caching
 async function checkUserProfile(supabase: any, userId: string) {
@@ -73,7 +74,7 @@ export async function middleware(request: NextRequest) {
       await supabase.auth.signOut()
       profileCache.invalidate(user.id)
       const redirectResponse = NextResponse.redirect(
-        new URL('/auth/signin?error=Account verification failed', request.url)
+        new URL(createErrorUrl('/auth/signin', AuthErrors.ACCOUNT_VERIFICATION_FAILED), request.url)
       )
       // Copy auth cookies to redirect response
       response.cookies.getAll().forEach((cookie) => {
@@ -87,7 +88,7 @@ export async function middleware(request: NextRequest) {
       await supabase.auth.signOut()
       profileCache.invalidate(user.id)
       const redirectResponse = NextResponse.redirect(
-        new URL('/auth/signin?error=Account is not active', request.url)
+        new URL(createErrorUrl('/auth/signin', AuthErrors.ACCOUNT_DEACTIVATED), request.url)
       )
       // Copy auth cookies to redirect response
       response.cookies.getAll().forEach((cookie) => {
