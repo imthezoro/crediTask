@@ -1,6 +1,13 @@
 import Link from 'next/link'
+import { createClient as createServerSupabaseClient } from '@/lib/supabase-server'
 
-export default function HomePage() {
+export const dynamic = 'force-dynamic'
+
+export default async function HomePage() {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const isAuthed = Boolean(user)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Navigation */}
@@ -10,9 +17,14 @@ export default function HomePage() {
             <Link href="/" className="text-2xl font-bold text-blue-600">PromptOK</Link>
             <div className="space-x-4">
               <Link href="/pricing" className="text-gray-600 hover:text-blue-600">Pricing</Link>
-              <Link href="/status" className="text-gray-600 hover:text-blue-600">Status</Link>
-              <Link href="/auth/signin" className="text-blue-600 hover:text-blue-700">Sign In</Link>
-              <Link href="/auth/signup" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Sign Up</Link>
+              {isAuthed ? (
+                <Link href="/dashboard" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Dashboard</Link>
+              ) : (
+                <>
+                  <Link href="/auth/signin" className="text-blue-600 hover:text-blue-700">Sign In</Link>
+                  <Link href="/auth/signup" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Sign Up</Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -29,10 +41,10 @@ export default function HomePage() {
           </p>
           <div className="space-x-4">
             <Link 
-              href="/auth/signup" 
+              href={isAuthed ? '/dashboard' : '/auth/signup'}
               className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
-              Get Started Free
+              {isAuthed ? 'Go to Dashboard' : 'Get Started Free'}
             </Link>
             <Link 
               href="/pricing" 
@@ -68,10 +80,10 @@ export default function HomePage() {
             Join thousands of users improving their AI interactions
           </p>
           <Link 
-            href="/auth/signup" 
+            href={isAuthed ? '/dashboard' : '/auth/signup'}
             className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
           >
-            Start Free Trial
+            {isAuthed ? 'Open Dashboard' : 'Start Free Trial'}
           </Link>
         </section>
       </div>

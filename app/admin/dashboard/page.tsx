@@ -60,6 +60,22 @@ async function getAdminData() {
     .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString())
     .lt('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
 
+  // Fetch system status metrics
+  let statusSuccessRate = 100
+  let statusAvgResponseTime = 0
+  let hasActiveIncidents = false
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/status`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      statusSuccessRate = Number(json?.metrics?.success_rate) || 100
+      statusAvgResponseTime = Number(json?.metrics?.avg_response_time) || 0
+      hasActiveIncidents = Array.isArray(json?.incidents) && json.incidents.some((i: any) => i.status === 'active')
+    }
+  } catch (e) {
+    // Fallbacks already set
+  }
+
   // Weekly signups (new users in last 7 days) and trend vs previous 7 days
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
@@ -91,7 +107,10 @@ async function getAdminData() {
     userGrowth: `${userGrowth > 0 ? '+' : ''}${userGrowth}%`,
     promptGrowth: `${promptGrowth > 0 ? '+' : ''}${promptGrowth}%`,
     revenueGrowth: `${revenueGrowth > 0 ? '+' : ''}${revenueGrowth}%`,
-    signupGrowth: `${signupGrowth > 0 ? '+' : ''}${signupGrowth}%`
+    signupGrowth: `${signupGrowth > 0 ? '+' : ''}${signupGrowth}%`,
+    statusSuccessRate,
+    statusAvgResponseTime,
+    hasActiveIncidents,
   }
 }
 
@@ -103,7 +122,10 @@ export default async function AdminDashboard() {
     activeAlerts, 
     signupGrowth,
     promptGrowth, 
-    revenueGrowth
+    revenueGrowth,
+    statusSuccessRate,
+    statusAvgResponseTime,
+    hasActiveIncidents,
   } = await getAdminData()
 
   return (
@@ -118,6 +140,30 @@ export default async function AdminDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
+        {/* System status strip */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${
+              hasActiveIncidents ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+            }`}>
+              <div className={`w-2 h-2 rounded-full mr-2 ${
+                hasActiveIncidents ? 'bg-red-500' : 'bg-green-500'
+              }`}></div>
+              {hasActiveIncidents ? 'Service Disruption' : 'All Systems Operational'}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+              <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
+                <div className="text-xs font-medium text-gray-500">Success Rate</div>
+                <div className="text-xl font-semibold text-gray-900">{statusSuccessRate.toFixed(1)}%</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
+                <div className="text-xs font-medium text-gray-500">Avg Response Time</div>
+                <div className="text-xl font-semibold text-gray-900">{statusAvgResponseTime}ms</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* KPIs */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <KPI
