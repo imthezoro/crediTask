@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from './supabase-server';
 
 // Centralized quota constants to keep behavior consistent across API routes and edge functions
-export const FREE_PLAN_LIMIT = 10; // Matches enhance-prompt free allowance
-export const GUEST_QUOTA = 10;     // Matches guest-prompt quota
+export const FREE_PLAN_LIMIT = 15; // Free signed users get 15 prompts
+export const GUEST_QUOTA = 5;      // Guest users get 5 prompts
 
 export type PlanQuotaResult = {
   allowed: boolean;
@@ -52,7 +52,7 @@ export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
       isGuest,
       usage,
       quota: GUEST_QUOTA,
-      error: 'Guest quota exceeded',
+      error: 'Guest limit reached (5 prompts). Create an account with Email for extra prompts.',
     };
   }
   if (!isGuest && usage >= FREE_PLAN_LIMIT) {
