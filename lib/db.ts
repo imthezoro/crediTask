@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env';
-import { supabaseAdmin } from './supabaseAdmin';
+import { createAdminClient } from './supabase-server';
 
 const supabase = (() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -41,7 +41,8 @@ export async function recordPromptSession(args: {
     return;
   }
   if (adminConfigured) {
-    await (supabaseAdmin as ReturnType<typeof createClient>).from('prompt_sessions').insert({
+    const admin = createAdminClient();
+    await admin.from('prompt_sessions').insert({
       user_id: args.userId,
       original_prompt: args.originalPrompt,
       enhanced_prompt: args.enhancedPrompt,
@@ -62,7 +63,8 @@ export async function listPromptSessions(userId: string): Promise<PromptSession[
     return memorySessions.filter((s) => s.user_id === userId);
   }
   if (adminConfigured) {
-    const { data } = await (supabaseAdmin as ReturnType<typeof createClient>)
+    const admin = createAdminClient();
+    const { data } = await admin
       .from('prompt_sessions')
       .select('*')
       .eq('user_id', userId)

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { supabaseAdmin } from './supabaseAdmin';
+import { createAdminClient } from './supabase-server';
 
 // Centralized quota constants to keep behavior consistent across API routes and edge functions
 export const FREE_PLAN_LIMIT = 10; // Matches enhance-prompt free allowance
@@ -22,7 +22,8 @@ export type PlanQuotaResult = {
  * - Guest users: usage_count < 10 (same cap)
  */
 export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
-  const { data: profile, error } = await supabaseAdmin
+  const admin = createAdminClient();
+  const { data: profile, error } = await admin
     .from('user_profiles')
     .select('plan, is_guest, usage_count')
     .eq('id', userId)
@@ -73,7 +74,8 @@ export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
  * Note: not atomic; consider replacing with an RPC for strict correctness if needed.
  */
 export async function incrementUsage(userId: string): Promise<void> {
-  const { data: profile, error } = await supabaseAdmin
+  const admin = createAdminClient();
+  const { data: profile, error } = await admin
     .from('user_profiles')
     .select('usage_count')
     .eq('id', userId)
@@ -81,7 +83,7 @@ export async function incrementUsage(userId: string): Promise<void> {
 
   if (error || !profile) return; // fail open without throwing
 
-  await supabaseAdmin
+  await admin
     .from('user_profiles')
     .update({ usage_count: (profile.usage_count ?? 0) + 1, updated_at: new Date().toISOString() })
     .eq('id', userId);
