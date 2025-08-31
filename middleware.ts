@@ -3,6 +3,32 @@ import { NextRequest, NextResponse } from 'next/server'
 import { profileCache } from './lib/profile-cache'
 import { addSecurityHeaders } from './lib/security-middleware'
 
+// Helper function to check user profile status with caching
+async function checkUserProfile(supabase: any, userId: string) {
+  // Try cache first
+  let isActive = profileCache.get(userId)
+  
+  if (isActive === null) {
+    // Cache miss - query database
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('is_active')
+      .eq('id', userId)
+      .single()
+
+    if (error) {
+      console.error('Profile check error:', error)
+      return { isActive: false, hasError: true }
+    }
+
+    isActive = Boolean(profile?.is_active)
+    // Cache the result
+    profileCache.set(userId, isActive)
+  }
+
+  return { isActive, hasError: false }
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -20,11 +46,7 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
+          // Don't recreate response here - just set cookies on existing response
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           )
@@ -36,49 +58,58 @@ export async function middleware(request: NextRequest) {
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Redirect unauthenticated users to signin for protected routes
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    const redirectResponse = NextResponse.redirect(new URL('/auth/signin', request.url))
-    return addSecurityHeaders(redirectResponse)
-  }
+  // Handle dashboard routes
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    if (!user) {
+      const redirectResponse = NextResponse.redirect(new URL('/auth/signin', request.url))
+      return addSecurityHeaders(redirectResponse)
+    }
 
-  // Check if authenticated user has active profile for protected routes
-  if (user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    // Try cache first
-    let isActive = profileCache.get(user.id)
-    
-    if (isActive === null) {
-      // Cache miss - query database
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('is_active')
-        .eq('id', user.id)
-        .single()
+    // Check if authenticated user has active profile
+    const { isActive, hasError } = await checkUserProfile(supabase, user.id)
 
-      if (error) {
-        // Database error - sign out for security
-        await supabase.auth.signOut()
-        return NextResponse.redirect(new URL('/auth/signin?error=Account verification failed', request.url))
-      }
-
-      isActive = Boolean(profile?.is_active)
-      // Cache the result
-      profileCache.set(user.id, isActive)
+    if (hasError) {
+      // Database error - sign out for security and clear cache
+      await supabase.auth.signOut()
+      profileCache.invalidate(user.id)
+      const redirectResponse = NextResponse.redirect(
+        new URL('/auth/signin?error=Account verification failed', request.url)
+      )
+      // Copy auth cookies to redirect response
+      response.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
+      })
+      return addSecurityHeaders(redirectResponse)
     }
 
     if (!isActive) {
       // Sign out inactive users
       await supabase.auth.signOut()
-      profileCache.invalidate(user.id) // Clear cache for inactive user
-      const redirectResponse = NextResponse.redirect(new URL('/auth/signin?error=Account is not active', request.url))
+      profileCache.invalidate(user.id)
+      const redirectResponse = NextResponse.redirect(
+        new URL('/auth/signin?error=Account is not active', request.url)
+      )
+      // Copy auth cookies to redirect response
+      response.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
+      })
       return addSecurityHeaders(redirectResponse)
     }
   }
 
-  // Redirect authenticated users away from auth pages
+  // Handle auth routes - redirect authenticated active users to dashboard
   if (user && request.nextUrl.pathname.startsWith('/auth/')) {
-    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
-    return addSecurityHeaders(redirectResponse)
+    const { isActive } = await checkUserProfile(supabase, user.id)
+
+    if (isActive) {
+      const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+      // Copy cookies to redirect response
+      response.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
+      })
+      return addSecurityHeaders(redirectResponse)
+    }
+    // If not active, allow access to auth pages (no redirect)
   }
 
   return addSecurityHeaders(response)
