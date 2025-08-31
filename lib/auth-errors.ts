@@ -6,26 +6,30 @@ export const AuthErrors = {
   AUTHENTICATION_FAILED: 'AUTHENTICATION_FAILED',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+  // New generic error for security
+  GENERIC_AUTH_ERROR: 'GENERIC_AUTH_ERROR',
 } as const
 
 export type AuthErrorCode = typeof AuthErrors[keyof typeof AuthErrors]
 
-// User-friendly error messages
+// User-friendly error messages - SECURITY: Generic messages to prevent user enumeration
 export const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
-  [AuthErrors.ACCOUNT_DEACTIVATED]: 'Your account has been deactivated. Please create a new account to continue.',
-  [AuthErrors.ACCOUNT_VERIFICATION_FAILED]: 'Unable to verify your account. Please try signing in again.',
-  [AuthErrors.AUTHENTICATION_FAILED]: 'Authentication failed. Please try again.',
-  [AuthErrors.INVALID_CREDENTIALS]: 'Invalid email or password. Please check your credentials and try again.',
+  [AuthErrors.ACCOUNT_DEACTIVATED]: 'Invalid email or password',
+  [AuthErrors.ACCOUNT_VERIFICATION_FAILED]: 'Invalid email or password',
+  [AuthErrors.AUTHENTICATION_FAILED]: 'Invalid email or password',
+  [AuthErrors.INVALID_CREDENTIALS]: 'Invalid email or password',
   [AuthErrors.RATE_LIMIT_EXCEEDED]: 'Too many attempts. Please wait a moment before trying again.',
+  [AuthErrors.GENERIC_AUTH_ERROR]: 'Invalid email or password',
 }
 
 // Error types for UI styling
 export const AUTH_ERROR_TYPES: Record<AuthErrorCode, 'error' | 'warning'> = {
   [AuthErrors.ACCOUNT_DEACTIVATED]: 'error',
-  [AuthErrors.ACCOUNT_VERIFICATION_FAILED]: 'warning',
+  [AuthErrors.ACCOUNT_VERIFICATION_FAILED]: 'error',
   [AuthErrors.AUTHENTICATION_FAILED]: 'error',
   [AuthErrors.INVALID_CREDENTIALS]: 'error',
   [AuthErrors.RATE_LIMIT_EXCEEDED]: 'warning',
+  [AuthErrors.GENERIC_AUTH_ERROR]: 'error',
 }
 
 // Helper function to get error details
@@ -44,33 +48,10 @@ export function getAuthErrorDetails(errorCode: string): {
     }
   }
 
-  // Handle legacy error messages
+  // Handle legacy error messages - SECURITY: Always return generic messages
   const lowerError = errorCode.toLowerCase()
   
-  if (lowerError.includes('account is not active') || lowerError.includes('deactivated')) {
-    return {
-      message: AUTH_ERROR_MESSAGES[AuthErrors.ACCOUNT_DEACTIVATED],
-      type: AUTH_ERROR_TYPES[AuthErrors.ACCOUNT_DEACTIVATED],
-      code: AuthErrors.ACCOUNT_DEACTIVATED,
-    }
-  }
-  
-  if (lowerError.includes('verification failed') || lowerError.includes('account verification')) {
-    return {
-      message: AUTH_ERROR_MESSAGES[AuthErrors.ACCOUNT_VERIFICATION_FAILED],
-      type: AUTH_ERROR_TYPES[AuthErrors.ACCOUNT_VERIFICATION_FAILED],
-      code: AuthErrors.ACCOUNT_VERIFICATION_FAILED,
-    }
-  }
-  
-  if (lowerError.includes('invalid') || lowerError.includes('credentials')) {
-    return {
-      message: AUTH_ERROR_MESSAGES[AuthErrors.INVALID_CREDENTIALS],
-      type: AUTH_ERROR_TYPES[AuthErrors.INVALID_CREDENTIALS],
-      code: AuthErrors.INVALID_CREDENTIALS,
-    }
-  }
-  
+  // Only allow rate limit errors to be specific for UX
   if (lowerError.includes('rate limit') || lowerError.includes('too many')) {
     return {
       message: AUTH_ERROR_MESSAGES[AuthErrors.RATE_LIMIT_EXCEEDED],
@@ -79,11 +60,11 @@ export function getAuthErrorDetails(errorCode: string): {
     }
   }
 
-  // Fallback for unknown errors
+  // All other authentication errors return generic message to prevent enumeration
   return {
-    message: errorCode || 'An unexpected error occurred. Please try again.',
-    type: 'error',
-    code: null,
+    message: AUTH_ERROR_MESSAGES[AuthErrors.GENERIC_AUTH_ERROR],
+    type: AUTH_ERROR_TYPES[AuthErrors.GENERIC_AUTH_ERROR],
+    code: AuthErrors.GENERIC_AUTH_ERROR,
   }
 }
 

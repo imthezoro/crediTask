@@ -35,6 +35,16 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required')
 })
 
+// Password reset request schema
+export const resetPasswordSchema = z.object({
+  email: emailSchema
+})
+
+// Session validation request schema
+export const validateSessionSchema = z.object({
+  userId: uuidSchema
+})
+
 // Signup request schema
 export const signupSchema = z.object({
   email: emailSchema,

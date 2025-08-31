@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP } from '@/lib/security-middleware'
 import { loginSchema, validateRequest } from '@/lib/validation'
 import { SecurityUtils } from '@/lib/security-utils'
+import { SecureAuthUtils } from '@/lib/secure-auth-utils'
 
 export async function POST(request: NextRequest) {
   // Apply security middleware
@@ -21,23 +22,9 @@ export async function POST(request: NextRequest) {
     // Validate request body
     const validation = validateRequest(loginSchema, body)
     if (!validation.success) {
-      const response = NextResponse.json(
-        { error: validation.error },
-        { status: 400 }
-      )
-      return addSecurityHeaders(response)
-    }
-
-    const { email, password } = validation.data!
-    const supabase = await createClient()
-
-    // Attempt authentication
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-
-    if (authError || !authData.user) {
+      // Add delay even for validation errors to prevent timing analysis
+      await SecureAuthUtils.addRandomDelay(200)
+      
       const response = NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
@@ -45,56 +32,52 @@ export async function POST(request: NextRequest) {
       return addSecurityHeaders(response)
     }
 
-    // Check if user profile is active
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('is_active, full_name')
-      .eq('id', authData.user.id)
-      .single()
-
-    if (profileError || !profile) {
-      // Sign out the user if profile check fails
-      await supabase.auth.signOut()
-      const response = NextResponse.json(
-        { error: 'Account not found. Please create a new account.' },
-        { status: 404 }
-      )
-      return addSecurityHeaders(response)
-    }
-
-    if (!profile.is_active) {
-      // Sign out inactive users
-      await supabase.auth.signOut()
-      const response = NextResponse.json(
-        { error: 'This account has been deactivated. Please create a new account to continue.' },
-        { status: 403 }
-      )
-      return addSecurityHeaders(response)
-    }
-
-    // Record successful login for rate limiting using SecurityUtils
+    const { email, password } = validation.data!
     const clientIP = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || ''
-    const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'login')
-    rateLimiter.recordSuccess(identifier, 'login', 'auth')
 
-    const response = NextResponse.json({
-      success: true,
-      message: 'Login successful',
-      user: {
-        id: authData.user.id,
-        email: authData.user.email,
-        full_name: profile.full_name
-      }
-    })
+    // Use secure authentication with constant-time response
+    const authResult = await SecureAuthUtils.authenticateUser(email, password)
 
-    return addSecurityHeaders(response)
+    // Log authentication attempt (success or failure)
+    await SecureAuthUtils.logAuthAttempt(
+      email,
+      authResult.success,
+      clientIP,
+      userAgent,
+      authResult.user?.id
+    )
+
+    if (authResult.success && authResult.user) {
+      // Record successful login for rate limiting
+      const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'login')
+      rateLimiter.recordSuccess(identifier, 'login', 'auth')
+
+      const response = NextResponse.json({
+        success: true,
+        message: 'Login successful',
+        user: authResult.user
+      })
+
+      return addSecurityHeaders(response)
+    } else {
+      // Always return the same error message regardless of failure reason
+      const response = NextResponse.json(
+        { error: 'Invalid email or password' },
+        { status: 401 }
+      )
+      return addSecurityHeaders(response)
+    }
 
   } catch (error) {
     console.error('Login API error:', error)
+    
+    // Add random delay even for server errors to prevent timing analysis
+    await SecureAuthUtils.addRandomDelay(300)
+    
     const response = NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: 'Invalid email or password' },
+      { status: 401 }
     )
     return addSecurityHeaders(response)
   }
