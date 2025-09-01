@@ -61,3 +61,8 @@ old/
 saas-boilerplate-temp/
 saas-boilerplate-temp
 supabase/.temp/cli-latest
+
+
+public/sitemap.xml
+public/sitemap-*.xml
+public/robots.txt  
