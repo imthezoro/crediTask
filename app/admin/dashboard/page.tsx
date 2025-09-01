@@ -4,6 +4,7 @@ import KPI from '@/components/KPI'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 import { GuestCleanupButton } from '@/components/GuestCleanupButton'
+import { ExpiredBlocksCleanupButton } from '@/components/ExpiredBlocksCleanupButton'
 
 async function getAdminData() {
   const { user, isAdmin } = await getHeaderData()
@@ -186,9 +187,15 @@ export default async function AdminDashboard() {
           />
         </div>
 
-        {/* Guest Cleanup Section */}
-        <div className="mb-8">
-          <GuestCleanupButton />
+        {/* Cleanup Tools Section */}
+        <div className="mb-8 space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Cleanup Tools</h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <GuestCleanupButton />
+              <ExpiredBlocksCleanupButton />
+            </div>
+          </div>
         </div>
       </div>
     </div>
