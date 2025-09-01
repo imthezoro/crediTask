@@ -56,7 +56,7 @@ export const apiResponseSchema = z.object({
   success: z.boolean(),
   message: z.string().optional(),
   error: z.string().optional(),
-  data: z.any().optional()
+  data: z.unknown().optional()
 })
 
 // Validation helper function

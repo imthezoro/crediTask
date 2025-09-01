@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase-server'
 // TODO: Install prom-client dependency and uncomment below
 // import { register, Counter, Gauge, collectDefaultMetrics } from 'prom-client'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   // PLACEHOLDER: Prometheus metrics endpoint
   // TODO: Install prom-client dependency and uncomment the implementation below
   

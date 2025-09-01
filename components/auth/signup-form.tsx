@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +20,7 @@ export function SignupForm() {
   const router = useRouter()
   const supabase = createClient()
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
@@ -56,7 +57,7 @@ export function SignupForm() {
       if (result.success) {
         setSuccess(true)
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -78,7 +79,7 @@ export function SignupForm() {
       if (error) {
         setError(error.message)
       }
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -91,7 +92,7 @@ export function SignupForm() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">Check your email</CardTitle>
           <CardDescription className="text-center">
-            We've sent you a confirmation link at {email}
+            We&apos;ve sent you a confirmation link at {email}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

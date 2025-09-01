@@ -43,7 +43,7 @@ export function ExpiredBlocksCleanupButton() {
       if (result.stats.blocksFound > 0) {
         setShowConfirm(true)
       }
-    } catch (err) {
+    } catch {
       setError('Network error occurred')
     } finally {
       setLoading(false)
@@ -74,7 +74,7 @@ export function ExpiredBlocksCleanupButton() {
 
       setStats(result.stats)
       setShowConfirm(false)
-    } catch (err) {
+    } catch {
       setError('Network error occurred')
     } finally {
       setLoading(false)

@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase-client'
-import { createClient as createServerClient } from '@/lib/supabase-server'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 export class AuthService {
   private supabase = createClient()
@@ -11,7 +11,7 @@ export class AuthService {
     success: boolean
     error?: string
     errorType?: string
-    user?: any
+    user?: unknown
   }> {
     try {
       const response = await fetch('/api/auth/guest-login', {
@@ -91,7 +91,7 @@ export class AuthService {
   /**
    * Listen to auth state changes
    */
-  onAuthStateChange(callback: (event: string, session: any) => void) {
+  onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
     return this.supabase.auth.onAuthStateChange(callback)
   }
 }

@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { rateLimiter, securityLogger } from '@/lib/security-middleware'
 import { addSecurityHeaders } from '@/lib/security-middleware'
 
 // Security monitoring endpoint for admins
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get rate limiter stats
     const rateLimitStats = rateLimiter.getStats()

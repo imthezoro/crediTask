@@ -4,8 +4,20 @@ import AdminTable from '@/components/AdminTable'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+interface PaymentRow {
+  id: string
+  user_email?: string | null
+  plan?: string | null
+  amount_cents: number
+  currency?: string | null
+  status: string
+  provider?: string | null
+  created_at?: string | null
+  [key: string]: unknown
+}
+
 interface AdminPaymentsTableProps {
-  payments: any[]
+  payments: PaymentRow[]
 }
 
 export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps) {
@@ -28,7 +40,7 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
     return () => clearTimeout(t)
   }, [toast])
   
-  const makeApiCall = async (paymentId: string, action: string, data?: any) => {
+  const makeApiCall = async (paymentId: string, action: string, data?: Record<string, unknown>) => {
     setLoading(paymentId)
     try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
     try {
@@ -53,7 +65,7 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       const result = await response.json()
       showToast(result.message || 'Action completed successfully', 'success')
       router.refresh()
-    } catch (error) {
+    } catch {
       showToast('Action failed. Please try again.', 'error')
     } finally {
       setLoading(null)
@@ -61,7 +73,7 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
     }
   }
 
-  const handleView = async (row: any) => {
+  const handleView = async (row: PaymentRow) => {
     try {
       try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
       const token = document.cookie
@@ -76,22 +88,22 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
       })
 
       if (response.ok) {
-        const payment = await response.json()
+        await response.json()
         // Could show a small inline details panel; using a toast for now
         showToast('Loaded payment details', 'success')
       }
-    } catch (error) {
+    } catch {
       showToast('Failed to load payment details', 'error')
     } finally {
       try { window.dispatchEvent(new Event('admin:loading:end')) } catch {}
     }
   }
   
-  const handleMarkCompleted = (row: any) => {
+  const handleMarkCompleted = (row: PaymentRow) => {
     setConfirmAction({ label: 'Mark this payment as completed?', onConfirm: () => makeApiCall(row.id, 'mark-completed') })
   }
   
-  const handleRefund = (row: any) => {
+  const handleRefund = (row: PaymentRow) => {
     setConfirmAction({ label: 'Process refund for this payment?', onConfirm: () => makeApiCall(row.id, 'refund') })
   }
 
@@ -100,78 +112,86 @@ export default function AdminPaymentsTable({ payments }: AdminPaymentsTableProps
     {
       key: 'user_email',
       label: 'User Email',
-      render: (value: string) => value || 'N/A'
+      render: (value: unknown) => (value as string) || 'N/A'
     },
     {
       key: 'plan',
       label: 'Plan',
-      render: (value: string) => (
-        <span className="capitalize px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">{value}</span>
+      render: (value: unknown) => (
+        <span className="capitalize px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">{(value as string) || 'N/A'}</span>
       )
     },
     {
       key: 'amount_cents',
       label: 'Amount',
-      render: (value: number, row: any) => `${row.currency?.toUpperCase() || 'USD'} ${(value / 100).toFixed(2)}`
+      render: (value: unknown, row: unknown) => {
+        const v = Number(value as number)
+        const r = row as PaymentRow
+        const cur = (r.currency || 'USD').toString().toUpperCase()
+        return `${cur} ${(v / 100).toFixed(2)}`
+      }
     },
     {
       key: 'status',
       label: 'Status',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
-            value === 'completed'
+            (value as string) === 'completed'
               ? 'bg-green-100 text-green-800'
-              : value === 'pending'
+              : (value as string) === 'pending'
               ? 'bg-yellow-100 text-yellow-800'
-              : value === 'failed'
+              : (value as string) === 'failed'
               ? 'bg-red-100 text-red-800'
               : 'bg-gray-100 text-gray-800'
           }`}
         >
-          {value}
+          {value as string}
         </span>
       )
     },
-    { key: 'provider', label: 'Provider', render: (value: string) => <span className="capitalize">{value}</span> },
-    { key: 'created_at', label: 'Date', render: (value: string) => formatDate(value) },
+    { key: 'provider', label: 'Provider', render: (value: unknown) => <span className="capitalize">{value as string}</span> },
+    { key: 'created_at', label: 'Date', render: (value: unknown) => formatDate(value as string) },
     {
       key: 'actions',
       label: 'Actions',
-      render: (_: any, row: any) => (
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => handleView(row)} 
-            className="text-blue-600 hover:text-blue-700 text-sm"
-          >
-            View Details
-          </button>
-          {row.status === 'pending' && (
+      render: (_: unknown, row: unknown) => {
+        const r = row as PaymentRow
+        return (
+          <div className="flex space-x-2">
             <button 
-              onClick={() => handleMarkCompleted(row)} 
-              disabled={loading === row.id}
-              className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
+              onClick={() => handleView(r)} 
+              className="text-blue-600 hover:text-blue-700 text-sm"
             >
-              Mark Completed
+              View Details
             </button>
-          )}
-          {row.status === 'completed' && (
-            <button 
-              onClick={() => handleRefund(row)} 
-              disabled={loading === row.id}
-              className="text-red-600 hover:text-red-700 text-sm disabled:opacity-50"
-            >
-              Refund
-            </button>
-          )}
-        </div>
-      )
+            {r.status === 'pending' && (
+              <button 
+                onClick={() => handleMarkCompleted(r)} 
+                disabled={loading === r.id}
+                className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
+              >
+                Mark Completed
+              </button>
+            )}
+            {r.status === 'completed' && (
+              <button 
+                onClick={() => handleRefund(r)} 
+                disabled={loading === r.id}
+                className="text-red-600 hover:text-red-700 text-sm disabled:opacity-50"
+              >
+                Refund
+              </button>
+            )}
+          </div>
+        )
+      }
     }
   ]
 
   return (
     <div className="relative">
-      <AdminTable columns={columns} data={payments} />
+      <AdminTable columns={columns} data={payments as unknown as Array<Record<string, unknown>>} />
 
       {loading && (
         <div className="pointer-events-none fixed inset-0 flex items-end justify-end p-4 z-40">

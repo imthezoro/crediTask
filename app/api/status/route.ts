@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -12,16 +12,8 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(10)
 
-    // Get daily metrics for last 24h
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const { data: dailyMetrics } = await supabase
-      .from('daily_metrics')
-      .select('*')
-      .gte('date', yesterday.toISOString().split('T')[0])
-      .order('date', { ascending: false })
-      .limit(1)
-
     // Get prompt sessions for last 24h
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const { data: promptSessions } = await supabase
       .from('prompt_sessions')
       .select('id, created_at, status')

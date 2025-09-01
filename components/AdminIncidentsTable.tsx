@@ -4,8 +4,18 @@ import AdminTable from '@/components/AdminTable'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+interface IncidentRow {
+  id: string
+  title?: string | null
+  status: string
+  severity?: string | null
+  created_at?: string | null
+  resolved_at?: string | null
+  [key: string]: unknown
+}
+
 interface AdminIncidentsTableProps {
-  incidents: any[]
+  incidents: IncidentRow[]
 }
 
 export default function AdminIncidentsTable({ incidents }: AdminIncidentsTableProps) {
@@ -34,7 +44,7 @@ export default function AdminIncidentsTable({ incidents }: AdminIncidentsTablePr
     }
   }
   
-  const makeApiCall = async (incidentId: string, action: string, data?: any) => {
+  const makeApiCall = async (incidentId: string, action: string, data?: Record<string, unknown>) => {
     setLoading(incidentId)
     try {
       const token = document.cookie
@@ -58,14 +68,14 @@ export default function AdminIncidentsTable({ incidents }: AdminIncidentsTablePr
       const result = await response.json()
       showToast(result.message || 'Action completed successfully', 'success')
       router.refresh()
-    } catch (error) {
+    } catch {
       showToast('Action failed. Please try again.', 'error')
     } finally {
       setLoading(null)
     }
   }
 
-  const handleView = async (row: any) => {
+  const handleView = async (row: IncidentRow) => {
     try {
       const token = document.cookie
         .split('; ')
@@ -79,25 +89,25 @@ export default function AdminIncidentsTable({ incidents }: AdminIncidentsTablePr
       })
 
       if (response.ok) {
-        const incident = await response.json()
+        await response.json()
         showToast('Loaded incident details', 'success')
         setUpdateDialog(null)
         // Optionally we could show a small inline detail panel; keeping toast for brevity
       }
-    } catch (error) {
+    } catch {
       showToast('Failed to load incident details', 'error')
     }
   }
   
-  const handleUpdate = (row: any) => {
+  const handleUpdate = (row: IncidentRow) => {
     setUpdateDialog({ id: row.id, status: row.status })
   }
   
-  const handleResolve = (row: any) => {
+  const handleResolve = (row: IncidentRow) => {
     setConfirmAction({ label: 'Mark this incident as resolved?', onConfirm: () => makeApiCall(row.id, 'resolve') })
   }
   
-  const handleReopen = (row: any) => {
+  const handleReopen = (row: IncidentRow) => {
     setConfirmAction({ label: 'Reopen this incident?', onConfirm: () => makeApiCall(row.id, 'reopen') })
   }
 
@@ -107,87 +117,90 @@ export default function AdminIncidentsTable({ incidents }: AdminIncidentsTablePr
     {
       key: 'status',
       label: 'Status',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
-            value === 'resolved'
+            (value as string) === 'resolved'
               ? 'bg-green-100 text-green-800'
-              : value === 'investigating'
+              : (value as string) === 'investigating'
               ? 'bg-yellow-100 text-yellow-800'
               : 'bg-red-100 text-red-800'
           }`}
         >
-          {value}
+          {value as string}
         </span>
       )
     },
     {
       key: 'severity',
       label: 'Severity',
-      render: (value: string) => (
+      render: (value: unknown) => (
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
-            value === 'critical'
+            (value as string) === 'critical'
               ? 'bg-red-100 text-red-800'
-              : value === 'high'
+              : (value as string) === 'high'
               ? 'bg-orange-100 text-orange-800'
-              : value === 'medium'
+              : (value as string) === 'medium'
               ? 'bg-yellow-100 text-yellow-800'
               : 'bg-blue-100 text-blue-800'
           }`}
         >
-          {value}
+          {value as string}
         </span>
       )
     },
-    { key: 'created_at', label: 'Created', render: (v: string) => formatDate(v) },
-    { key: 'resolved_at', label: 'Resolved', render: (v: string) => (v ? formatDate(v) : 'N/A') },
+    { key: 'created_at', label: 'Created', render: (v: unknown) => formatDate(v as string) },
+    { key: 'resolved_at', label: 'Resolved', render: (v: unknown) => ((v as string) ? formatDate(v as string) : 'N/A') },
     {
       key: 'actions',
       label: 'Actions',
-      render: (_: any, row: any) => (
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => handleView(row)} 
-            className="text-blue-600 hover:text-blue-700 text-sm"
-          >
-            View
-          </button>
-          {row.status === 'active' && (
-            <>
-              <button 
-                onClick={() => handleUpdate(row)} 
-                disabled={loading === row.id}
-                className="text-yellow-600 hover:text-yellow-700 text-sm disabled:opacity-50"
-              >
-                Update
-              </button>
-              <button 
-                onClick={() => handleResolve(row)} 
-                disabled={loading === row.id}
-                className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
-              >
-                Resolve
-              </button>
-            </>
-          )}
-          {row.status === 'resolved' && (
+      render: (_: unknown, row: unknown) => {
+        const r = row as IncidentRow
+        return (
+          <div className="flex space-x-2">
             <button 
-              onClick={() => handleReopen(row)} 
-              disabled={loading === row.id}
-              className="text-orange-600 hover:text-orange-700 text-sm disabled:opacity-50"
+              onClick={() => handleView(r)} 
+              className="text-blue-600 hover:text-blue-700 text-sm"
             >
-              Reopen
+              View
             </button>
-          )}
-        </div>
-      )
+            {r.status === 'active' && (
+              <>
+                <button 
+                  onClick={() => handleUpdate(r)} 
+                  disabled={loading === r.id}
+                  className="text-yellow-600 hover:text-yellow-700 text-sm disabled:opacity-50"
+                >
+                  Update
+                </button>
+                <button 
+                  onClick={() => handleResolve(r)} 
+                  disabled={loading === r.id}
+                  className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
+                >
+                  Resolve
+                </button>
+              </>
+            )}
+            {r.status === 'resolved' && (
+              <button 
+                onClick={() => handleReopen(r)} 
+                disabled={loading === r.id}
+                className="text-orange-600 hover:text-orange-700 text-sm disabled:opacity-50"
+              >
+                Reopen
+              </button>
+            )}
+          </div>
+        )
+      }
     }
   ]
 
   return (
     <div className="relative">
-      <AdminTable columns={columns} data={incidents} />
+      <AdminTable columns={columns} data={incidents as unknown as Array<Record<string, unknown>>} />
 
       {loading && (
         <div className="pointer-events-none fixed inset-0 flex items-end justify-end p-4 z-40">

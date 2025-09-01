@@ -1,12 +1,25 @@
 'use client'
 
 import AdminTable from '@/components/AdminTable'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
+interface UserRow {
+  id: string
+  email?: string | null
+  plan?: string | null
+  usage_count?: number | null
+  plan_valid_until?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  is_active: boolean
+  deleted_at?: string | null
+  // Allow other keys without specifying all of them
+  [key: string]: unknown
+}
+
 interface AdminUsersTableProps {
-  users: any[]
+  users: UserRow[]
 }
 
 export default function AdminUsersTable({ users }: AdminUsersTableProps) {
@@ -36,7 +49,7 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     try { window.dispatchEvent(new Event('admin:loading:end')) } catch {}
   }, [users])
   
-  const makeApiCall = async (userId: string, action: string, data?: any) => {
+  const makeApiCall = async (userId: string, action: string, data?: Record<string, unknown>) => {
     setLoading(userId)
     try { window.dispatchEvent(new Event('admin:loading:start')) } catch {}
     try {
@@ -61,7 +74,7 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
       const result = await response.json()
       showToast(result.message || 'Action completed successfully', 'success')
       router.refresh()
-    } catch (error) {
+    } catch {
       showToast('Action failed. Please try again.', 'error')
     } finally {
       setLoading(null)
@@ -69,19 +82,19 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     }
   }
 
-  const handleEditPlan = (row: any) => {
+  const handleEditPlan = (row: UserRow) => {
     setEditPlan({ id: row.id, plan: row.plan || 'free' })
   }
   
-  const handleResetUsage = (row: any) => {
+  const handleResetUsage = (row: UserRow) => {
     setConfirmAction({ label: 'Reset usage count to 0?', onConfirm: () => makeApiCall(row.id, 'reset-usage') })
   }
   
-  const handleSuspend = (row: any) => {
+  const handleSuspend = (row: UserRow) => {
     setConfirmAction({ label: 'Suspend this user account?', onConfirm: () => makeApiCall(row.id, 'suspend') })
   }
   
-  const handleReactivate = (row: any) => {
+  const handleReactivate = (row: UserRow) => {
     setConfirmAction({ label: 'Reactivate this user account?', onConfirm: () => makeApiCall(row.id, 'reactivate') })
   }
 
@@ -103,15 +116,18 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     {
       key: 'email',
       label: 'Email',
-      render: (value: string) => (value && value.includes('@promptok.guest') ? 'Guest' : value)
+      render: (value: unknown) => {
+        const v = (value as string) || ''
+        return v && v.includes('@promptok.guest') ? 'Guest' : v
+      }
     },
     {
       key: 'plan',
       label: 'Plan',
       sortable: true,
-      render: (value: string) => (
+      render: (value: unknown) => (
         <span className="capitalize px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-          {value || 'free'}
+          {(value as string) || 'free'}
         </span>
       )
     },
@@ -120,82 +136,91 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
       key: 'plan_valid_until',
       label: 'Plan Valid Until',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: unknown) => formatDate(value as string)
     },
     {
       key: 'created_at',
       label: 'Created',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: unknown) => formatDate(value as string)
     },
     {
       key: 'updated_at',
       label: 'Updated',
       sortable: true,
-      render: (value: string) => formatDate(value)
+      render: (value: unknown) => formatDate(value as string)
     },
     {
       key: 'is_active',
       label: 'Status',
       sortable: true,
-      render: (value: boolean) => (
+      render: (value: unknown) => {
+        const v = Boolean(value as boolean)
+        return (
         <span className={`px-2 py-1 rounded-full text-xs ${
-          value ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          v ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
         }`}>
-          {value ? 'Active' : 'Suspended'}
+          {v ? 'Active' : 'Suspended'}
         </span>
-      )
+        )
+      }
     },
     {
       key: 'deleted_at',
       label: 'Deleted At',
       sortable: true,
-      render: (value: string) => (value ? formatDate(value) : '—')
+      render: (value: unknown) => {
+        const v = value as string
+        return v ? formatDate(v) : '—'
+      }
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (_: any, row: any) => (
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => handleEditPlan(row)} 
-            disabled={loading === row.id}
-            className="text-blue-600 hover:text-blue-700 text-sm disabled:opacity-50"
-          >
-            Edit Plan
-          </button>
-          <button 
-            onClick={() => handleResetUsage(row)} 
-            disabled={loading === row.id}
-            className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
-          >
-            Reset Usage
-          </button>
-          {row.is_active ? (
+      render: (_: unknown, row: unknown) => {
+        const r = row as UserRow
+        return (
+          <div className="flex space-x-2">
             <button 
-              onClick={() => handleSuspend(row)} 
-              disabled={loading === row.id}
-              className="text-red-600 hover:text-red-700 text-sm disabled:opacity-50"
+              onClick={() => handleEditPlan(r)} 
+              disabled={loading === r.id}
+              className="text-blue-600 hover:text-blue-700 text-sm disabled:opacity-50"
             >
-              Suspend
+              Edit Plan
             </button>
-          ) : (
             <button 
-              onClick={() => handleReactivate(row)} 
-              disabled={loading === row.id}
+              onClick={() => handleResetUsage(r)} 
+              disabled={loading === r.id}
               className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
             >
-              Reactivate
+              Reset Usage
             </button>
-          )}
-        </div>
-      )
+            {r.is_active ? (
+              <button 
+                onClick={() => handleSuspend(r)} 
+                disabled={loading === r.id}
+                className="text-red-600 hover:text-red-700 text-sm disabled:opacity-50"
+              >
+                Suspend
+              </button>
+            ) : (
+              <button 
+                onClick={() => handleReactivate(r)} 
+                disabled={loading === r.id}
+                className="text-green-600 hover:text-green-700 text-sm disabled:opacity-50"
+              >
+                Reactivate
+              </button>
+            )}
+          </div>
+        )
+      }
     }
   ]
 
   return (
     <div className="relative">
-      <AdminTable columns={columns} data={users} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
+      <AdminTable columns={columns} data={users as unknown as Array<Record<string, unknown>>} sortBy={sortBy} sortDir={sortDir} onSort={onSort} />
 
       {/* Non-blocking loading overlay */}
       {loading && (

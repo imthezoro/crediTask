@@ -3,7 +3,7 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
 interface ChartProps {
-  data: any[]
+  data: Array<Record<string, string | number>>
   type?: 'line' | 'bar'
   xKey: string
   yKey: string
@@ -12,7 +12,6 @@ interface ChartProps {
 
 export default function Chart({ data, type = 'line', xKey, yKey, title }: ChartProps) {
   const ChartComponent = type === 'line' ? LineChart : BarChart
-  const DataComponent = type === 'line' ? Line : Bar
 
   return (
     <div className="bg-white p-6 rounded-lg shadow border">

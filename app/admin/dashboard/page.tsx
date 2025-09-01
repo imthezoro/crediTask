@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import KPI from '@/components/KPI'
 import { getHeaderData } from '@/lib/header-utils'
@@ -71,9 +71,9 @@ async function getAdminData() {
       const json = await res.json()
       statusSuccessRate = Number(json?.metrics?.success_rate) || 100
       statusAvgResponseTime = Number(json?.metrics?.avg_response_time) || 0
-      hasActiveIncidents = Array.isArray(json?.incidents) && json.incidents.some((i: any) => i.status === 'active')
+      hasActiveIncidents = Array.isArray(json?.incidents) && json.incidents.some((i: { status?: string }) => i?.status === 'active')
     }
-  } catch (e) {
+  } catch {
     // Fallbacks already set
   }
 

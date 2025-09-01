@@ -123,7 +123,7 @@ export async function PATCH(
         .select('email')
         .eq('id', userId)
         .single()
-      emailToBlock = (userProfile as any)?.email?.toLowerCase() || null
+      emailToBlock = typeof userProfile?.email === 'string' ? userProfile.email.toLowerCase() : null
       if (!emailToBlock) {
         const { data: authUser } = await admin.auth.admin.getUserById(userId)
         emailToBlock = authUser.user?.email?.toLowerCase() || null
@@ -163,7 +163,7 @@ export async function PATCH(
         .select('email')
         .eq('id', userId)
         .single()
-      emailToUnblock = (userProfile2 as any)?.email?.toLowerCase() || null
+      emailToUnblock = typeof userProfile2?.email === 'string' ? userProfile2.email.toLowerCase() : null
       if (!emailToUnblock) {
         const { data: authUser } = await admin.auth.admin.getUserById(userId)
         emailToUnblock = authUser.user?.email?.toLowerCase() || null

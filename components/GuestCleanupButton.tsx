@@ -49,7 +49,7 @@ export function GuestCleanupButton() {
       if (result.stats.usersFound > 0) {
         setShowConfirm(true)
       }
-    } catch (err) {
+    } catch {
       setError('Network error occurred')
     } finally {
       setLoading(false)
@@ -81,7 +81,7 @@ export function GuestCleanupButton() {
 
       setStats(result.stats)
       setShowConfirm(false)
-    } catch (err) {
+    } catch {
       setError('Network error occurred')
     } finally {
       setLoading(false)

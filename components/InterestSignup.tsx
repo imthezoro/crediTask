@@ -9,28 +9,53 @@ export default function InterestSignup() {
     <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg shadow p-6 border-2 border-dashed border-blue-300">
       <div className="text-center mb-6">
         <h3 className="text-xl font-bold text-gray-900 mb-2">Need More Credits?</h3>
-        <p className="text-gray-600">Let us know you're interested in higher limits</p>
+        <p className="text-gray-600">Let us know you&apos;re interested in higher limits</p>
       </div>
 
       <form
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault()
-          const formData = new FormData(e.target as HTMLFormElement)
+          const form = e.target as HTMLFormElement
+          const formData = new FormData(form)
+
+          // Normalize and validate inputs
+          const emailRaw = (formData.get('email') ?? '').toString().trim()
+          const usageRaw = (formData.get('usage') ?? '').toString().trim()
+          const feedbackRaw = (formData.get('feedback') ?? '').toString().trim()
+          const ratingRaw = (formData.get('rating') ?? '').toString().trim()
+
+          // Coerce to correct types
+          const usage = Number(usageRaw)
+          const ratingVal = Number(ratingRaw)
+
+          if (!emailRaw) {
+            alert('Please provide a valid email address.')
+            return
+          }
+          if (!Number.isFinite(usage) || usage < 0) {
+            alert('Please provide a valid non-negative number for usage.')
+            return
+          }
+          if (!Number.isFinite(ratingVal) || ratingVal < 1 || ratingVal > 5) {
+            alert('Please select a rating between 1 and 5.')
+            return
+          }
+
           try {
             const response = await fetch('/api/interest-signup', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                email: formData.get('email'),
-                usage: formData.get('usage'),
-                feedback: formData.get('feedback'),
-                rating: formData.get('rating'),
+                email: emailRaw,
+                usage,
+                feedback: feedbackRaw,
+                rating: ratingVal,
               }),
             })
             if (response.ok) {
               alert("Thank you for your interest! We'll be in touch soon.")
-              ;(e.target as HTMLFormElement).reset()
+              form.reset()
             } else {
               alert('Something went wrong. Please try again.')
             }

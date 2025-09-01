@@ -9,7 +9,7 @@ export class AdminApiHelper {
   static async makeApiCall(
     endpoint: string, 
     method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
-    data?: any
+    data?: unknown
   ): Promise<Response> {
     const token = this.getAuthToken()
     
@@ -21,7 +21,7 @@ export class AdminApiHelper {
       }
     }
 
-    if (data && method !== 'GET') {
+    if (data !== undefined && method !== 'GET') {
       options.body = JSON.stringify(data)
     }
 
@@ -68,7 +68,7 @@ export class AdminApiHelper {
     document.body.removeChild(a)
   }
 
-  static handleError(error: any, defaultMessage: string = 'Operation failed'): void {
+  static handleError(error: unknown, defaultMessage: string = 'Operation failed'): void {
     console.error(error)
     alert(defaultMessage + '. Please try again.')
   }

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient, isUserAdmin } from '@/lib/supabase-server'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const safeActiveIncidents = activeIncidents ?? 0
 
     // Determine health status
-    const getHealthStatus = (metric: string, value: number) => {
+    const getHealthStatus = (metric: string) => {
       switch (metric) {
         case 'database':
           if (dbError) return { status: 'error', message: 'Connection Failed' }
@@ -73,10 +73,10 @@ export async function GET(request: NextRequest) {
     }
 
     const healthData = {
-      database: getHealthStatus('database', dbLatency),
-      api: getHealthStatus('api', safeRecentErrors),
-      incidents: getHealthStatus('incidents', safeActiveIncidents),
-      processing: getHealthStatus('processing', safeRecentSessions),
+      database: getHealthStatus('database'),
+      api: getHealthStatus('api'),
+      incidents: getHealthStatus('incidents'),
+      processing: getHealthStatus('processing'),
       metrics: {
         dbLatency,
         recentErrors: safeRecentErrors,

@@ -1,15 +1,17 @@
 'use client'
 
+import type React from 'react'
+
 interface Column {
   key: string
   label: string
-  render?: (value: any, row: any) => React.ReactNode
+  render?: (value: unknown, row: unknown) => React.ReactNode
   sortable?: boolean
 }
 
 interface AdminTableProps {
   columns: Column[]
-  data: any[]
+  data: Array<Record<string, unknown>>
   loading?: boolean
   sortBy?: string
   sortDir?: 'asc' | 'desc'
@@ -68,7 +70,7 @@ export default function AdminTable({ columns, data, loading, sortBy, sortDir, on
             <tr key={index} className="hover:bg-gray-50">
               {columns.map((column) => (
                 <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {column.render ? column.render(row[column.key], row) : row[column.key]}
+                  {column.render ? column.render(row[column.key], row) : (row[column.key] as React.ReactNode)}
                 </td>
               ))}
             </tr>

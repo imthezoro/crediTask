@@ -103,7 +103,8 @@ export function getClientIP(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
   const realIP = request.headers.get('x-real-ip');
   const cfConnectingIP = request.headers.get('cf-connecting-ip');
-  const reqIp = (request as any).ip as string | undefined;
+  const reqHasIp = (request as unknown as { ip?: unknown }).ip;
+  const reqIp = typeof reqHasIp === 'string' ? reqHasIp : undefined;
 
   if (forwarded) return forwarded.split(',')[0].trim();
   if (realIP) return realIP.trim();

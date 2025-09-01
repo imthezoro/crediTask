@@ -2,6 +2,14 @@
 
 import { useState } from 'react'
 
+interface AnalyticsDataRow {
+  date: string;
+  usage: number;
+  successful: number;
+  failed: number;
+  avgResponseTime: number;
+}
+
 export default function AnalyticsExportPanel() {
   const [loading, setLoading] = useState<string | null>(null)
 
@@ -23,7 +31,7 @@ export default function AnalyticsExportPanel() {
         const data = await response.json()
         const csvContent = [
           'Date,Usage,Successful,Failed,Avg Response Time',
-          ...data.data.map((row: any) => 
+          ...data.data.map((row: AnalyticsDataRow) => 
             `${row.date},${row.usage},${row.successful},${row.failed},${row.avgResponseTime}`
           )
         ].join('\n')
@@ -40,7 +48,7 @@ export default function AnalyticsExportPanel() {
       } else {
         throw new Error('Export failed')
       }
-    } catch (error) {
+    } catch {
       alert('Export failed. Please try again.')
     } finally {
       setLoading(null)

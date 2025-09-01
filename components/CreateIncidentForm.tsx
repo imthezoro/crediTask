@@ -50,7 +50,7 @@ export default function CreateIncidentForm() {
       showToast('Incident created successfully', 'success')
       setFormData({ title: '', description: '', severity: 'medium' })
       router.refresh()
-    } catch (error) {
+    } catch {
       showToast('Failed to create incident. Please try again.', 'error')
     } finally {
       setLoading(false)

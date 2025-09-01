@@ -1,11 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { profileCache } from './lib/profile-cache'
 import { addSecurityHeaders } from './lib/security-middleware'
 import { AuthErrors, createErrorUrl } from './lib/auth-errors'
 
 // Helper function to check user profile status with caching
-async function checkUserProfile(supabase: any, userId: string) {
+async function checkUserProfile(supabase: SupabaseClient, userId: string) {
   // Try cache first
   let isActive = profileCache.get(userId)
   

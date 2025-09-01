@@ -1,10 +1,15 @@
-import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
 // Export panel removed per requirements
+
+interface UsageItem {
+  created_at: string
+  status?: string | null
+}
 
 async function getAnalyticsData() {
   const { user, isAdmin } = await getHeaderData()
@@ -57,8 +62,8 @@ async function getAnalyticsData() {
   const failedSessions = monthlyUsage?.filter(s => s.status === 'failed').length || 0
 
   // Process data for charts
-  const processUsageData = (data: any[], days: number) => {
-    const result = []
+  const processUsageData = (data: UsageItem[], days: number) => {
+    const result: Array<{ date: string; usage: number }> = []
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
       const dateStr = date.toISOString().split('T')[0]

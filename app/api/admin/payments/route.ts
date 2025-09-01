@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       if (profilesError) {
         return NextResponse.json({ error: profilesError.message }, { status: 500 })
       }
-      emailMap = (profiles || []).reduce((acc: Record<string, string>, p: any) => {
+      emailMap = (profiles || []).reduce((acc: Record<string, string>, p: { id: string; email: string | null }) => {
         acc[p.id] = p.email || 'N/A'
         return acc
       }, {})

@@ -1,4 +1,4 @@
-import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, isUserAdmin } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
           .from('user_profiles')
           .select('id, email')
           .in('id', userIds)
-        emailMap = (profiles || []).reduce((acc: Record<string, string>, p: any) => {
+        emailMap = (profiles || []).reduce((acc: Record<string, string>, p: { id: string; email?: string | null }) => {
           acc[p.id] = p.email || 'N/A'
           return acc
         }, {})

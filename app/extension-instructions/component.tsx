@@ -10,7 +10,7 @@ export default function ExtensionInstructions() {
       <div className="space-y-4 text-blue-800">
         <p>
           The PromptOK extension enhances your AI prompts directly in your browser. 
-          Here's how to get started:
+          Here&apos;s how to get started:
         </p>
         
         <ol className="list-decimal list-inside space-y-2">

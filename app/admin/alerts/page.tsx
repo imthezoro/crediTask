@@ -1,10 +1,8 @@
-import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
-import Link from 'next/link'
 import AdminIncidentsTable from '@/components/AdminIncidentsTable'
-import AdminNav from '@/components/AdminNav'
 import CreateIncidentForm from '@/components/CreateIncidentForm'
 
 async function getIncidents() {

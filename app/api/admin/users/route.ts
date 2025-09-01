@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: usersError.message }, { status: 500 })
     }
 
-    const profiles = (users || []).map((p: any) => ({
+    const profiles = (users || []).map((p: { email?: string | null } & Record<string, unknown>) => ({
       ...p,
       email: p.email || 'N/A',
     }))

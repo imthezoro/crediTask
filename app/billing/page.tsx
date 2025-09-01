@@ -1,7 +1,5 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'

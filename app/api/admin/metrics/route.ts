@@ -60,11 +60,14 @@ export async function GET(request: NextRequest) {
       .from('user_profiles')
       .select('plan')
 
-    const plans = planDistribution?.reduce((acc: any, user) => {
-      const plan = user.plan || 'free'
-      acc[plan] = (acc[plan] || 0) + 1
-      return acc
-    }, {}) || {}
+    const plans = planDistribution?.reduce(
+      (acc: Record<string, number>, user: { plan: string | null }) => {
+        const plan = user.plan || 'free'
+        acc[plan] = (acc[plan] || 0) + 1
+        return acc
+      },
+      {}
+    ) || {}
 
     return NextResponse.json({
       totalUsers: totalUsers || 0,

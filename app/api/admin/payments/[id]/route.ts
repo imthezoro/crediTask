@@ -36,7 +36,7 @@ export async function GET(
       .select('email')
       .eq('id', payment.user_id)
       .single()
-    userEmail = (profile as any)?.email || null
+    userEmail = (profile as { email: string } | null)?.email ?? null
 
     if (!userEmail) {
       const { data: authUser } = await admin.auth.admin.getUserById(payment.user_id)
@@ -125,11 +125,14 @@ export async function PATCH(
     }
 
     // General payment update
-    const allowedFields = ['status', 'amount_cents', 'currency', 'plan']
-    const filteredData = Object.keys(updateData)
-      .filter(key => allowedFields.includes(key))
-      .reduce((obj: any, key) => {
-        obj[key] = updateData[key]
+    const allowedFields = ['status', 'amount_cents', 'currency', 'plan'] as const
+    type AllowedField = typeof allowedFields[number]
+    type PaymentUpdate = Partial<Record<AllowedField, string | number> & { updated_at?: string }>
+    const filteredData: PaymentUpdate = Object.keys(updateData)
+      .filter((key): key is AllowedField => (allowedFields as readonly string[]).includes(key))
+      .reduce<PaymentUpdate>((obj, key) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        obj[key] = updateData[key] as unknown as string | number
         return obj
       }, {})
 

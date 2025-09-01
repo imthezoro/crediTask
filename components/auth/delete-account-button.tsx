@@ -108,7 +108,7 @@ export function DeleteAccountButton({ userEmail, isGuest }: DeleteAccountButtonP
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="confirmation">
-            Type "{expectedConfirmation}" to confirm:
+            Type &quot;{expectedConfirmation}&quot; to confirm:
           </Label>
           <Input
             id="confirmation"

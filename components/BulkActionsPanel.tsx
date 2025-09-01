@@ -32,7 +32,7 @@ export default function BulkActionsPanel() {
       } else {
         throw new Error('Export failed')
       }
-    } catch (error) {
+    } catch {
       alert('Export failed. Please try again.')
     } finally {
       setLoading(null)

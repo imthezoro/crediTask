@@ -110,10 +110,14 @@ export async function PATCH(
     }
 
     // General incident update
-    const allowedFields = ['title', 'description', 'status', 'severity']
-    const filteredData = Object.keys(updateData)
-      .filter(key => allowedFields.includes(key))
-      .reduce((obj: any, key) => {
+    const allowedFields = ['title', 'description', 'status', 'severity'] as const
+    type AllowedField = typeof allowedFields[number]
+    type IncidentUpdate = Partial<
+      Record<AllowedField, string> & { updated_at?: string; resolved_at?: string | null }
+    >
+    const filteredData: IncidentUpdate = Object.keys(updateData)
+      .filter((key): key is AllowedField => (allowedFields as readonly string[]).includes(key))
+      .reduce<IncidentUpdate>((obj, key) => {
         obj[key] = updateData[key]
         return obj
       }, {})

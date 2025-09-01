@@ -76,7 +76,7 @@ export function LoginForm() {
         router.push('/dashboard')
         router.refresh()
       }
-    } catch (err) {
+    } catch {
       // Network or other errors also get generic message
       const errorDetails = getAuthErrorDetails('GENERIC_AUTH_ERROR')
       setError(errorDetails.message)
@@ -102,7 +102,7 @@ export function LoginForm() {
       if (error) {
         setError(error.message)
       }
-    } catch (err) {
+    } catch {
       const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
       setError(errorDetails.message)
       setErrorType(errorDetails.type)
@@ -127,7 +127,7 @@ export function LoginForm() {
 
       router.push('/dashboard')
       router.refresh()
-    } catch (err) {
+    } catch {
       const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
       setError(errorDetails.message)
       setErrorType(errorDetails.type)
@@ -250,7 +250,7 @@ export function LoginForm() {
         </Button>
 
         <div className="text-center text-sm">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/auth/signup" className="text-primary hover:underline">
             Sign up
           </Link>

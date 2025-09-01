@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       return addSecurityHeaders(response)
     }
     
-    const { userId, userEmail, isGuest } = validation.data!
+    const { userId } = validation.data!
 
     const supabase = await createClient()
 

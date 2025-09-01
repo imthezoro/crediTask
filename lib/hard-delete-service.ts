@@ -32,7 +32,7 @@ export class HardDeleteService {
         .select('email')
         .eq('id', userId)
         .single()
-      userEmail = (profile as any)?.email?.toLowerCase() || null
+      userEmail = typeof profile?.email === 'string' ? profile.email.toLowerCase() : null
 
       if (!userEmail) {
         const { data: authUser } = await this.admin.auth.admin.getUserById(userId)

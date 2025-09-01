@@ -11,7 +11,7 @@ type Props = {
 export default function PageSizeSelector({ action, pageSize, params }: Props) {
   const formRef = React.useRef<HTMLFormElement>(null)
 
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const onChange = () => {
     // Always reset to page 1 on page size change
     if (formRef.current) {
       const pageInput = formRef.current.querySelector<HTMLInputElement>('input[name="page"]')

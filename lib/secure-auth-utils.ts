@@ -1,5 +1,5 @@
 import { createClient, createAdminClient } from '@/lib/supabase-server'
-import { timingSafeEqual } from 'crypto'
+import { timingSafeEqual, createHash } from 'crypto'
 
 /**
  * Secure Authentication Utilities
@@ -15,8 +15,8 @@ export class SecureAuthUtils {
    */
   static async authenticateUser(email: string, password: string): Promise<{
     success: boolean
-    user?: any
-    profile?: any
+    user?: AuthUserMinimal | null
+    profile?: UserProfileMinimal | null
     error?: string
   }> {
     const startTime = Date.now()
@@ -31,30 +31,28 @@ export class SecureAuthUtils {
         password
       })
 
-      let profile = null
-      let profileError = null
+      let profile: UserProfileMinimal | null = null
 
       // Always attempt profile lookup (constant-time regardless of auth success)
       if (authData?.user?.id) {
-        const { data: profileData, error: profError } = await admin
+        const { data: profileData } = await admin
           .from('user_profiles')
           .select('is_active, is_guest')
           .eq('id', authData.user.id)
           .single()
         
-        profile = profileData
-        profileError = profError
+        profile = profileData as UserProfileMinimal | null
       }
 
       // Determine final result
       let success = false
-      let user = null
+      let user: AuthUserMinimal | null = null
       
       if (!authError && authData?.user && profile && profile.is_active) {
         success = true
         user = {
           id: authData.user.id,
-          email: authData.user.email,
+          email: authData.user.email ?? null,
           is_guest: profile.is_guest || false
         }
       } else {
@@ -93,7 +91,7 @@ export class SecureAuthUtils {
    */
   static async validateUserProfile(userId: string): Promise<{
     isValid: boolean
-    profile?: any
+    profile?: UserProfileMinimal
     error?: string
     isBlocked?: boolean
     blockedUntil?: string
@@ -104,17 +102,18 @@ export class SecureAuthUtils {
       const admin = createAdminClient()
       
       // Always perform profile lookup
-      let { data: profile, error: profileError } = await admin
+      const profileResult = await admin
         .from('user_profiles')
         .select('is_active, is_guest, email')
         .eq('id', userId)
         .single()
+      let profile = profileResult.data as (UserProfileMinimal & { email?: string | null }) | null
 
       // Check blocked emails regardless of profile existence
       let isBlocked = false
       let blockedUntil: string | undefined
       // Prefer email from user_profiles; fallback to auth.users if missing
-      let emailForCheck: string | null = (profile as any)?.email || null
+      let emailForCheck: string | null = profile?.email || null
       if (!emailForCheck) {
         const { data: user } = await admin.auth.admin.getUserById(userId)
         emailForCheck = user?.user?.email || null
@@ -161,7 +160,7 @@ export class SecureAuthUtils {
                     .select('is_active, is_guest, email')
                     .eq('id', userId)
                     .single()
-                  profile = reactivatedProfile
+                  profile = reactivatedProfile as (UserProfileMinimal & { email?: string | null }) | null
                 }
               }
             }
@@ -185,18 +184,22 @@ export class SecureAuthUtils {
         }
       }
 
-      // Determine validity
-      const isValid = !profileError &&
-                      profile &&
-                      profile.is_active &&
-                      !isBlocked
+      // Determine validity from current state (initial fetch error is irrelevant if we created/reactivated a profile)
+      const hasProfile = Boolean(profile)
+      const isValid = hasProfile && !!profile?.is_active && !isBlocked
+
+      // Narrow profile type for return (drop optional email field)
+      const validProfile: UserProfileMinimal | undefined =
+        isValid && profile
+          ? { is_active: profile.is_active, is_guest: profile.is_guest }
+          : undefined
 
       // Ensure minimum response time
       await this.normalizeResponseTime(startTime)
 
       return {
         isValid,
-        profile: isValid ? profile : undefined,
+        profile: validProfile,
         error: isValid ? undefined : 'Account validation failed',
         isBlocked,
         blockedUntil
@@ -221,13 +224,15 @@ export class SecureAuthUtils {
    * Secure email existence check with constant-time response
    * Used for password reset to prevent user enumeration
    */
-  static async checkEmailExists(email: string): Promise<{
+  static async checkEmailExists(_email: string): Promise<{
     exists: boolean
     message: string
   }> {
     const startTime = Date.now()
     
     try {
+      // Intentionally reference the parameter to satisfy no-unused-vars without changing logic
+      void _email
       // Avoid schema dependency on user_profiles.email.
       // For enumeration resistance, we don't actually check existence here.
       // We only normalize timing and return a generic message.
@@ -335,7 +340,19 @@ export class SecureAuthUtils {
    * Hash email for secure logging without exposing actual email
    */
   private static hashEmail(email: string): string {
-    const crypto = require('crypto')
-    return crypto.createHash('sha256').update(email.toLowerCase()).digest('hex').substring(0, 16)
+    return createHash('sha256').update(email.toLowerCase()).digest('hex').substring(0, 16)
   }
+}
+
+// Minimal profile shape used in this module
+interface UserProfileMinimal {
+  is_active: boolean
+  is_guest: boolean
+}
+
+// Minimal user shape returned on successful authentication
+interface AuthUserMinimal {
+  id: string
+  email: string | null
+  is_guest: boolean
 }

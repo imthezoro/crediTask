@@ -25,8 +25,9 @@ export default function AccountActions({ userEmail, isGuest }: Props) {
       const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo })
       if (error) throw error
       setMessage('Password reset email sent.')
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to send reset email')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to send reset email'
+      setError(msg)
     } finally {
       setLoadingReset(false)
     }
@@ -73,8 +74,9 @@ export default function AccountActions({ userEmail, isGuest }: Props) {
       setTimeout(() => {
         window.location.href = '/auth/signin'
       }, 1000)
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to delete account')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete account'
+      setError(msg)
     } finally {
       setLoadingDelete(false)
     }

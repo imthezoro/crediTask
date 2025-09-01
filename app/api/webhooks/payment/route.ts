@@ -1,6 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
-import { reconcilePayment } from '@/lib/payments'
+import { NextResponse } from 'next/server'
 // import Stripe from 'stripe'
 
 // TODO: Uncomment when Stripe is configured
@@ -8,7 +6,7 @@ import { reconcilePayment } from '@/lib/payments'
 //   apiVersion: '2023-10-16',
 // })
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   // PLACEHOLDER: Stripe webhook handler
   // TODO: Configure Stripe and uncomment the implementation below
   
@@ -100,7 +98,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Razorpay webhook handler
-export async function PUT(request: NextRequest) {
+export async function PUT() {
   // PLACEHOLDER: Razorpay webhook handler
   // TODO: Configure Razorpay and uncomment the implementation below
   

@@ -124,6 +124,22 @@ export default function AdminUsersClient() {
     fetchUsers()
   }, [fetchUsers])
 
+  const clearFilters = useCallback(() => {
+    const clearedFilters: FilterState = {
+      page: 1,
+      pageSize: filters.pageSize,
+      plan: '',
+      status: '',
+      sortBy: 'created_at',
+      sortDir: 'desc',
+      q: '',
+      minUsage: '',
+      maxUsage: ''
+    }
+    setFilters(clearedFilters)
+    updateURL(clearedFilters)
+  }, [filters.pageSize, updateURL])
+
   if (error) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
@@ -155,22 +171,6 @@ export default function AdminUsersClient() {
       maxUsage: formData.get('maxUsage') as string || ''
     })
   }
-
-  const clearFilters = useCallback(() => {
-    const clearedFilters: FilterState = {
-      page: 1,
-      pageSize: filters.pageSize,
-      plan: '',
-      status: '',
-      sortBy: 'created_at',
-      sortDir: 'desc',
-      q: '',
-      minUsage: '',
-      maxUsage: ''
-    }
-    setFilters(clearedFilters)
-    updateURL(clearedFilters)
-  }, [filters.pageSize, updateURL])
 
   return (
     <div className="bg-white rounded-lg shadow">
