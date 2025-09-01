@@ -23,12 +23,18 @@ export default function Chart({ data, type = 'line', xKey, yKey, title }: ChartP
           <XAxis dataKey={xKey} />
           <YAxis />
           <Tooltip />
-          <DataComponent 
-            dataKey={yKey} 
-            stroke="#2563eb" 
-            fill="#2563eb"
-            strokeWidth={type === 'line' ? 2 : undefined}
-          />
+          {type === 'line' ? (
+            <Line
+              dataKey={yKey}
+              stroke="#2563eb"
+              strokeWidth={2}
+            />
+          ) : (
+            <Bar
+              dataKey={yKey}
+              fill="#2563eb"
+            />
+          )}
         </ChartComponent>
       </ResponsiveContainer>
     </div>

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { redis } from '@/lib/redis';
 import { hashString } from '@/lib/hash';
 import { getOpenAI } from '@/lib/openai';
-import { getUser } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabase-server';
 import { recordPromptSession } from '@/lib/db';
 import { corsEmpty, corsJson } from '@/lib/cors';
 import { checkPlanQuota, incrementUsage, GUEST_QUOTA } from '@/lib/rateLimit';
@@ -15,7 +15,8 @@ const AnalyzeSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUser();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
