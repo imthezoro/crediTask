@@ -1,3 +1,5 @@
+import PageNavigation from '@/components/PageNavigation'
+
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-16">
@@ -57,6 +59,8 @@ export default function TermsPage() {
             <p>Last updated: {new Date().toLocaleDateString()}</p>
           </div>
         </div>
+
+        <PageNavigation />
       </div>
     </div>
   )

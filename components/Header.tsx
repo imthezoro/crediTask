@@ -120,6 +120,15 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                 <Link href="/pricing" className="text-gray-600 hover:text-blue-600 transition-colors">
                   Pricing
                 </Link>
+                <Link href="/faq" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  FAQ
+                </Link>
+                <Link href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  Contact
+                </Link>
+                <Link href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  Terms
+                </Link>
                 <Link href="/auth/signin" className="text-blue-600 hover:text-blue-700 transition-colors">
                   Sign In
                 </Link>
