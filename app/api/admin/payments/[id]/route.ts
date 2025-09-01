@@ -29,12 +29,23 @@ export async function GET(
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
     }
 
-    // Get user email
-    const { data: authUser } = await admin.auth.admin.getUserById(payment.user_id)
+    // Resolve user email from user_profiles (prefer) and only fallback if needed
+    let userEmail: string | null = null
+    const { data: profile } = await admin
+      .from('user_profiles')
+      .select('email')
+      .eq('id', payment.user_id)
+      .single()
+    userEmail = (profile as any)?.email || null
+
+    if (!userEmail) {
+      const { data: authUser } = await admin.auth.admin.getUserById(payment.user_id)
+      userEmail = authUser.user?.email || null
+    }
 
     return NextResponse.json({
       ...payment,
-      user_email: authUser.user?.email || 'N/A'
+      user_email: userEmail || 'N/A'
     })
 
   } catch (error) {

@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const to = from + pageSize - 1
 
     // Fetch current page with total count using admin client
+    // Select email directly from user_profiles now that the column exists
     let query = admin
       .from('user_profiles')
       .select('*', { count: 'exact' })
@@ -48,6 +49,11 @@ export async function GET(request: NextRequest) {
       query = query.lte('usage_count', maxUsage)
     }
 
+    // Optional server-side search by email
+    if (search) {
+      query = query.ilike('email', `%${search}%`)
+    }
+
     // Sorting
     const sortAsc = sortDir === 'asc'
     query = query.order(sortBy, { ascending: sortAsc, nullsFirst: sortAsc })
@@ -58,33 +64,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: usersError.message }, { status: 500 })
     }
 
-    const profiles = users || []
-
-    // Build email map for only current page via Admin API
-    const userIds = profiles.map((p: any) => p.id)
-    const emailMap: Record<string, string> = {}
-    for (const id of userIds) {
-      try {
-        const { data } = await admin.auth.admin.getUserById(id)
-        if (data?.user?.email) emailMap[id] = data.user.email
-      } catch {}
-    }
-
-    // Enrich profiles with email field
-    let enrichedUsers = profiles.map((p: any) => ({
+    const profiles = (users || []).map((p: any) => ({
       ...p,
-      email: emailMap[p.id] || 'N/A'
+      email: p.email || 'N/A',
     }))
 
-    // Apply email search filter (client-side for current page)
-    if (search) {
-      enrichedUsers = enrichedUsers.filter((u: any) => 
-        (u.email || '').toLowerCase().includes(search.toLowerCase())
-      )
-    }
-
     return NextResponse.json({
-      users: enrichedUsers,
+      users: profiles,
       total: count || 0,
       page,
       pageSize,

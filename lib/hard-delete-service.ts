@@ -25,14 +25,23 @@ export class HardDeleteService {
     } = options
 
     try {
-      // Get user email from auth.users before deletion
-      const { data: authUser, error: authError } = await this.admin.auth.admin.getUserById(userId)
-      
-      if (authError || !authUser?.user?.email) {
-        throw new Error('User not found or email missing')
+      // Resolve user email (prefer user_profiles.email, fallback to auth.users)
+      let userEmail: string | null = null
+      const { data: profile } = await this.admin
+        .from('user_profiles')
+        .select('email')
+        .eq('id', userId)
+        .single()
+      userEmail = (profile as any)?.email?.toLowerCase() || null
+
+      if (!userEmail) {
+        const { data: authUser } = await this.admin.auth.admin.getUserById(userId)
+        userEmail = authUser?.user?.email?.toLowerCase() || null
       }
 
-      const userEmail = authUser.user.email.toLowerCase()
+      if (!userEmail) {
+        throw new Error('User not found or email missing')
+      }
 
       // Start transaction-like operations
       const operations = []

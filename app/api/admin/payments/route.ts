@@ -43,14 +43,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: paymentsError.message }, { status: 500 })
     }
 
-    // Get user emails for payments
+    // Build email map from user_profiles instead of listing all auth users
     const userIds = payments?.map(p => p.user_id) || []
-    const { data: authUsers } = await admin.auth.admin.listUsers()
-    
-    const emailMap = authUsers.users.reduce((acc: any, user) => {
-      acc[user.id] = user.email
-      return acc
-    }, {})
+    let emailMap: Record<string, string> = {}
+    if (userIds.length > 0) {
+      const { data: profiles, error: profilesError } = await admin
+        .from('user_profiles')
+        .select('id, email')
+        .in('id', userIds)
+      if (profilesError) {
+        return NextResponse.json({ error: profilesError.message }, { status: 500 })
+      }
+      emailMap = (profiles || []).reduce((acc: Record<string, string>, p: any) => {
+        acc[p.id] = p.email || 'N/A'
+        return acc
+      }, {})
+    }
 
     // Enrich payments with user emails
     const enrichedPayments = payments?.map(payment => ({

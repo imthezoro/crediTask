@@ -29,16 +29,9 @@ export async function GET(request: NextRequest) {
         .select('*')
         .order('created_at', { ascending: false })
 
-      // Get user emails
-      const { data: authUsers } = await supabase.auth.admin.listUsers()
-      const emailMap = authUsers.users.reduce((acc: any, user) => {
-        acc[user.id] = user.email
-        return acc
-      }, {})
-
       const enrichedUsers = users?.map(user => ({
         id: user.id,
-        email: emailMap[user.id] || 'N/A',
+        email: user.email || 'N/A',
         plan: user.plan,
         usage_count: user.usage_count,
         is_active: user.is_active,
@@ -71,12 +64,18 @@ export async function GET(request: NextRequest) {
         .select('*')
         .order('created_at', { ascending: false })
 
-      // Get user emails
-      const { data: authUsers } = await supabase.auth.admin.listUsers()
-      const emailMap = authUsers.users.reduce((acc: any, user) => {
-        acc[user.id] = user.email
-        return acc
-      }, {})
+      const userIds = (payments || []).map(p => p.user_id)
+      let emailMap: Record<string, string> = {}
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('id, email')
+          .in('id', userIds)
+        emailMap = (profiles || []).reduce((acc: Record<string, string>, p: any) => {
+          acc[p.id] = p.email || 'N/A'
+          return acc
+        }, {})
+      }
 
       const enrichedPayments = payments?.map(payment => ({
         id: payment.id,

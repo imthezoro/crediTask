@@ -106,19 +106,24 @@ export class SecureAuthUtils {
       // Always perform profile lookup
       let { data: profile, error: profileError } = await admin
         .from('user_profiles')
-        .select('is_active, is_guest')
+        .select('is_active, is_guest, email')
         .eq('id', userId)
         .single()
 
       // Check blocked emails regardless of profile existence
       let isBlocked = false
       let blockedUntil: string | undefined
-      const { data: user } = await admin.auth.admin.getUserById(userId)
-      if (user?.user?.email) {
+      // Prefer email from user_profiles; fallback to auth.users if missing
+      let emailForCheck: string | null = (profile as any)?.email || null
+      if (!emailForCheck) {
+        const { data: user } = await admin.auth.admin.getUserById(userId)
+        emailForCheck = user?.user?.email || null
+      }
+      if (emailForCheck) {
         const { data: blockedEmail } = await admin
           .from('blocked_emails')
           .select('blocked_until, reason')
-          .eq('email', user.user.email)
+          .eq('email', emailForCheck)
           .gt('blocked_until', new Date().toISOString())
           .single()
         
@@ -130,7 +135,7 @@ export class SecureAuthUtils {
           const { data: expiredBlock } = await admin
             .from('blocked_emails')
             .select('blocked_until')
-            .eq('email', user.user.email)
+            .eq('email', emailForCheck)
             .lt('blocked_until', new Date().toISOString())
             .single()
           
@@ -139,7 +144,7 @@ export class SecureAuthUtils {
             const { error: deleteError } = await admin
               .from('blocked_emails')
               .delete()
-              .eq('email', user.user.email)
+              .eq('email', emailForCheck)
             
             if (!deleteError) {
               // Reactivate profile if it exists but is inactive
@@ -153,7 +158,7 @@ export class SecureAuthUtils {
                   // Re-fetch updated profile
                   const { data: reactivatedProfile } = await admin
                     .from('user_profiles')
-                    .select('is_active, is_guest')
+                    .select('is_active, is_guest, email')
                     .eq('id', userId)
                     .single()
                   profile = reactivatedProfile
@@ -173,7 +178,7 @@ export class SecureAuthUtils {
         if (!insertError) {
           const { data: createdProfile } = await admin
             .from('user_profiles')
-            .select('is_active, is_guest')
+            .select('is_active, is_guest, email')
             .eq('id', userId)
             .single()
           profile = createdProfile

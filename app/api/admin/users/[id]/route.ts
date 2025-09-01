@@ -30,9 +30,13 @@ export async function GET(
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Get user email from auth
-    const { data: authUser } = await admin.auth.admin.getUserById(userId)
-    
+    // Prefer email from user_profiles; fallback to Admin API if missing
+    let resolvedEmail: string | null = profile.email || null
+    if (!resolvedEmail) {
+      const { data: authUser } = await admin.auth.admin.getUserById(userId)
+      resolvedEmail = authUser.user?.email || null
+    }
+
     // Get user's prompt sessions
     const { data: sessions } = await admin
       .from('prompt_sessions')
@@ -52,7 +56,7 @@ export async function GET(
     return NextResponse.json({
       profile: {
         ...profile,
-        email: authUser.user?.email || 'N/A'
+        email: resolvedEmail || 'N/A'
       },
       sessions: sessions || [],
       payments: payments || []
@@ -112,16 +116,26 @@ export async function PATCH(
         return NextResponse.json({ error: updateError.message }, { status: 500 })
       }
 
-      // Add to blocked emails if email exists
-      const { data: authUser } = await admin.auth.admin.getUserById(userId)
-      if (authUser.user?.email) {
+      // Add to blocked emails using email from user_profiles (fallback to auth if missing)
+      let emailToBlock: string | null = null
+      const { data: userProfile } = await admin
+        .from('user_profiles')
+        .select('email')
+        .eq('id', userId)
+        .single()
+      emailToBlock = (userProfile as any)?.email?.toLowerCase() || null
+      if (!emailToBlock) {
+        const { data: authUser } = await admin.auth.admin.getUserById(userId)
+        emailToBlock = authUser.user?.email?.toLowerCase() || null
+      }
+      if (emailToBlock) {
         const blockedUntil = new Date()
         blockedUntil.setDate(blockedUntil.getDate() + REACTIVATION_BLOCK.suspensionDays)
 
         await admin
           .from('blocked_emails')
           .upsert({
-            email: authUser.user.email.toLowerCase(),
+            email: emailToBlock,
             blocked_until: blockedUntil.toISOString()
           }, { onConflict: 'email' })
       }
@@ -142,13 +156,23 @@ export async function PATCH(
         return NextResponse.json({ error: updateError.message }, { status: 500 })
       }
 
-      // Remove from blocked emails
-      const { data: authUser } = await admin.auth.admin.getUserById(userId)
-      if (authUser.user?.email) {
+      // Remove from blocked emails - prefer user_profiles.email
+      let emailToUnblock: string | null = null
+      const { data: userProfile2 } = await admin
+        .from('user_profiles')
+        .select('email')
+        .eq('id', userId)
+        .single()
+      emailToUnblock = (userProfile2 as any)?.email?.toLowerCase() || null
+      if (!emailToUnblock) {
+        const { data: authUser } = await admin.auth.admin.getUserById(userId)
+        emailToUnblock = authUser.user?.email?.toLowerCase() || null
+      }
+      if (emailToUnblock) {
         await admin
           .from('blocked_emails')
           .delete()
-          .eq('email', authUser.user.email.toLowerCase())
+          .eq('email', emailToUnblock)
       }
 
       return NextResponse.json({ message: 'User reactivated successfully' })
