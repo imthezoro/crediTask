@@ -14,8 +14,6 @@ interface UserRow {
   updated_at?: string | null
   is_active: boolean
   deleted_at?: string | null
-  // Allow other keys without specifying all of them
-  [key: string]: unknown
 }
 
 interface AdminUsersTableProps {
