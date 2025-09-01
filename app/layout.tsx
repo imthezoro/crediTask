@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
@@ -31,9 +32,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </footer>
         <script src="/extension-sync.js" defer></script>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
 }
-
-
