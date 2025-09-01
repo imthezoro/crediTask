@@ -69,6 +69,11 @@ export function getAuthErrorDetails(errorCode: string): {
 }
 
 // Helper to create error URL parameters
-export function createErrorUrl(baseUrl: string, errorCode: AuthErrorCode): string {
-  return `${baseUrl}?error=${encodeURIComponent(errorCode)}`
+export function createErrorUrl(baseUrl: string, errorCode: AuthErrorCode, customMessage?: string): string {
+  const params = new URLSearchParams()
+  params.set('error', errorCode)
+  if (customMessage) {
+    params.set('message', customMessage)
+  }
+  return `${baseUrl}?${params.toString()}`
 }

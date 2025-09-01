@@ -1,4 +1,5 @@
 import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { REACTIVATION_BLOCK } from '@/lib/auth-constants'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -115,14 +116,14 @@ export async function PATCH(
       const { data: authUser } = await admin.auth.admin.getUserById(userId)
       if (authUser.user?.email) {
         const blockedUntil = new Date()
-        blockedUntil.setDate(blockedUntil.getDate() + 30) // Block for 30 days
+        blockedUntil.setDate(blockedUntil.getDate() + REACTIVATION_BLOCK.suspensionDays)
 
         await admin
           .from('blocked_emails')
           .upsert({
-            email: authUser.user.email,
+            email: authUser.user.email.toLowerCase(),
             blocked_until: blockedUntil.toISOString()
-          })
+          }, { onConflict: 'email' })
       }
 
       return NextResponse.json({ message: 'User suspended successfully' })
@@ -147,7 +148,7 @@ export async function PATCH(
         await admin
           .from('blocked_emails')
           .delete()
-          .eq('email', authUser.user.email)
+          .eq('email', authUser.user.email.toLowerCase())
       }
 
       return NextResponse.json({ message: 'User reactivated successfully' })

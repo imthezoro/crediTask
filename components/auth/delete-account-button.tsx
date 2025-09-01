@@ -64,7 +64,7 @@ export function DeleteAccountButton({ userEmail, isGuest }: DeleteAccountButtonP
       await supabase.auth.signOut()
       
       // Redirect to signin with success message
-      router.push('/auth/signin?message=Account has been successfully deactivated')
+      router.push('/auth/signin?message=Account has been permanently deleted')
       
     } catch (err) {
       console.error('Account deletion error:', err)
@@ -81,8 +81,8 @@ export function DeleteAccountButton({ userEmail, isGuest }: DeleteAccountButtonP
           <h3 className="font-medium text-red-900 mb-2">Delete Account</h3>
           <p className="text-sm text-red-700 mb-4">
             {isGuest 
-              ? 'This will permanently deactivate your guest account. You will not be able to recover your data.'
-              : 'This will permanently deactivate your account. You will not be able to recover your data or use the same email to sign up again.'
+              ? 'This will permanently delete your guest account and all associated data. This action cannot be undone.'
+              : 'This will permanently delete your account and all associated data. Your email will be blocked for 7 days to prevent immediate re-registration. This action cannot be undone.'
             }
           </p>
           <Button 
@@ -102,7 +102,7 @@ export function DeleteAccountButton({ userEmail, isGuest }: DeleteAccountButtonP
       <CardHeader>
         <CardTitle className="text-red-900">Confirm Account Deletion</CardTitle>
         <CardDescription>
-          This action cannot be undone. Your account will be permanently deactivated.
+          This action cannot be undone. Your account and all data will be permanently deleted.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

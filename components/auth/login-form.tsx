@@ -24,14 +24,24 @@ export function LoginForm() {
   // Handle URL error parameters
   useEffect(() => {
     const urlError = searchParams.get('error')
+    const customMessage = searchParams.get('message')
+    
     if (urlError) {
-      const errorDetails = getAuthErrorDetails(decodeURIComponent(urlError))
-      setError(errorDetails.message)
-      setErrorType(errorDetails.type === 'warning' ? 'RATE_LIMIT' : 'error')
+      if (customMessage) {
+        // Use custom message for specific cases like blocked accounts
+        setError(decodeURIComponent(customMessage))
+        setErrorType('error')
+      } else {
+        // Use standard error handling
+        const errorDetails = getAuthErrorDetails(decodeURIComponent(urlError))
+        setError(errorDetails.message)
+        setErrorType(errorDetails.type === 'warning' ? 'RATE_LIMIT' : 'error')
+      }
       
       // Clean URL after showing error
       const url = new URL(window.location.href)
       url.searchParams.delete('error')
+      url.searchParams.delete('message')
       window.history.replaceState({}, '', url.toString())
     }
   }, [searchParams])
@@ -43,22 +53,32 @@ export function LoginForm() {
     setErrorType('error')
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Use the secure login API endpoint instead of direct Supabase auth
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       })
 
-      if (error) {
-        setError(error.message)
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        // All authentication errors now return generic message
+        const errorDetails = getAuthErrorDetails('GENERIC_AUTH_ERROR')
+        setError(errorDetails.message)
+        setErrorType(errorDetails.type)
         return
       }
 
-      if (data.user) {
+      if (result.user) {
         router.push('/dashboard')
         router.refresh()
       }
     } catch (err) {
-      const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
+      // Network or other errors also get generic message
+      const errorDetails = getAuthErrorDetails('GENERIC_AUTH_ERROR')
       setError(errorDetails.message)
       setErrorType(errorDetails.type)
     } finally {

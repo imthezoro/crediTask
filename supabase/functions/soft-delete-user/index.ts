@@ -45,9 +45,12 @@ serve(async (req) => {
     // Get current timestamp
     const now = new Date().toISOString()
     
-    // Calculate block expiration (30 days from now)
+    // Calculate block expiration using env var ACCOUNT_BLOCK_DAYS (fallback 30)
+    const defaultDays = 10
+    const envDays = parseInt(Deno.env.get('ACCOUNT_BLOCK_DAYS') || '')
+    const blockDays = Number.isFinite(envDays) && envDays > 0 ? envDays : defaultDays
     const blockUntil = new Date()
-    blockUntil.setDate(blockUntil.getDate() + 30)
+    blockUntil.setDate(blockUntil.getDate() + blockDays)
     const blockUntilISO = blockUntil.toISOString()
 
     console.log(`Soft deleting user: ${userId} (${userEmail})`)
@@ -79,16 +82,14 @@ serve(async (req) => {
     operations.push('Profile deactivated')
 
     // 2. Add email to blocked_emails table to prevent re-signup
+    // Note: Table schema (migration 011) has only: email (pk), blocked_until, created_at
     if (!isGuest && userEmail && !userEmail.includes('@promptok.guest')) {
       const { error: blockError } = await supabaseClient
         .from('blocked_emails')
         .upsert({
           email: userEmail.toLowerCase(),
-          blocked_at: now,
           blocked_until: blockUntilISO,
-          reason: 'User requested account deletion',
-          blocked_by: 'system'
-        })
+        }, { onConflict: 'email' })
 
       if (blockError) {
         console.error('Block email error:', blockError)

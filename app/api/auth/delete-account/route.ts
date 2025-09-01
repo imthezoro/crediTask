@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { deleteAccountSchema, validateRequest } from '@/lib/validation'
 import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP } from '@/lib/security-middleware'
 import { SecurityUtils } from '@/lib/security-utils'
+import { hardDeleteService } from '@/lib/hard-delete-service'
 
 export async function POST(request: NextRequest) {
   // Apply security middleware
@@ -42,48 +43,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Additional security: verify user profile is active
+    // Additional security: verify user profile exists and prevent guest deletion
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('is_active')
+      .select('id, is_guest')
       .eq('id', user.id)
       .single()
 
-    if (profileError || !profile?.is_active) {
+    if (profileError || !profile) {
       return NextResponse.json(
-        { error: 'Account is not active' },
+        { error: 'User profile not found' },
+        { status: 404 }
+      )
+    }
+
+    // Prevent guest users from deleting accounts
+    if (profile.is_guest) {
+      return NextResponse.json(
+        { error: 'Guest accounts cannot be permanently deleted' },
         { status: 403 }
       )
     }
 
-    // Call the Edge Function for secure soft deletion
-    const { data, error } = await supabase.functions.invoke('soft-delete-user', {
-      body: {
-        userId,
-        userEmail,
-        isGuest,
-        requestedBy: user.id
-      }
-    })
-
-    if (error) {
-      console.error('Edge function error:', error)
-      return NextResponse.json(
-        { error: 'Failed to delete account' },
-        { status: 500 }
-      )
-    }
-
-    // Record successful operation for rate limiting using SecurityUtils
+    // Hard delete user and block email
     const clientIP = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || ''
+    
+    await hardDeleteService.hardDeleteUser(userId, {
+      reason: 'User account deletion',
+      performedBy: 'user',
+      ipAddress: clientIP,
+      userAgent
+    })
+
+    // Record successful operation for rate limiting using SecurityUtils
     const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'delete-account')
     rateLimiter.recordSuccess(identifier, 'delete-account', 'auth-sensitive')
     
     const response = NextResponse.json({
       success: true,
-      message: 'Account has been successfully deactivated',
-      data
+      message: 'Account permanently deleted. Email blocked for reuse.'
     })
     
     return addSecurityHeaders(response)
@@ -91,7 +90,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Delete account API error:', error)
     const response = NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Account deletion failed' },
       { status: 500 }
     )
     return addSecurityHeaders(response)

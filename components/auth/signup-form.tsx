@@ -37,20 +37,23 @@ export function SignupForm() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
+      // Use our custom signup API instead of direct Supabase call
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       })
 
-      if (error) {
-        setError(error.message)
+      const result = await response.json()
+
+      if (!response.ok) {
+        setError(result.error || 'Signup failed')
         return
       }
 
-      if (data.user) {
+      if (result.success) {
         setSuccess(true)
       }
     } catch (err) {

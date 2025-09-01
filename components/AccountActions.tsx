@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { getSupabaseBrowser } from '@/lib/supabase-client'
+import { createClient } from '@/lib/supabase-client'
 
 type Props = {
   userEmail: string | null
@@ -9,7 +9,7 @@ type Props = {
 }
 
 export default function AccountActions({ userEmail, isGuest }: Props) {
-  const supabase = getSupabaseBrowser()
+  const supabase = createClient()
   const [loadingReset, setLoadingReset] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -33,24 +33,48 @@ export default function AccountActions({ userEmail, isGuest }: Props) {
   }
 
   const onDeleteAccount = async () => {
-    if (!confirm('Are you sure you want to delete your account? This will deactivate your profile.')) return
+    // Prevent guest users from deleting accounts
+    if (isGuest) {
+      setError('Guest accounts cannot be permanently deleted. Please create a regular account first.')
+      return
+    }
+
+    if (!confirm('Are you sure you want to permanently delete your account? This will remove all your data and block your email for 7 days.')) return
     setMessage(null)
     setError(null)
     setLoadingDelete(true)
     try {
-      const res = await fetch('/api/account/deactivate', { method: 'POST' })
+      // Get current user session
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('No active session')
+      }
+
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          userEmail: userEmail,
+          isGuest: isGuest
+        })
+      })
+      
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        throw new Error(j.error || 'Failed to deactivate account')
+        throw new Error(j.error || 'Failed to delete account')
       }
+      
       // Sign out locally
       await supabase.auth.signOut()
-      setMessage('Account deactivated. Redirecting to sign in...')
+      setMessage('Account permanently deleted. Redirecting to sign in...')
       setTimeout(() => {
         window.location.href = '/auth/signin'
       }, 1000)
     } catch (e: any) {
-      setError(e?.message ?? 'Failed to deactivate account')
+      setError(e?.message ?? 'Failed to delete account')
     } finally {
       setLoadingDelete(false)
     }
@@ -75,14 +99,17 @@ export default function AccountActions({ userEmail, isGuest }: Props) {
 
       <div className="border-t pt-4">
         <h3 className="font-medium text-red-600 mb-2">Danger Zone</h3>
-        <p className="text-sm text-gray-600 mb-3">Deactivate your account. You can contact support to re-activate later.</p>
+        <p className="text-sm text-gray-600 mb-3">Permanently delete your account and all data. Email will be blocked for 7 days.</p>
         <button
           onClick={onDeleteAccount}
-          disabled={loadingDelete}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+          disabled={isGuest || loadingDelete}
+          className={`px-4 py-2 rounded-lg transition-colors text-white ${isGuest ? 'bg-gray-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
         >
           {loadingDelete ? 'Processing...' : 'Delete Account'}
         </button>
+        {isGuest && (
+          <p className="text-xs text-gray-500 mt-2">Account deletion is disabled for guest accounts.</p>
+        )}
       </div>
 
       {(message || error) && (
