@@ -12,20 +12,6 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // If this is a PKCE code flow callback, exchange the code for a session first
-        if (typeof window !== 'undefined') {
-          const url = new URL(window.location.href)
-          const code = url.searchParams.get('code')
-          if (code) {
-            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-            if (exchangeError) {
-              console.error('Code exchange error:', exchangeError)
-              router.push(createErrorUrl('/auth/signin', AuthErrors.GENERIC_AUTH_ERROR))
-              return
-            }
-          }
-        }
-
         const { data, error } = await supabase.auth.getSession()
         
         if (error) {
