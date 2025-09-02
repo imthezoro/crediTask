@@ -11,69 +11,68 @@ interface UsageItem {
   status?: string | null
 }
 
+// Cache analytics briefly to reduce TTFB while keeping data fresh
+export const revalidate = 60
+
 async function getAnalyticsData() {
-  const { user, isAdmin } = await getHeaderData()
-  
-  if (!user) {
-    redirect('/auth/signin')
-  }
-  
-  // Check admin privileges
-  if (!isAdmin) {
-    redirect('/dashboard')
-  }
-
-
   const admin = createAdminClient()
 
-  // Get usage data for last 7 days
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-  const { data: weeklyUsage } = await admin
-    .from('prompt_sessions')
-    .select('created_at, status')
-    .gte('created_at', sevenDaysAgo.toISOString())
+  // Time ranges
+  const now = Date.now()
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000)
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000)
 
-  // Get usage data for last 30 days
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  const { data: monthlyUsage } = await admin
-    .from('prompt_sessions')
-    .select('created_at, status')
-    .gte('created_at', thirtyDaysAgo.toISOString())
+  // Run queries in parallel to reduce latency
+  const [
+    weeklyRes,
+    monthlyRes,
+    dauRes,
+    wauRes,
+    mauRes,
+  ] = await Promise.all([
+    admin
+      .from('prompt_sessions')
+      .select('created_at, status')
+      .gte('created_at', sevenDaysAgo.toISOString()),
+    admin
+      .from('prompt_sessions')
+      .select('created_at, status')
+      .gte('created_at', thirtyDaysAgo.toISOString()),
+    admin
+      .from('prompt_sessions')
+      .select('user_id', { count: 'exact', head: true })
+      .gte('created_at', new Date(now - 24 * 60 * 60 * 1000).toISOString()),
+    admin
+      .from('prompt_sessions')
+      .select('user_id', { count: 'exact', head: true })
+      .gte('created_at', sevenDaysAgo.toISOString()),
+    admin
+      .from('prompt_sessions')
+      .select('user_id', { count: 'exact', head: true })
+      .gte('created_at', thirtyDaysAgo.toISOString()),
+  ])
 
-  // Get user engagement data
-  const { count: dailyActiveUsers } = await admin
-    .from('prompt_sessions')
-    .select('user_id', { count: 'exact', head: true })
-    .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+  const weeklyUsage = weeklyRes.data as UsageItem[] | null
+  const monthlyUsage = monthlyRes.data as UsageItem[] | null
+  const dailyActiveUsers = dauRes.count || 0
+  const weeklyActiveUsers = wauRes.count || 0
+  const monthlyActiveUsers = mauRes.count || 0
 
-  const { count: weeklyActiveUsers } = await admin
-    .from('prompt_sessions')
-    .select('user_id', { count: 'exact', head: true })
-    .gte('created_at', sevenDaysAgo.toISOString())
-
-  const { count: monthlyActiveUsers } = await admin
-    .from('prompt_sessions')
-    .select('user_id', { count: 'exact', head: true })
-    .gte('created_at', thirtyDaysAgo.toISOString())
-
-  // Get feature usage stats
+  // Feature usage stats based on last 30 days
   const totalSessions = monthlyUsage?.length || 0
   const completedSessions = monthlyUsage?.filter(s => s.status === 'completed').length || 0
   const failedSessions = monthlyUsage?.filter(s => s.status === 'failed').length || 0
 
-  // Process data for charts
+  // Prepare chart data (client expects per-day buckets)
   const processUsageData = (data: UsageItem[], days: number) => {
     const result: Array<{ date: string; usage: number }> = []
     for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+      const date = new Date(now - i * 24 * 60 * 60 * 1000)
       const dateStr = date.toISOString().split('T')[0]
-      const count = data?.filter(item => 
-        item.created_at.startsWith(dateStr)
-      ).length || 0
-      
+      const count = data?.filter(item => item.created_at.startsWith(dateStr)).length || 0
       result.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        usage: count
+        usage: count,
       })
     }
     return result
@@ -88,21 +87,27 @@ async function getAnalyticsData() {
     totalWeekly: weeklyUsage?.length || 0,
     totalMonthly: monthlyUsage?.length || 0,
     engagement: {
-      dailyActiveUsers: dailyActiveUsers || 0,
-      weeklyActiveUsers: weeklyActiveUsers || 0,
-      monthlyActiveUsers: monthlyActiveUsers || 0
+      dailyActiveUsers,
+      weeklyActiveUsers,
+      monthlyActiveUsers,
     },
     features: {
       promptEnhancement: Math.round((completedSessions / Math.max(totalSessions, 1)) * 100),
       analyticsUsage: Math.round((dailyActiveUsers || 0) / Math.max(monthlyActiveUsers || 1, 1) * 100),
-      apiAccess: Math.round((failedSessions / Math.max(totalSessions, 1)) * 100)
-    }
+      apiAccess: Math.round((failedSessions / Math.max(totalSessions, 1)) * 100),
+    },
   }
 }
 
 export default async function AdminAnalyticsPage() {
-  const { weeklyData, monthlyData, totalWeekly, totalMonthly, engagement, features } = await getAnalyticsData()
   const { user, isAdmin } = await getHeaderData()
+  if (!user) {
+    redirect('/auth/signin')
+  }
+  if (!isAdmin) {
+    redirect('/dashboard')
+  }
+  const { weeklyData, monthlyData, totalWeekly, totalMonthly, engagement, features } = await getAnalyticsData()
 
   return (
     <div className="min-h-screen bg-gray-50">

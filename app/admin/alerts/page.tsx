@@ -6,29 +6,25 @@ import AdminIncidentsTable from '@/components/AdminIncidentsTable'
 import CreateIncidentForm from '@/components/CreateIncidentForm'
 
 async function getIncidents() {
-  const { user, isAdmin } = await getHeaderData()
-  
-  if (!user) {
-    redirect('/auth/signin')
-  }
-  
-  // Check admin privileges
-  if (!isAdmin) {
-    redirect('/dashboard')
-  }
-
   const supabase = await createClient()
   const { data: incidents } = await supabase
     .from('incidents')
     .select('*')
     .order('created_at', { ascending: false })
+    .limit(25)
 
   return incidents || []
 }
 
 export default async function AdminAlerts() {
-  const incidents = await getIncidents()
   const { user, isAdmin } = await getHeaderData()
+  if (!user) {
+    redirect('/auth/signin')
+  }
+  if (!isAdmin) {
+    redirect('/dashboard')
+  }
+  const incidents = await getIncidents()
 
   const activeIncidents = incidents.filter(i => i.status === 'active').length
   const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length
@@ -94,7 +90,7 @@ export default async function AdminAlerts() {
           </div>
           
           <div className="p-6">
-            <AdminIncidentsTable incidents={incidents} />
+              <AdminIncidentsTable incidents={incidents} />
           </div>
         </div>
 
