@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DeleteAccountButton } from '@/components/auth/delete-account-button'
+import { ChangePasswordButton } from '@/components/auth/change-password-button'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
@@ -90,11 +91,20 @@ export default async function SettingsPage() {
               <CardTitle>Account Actions</CardTitle>
               <CardDescription>Manage your account settings and data</CardDescription>
             </CardHeader>
-            <CardContent>
-              <DeleteAccountButton 
-                userEmail={user.email || ''}
-                isGuest={Boolean(user.email?.includes('@promptok.guest'))}
-              />
+            <CardContent className="space-y-4">
+              <div>
+                <ChangePasswordButton 
+                  userEmail={user.email || ''}
+                  isGuest={Boolean(user.email?.includes('@promptok.guest'))}
+                />
+              </div>
+              
+              <div>
+                <DeleteAccountButton 
+                  userEmail={user.email || ''}
+                  isGuest={Boolean(user.email?.includes('@promptok.guest'))}
+                />
+              </div>
             </CardContent>
           </Card>
 
