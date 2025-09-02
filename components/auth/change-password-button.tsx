@@ -64,7 +64,7 @@ export function ChangePasswordButton({ userEmail, isGuest }: ChangePasswordButto
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <h3 className="font-medium text-blue-900 mb-2">Change Password</h3>
           <p className="text-sm text-blue-700 mb-4">
-            We'll send a password reset link to your email address. Click the link in the email to set a new password.
+            We&apos;ll send a password reset link to your email address. Click the link in the email to set a new password.
           </p>
           <Button 
             variant="outline" 
