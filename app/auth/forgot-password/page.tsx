@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">Forgot your password?</CardTitle>
           <CardDescription className="text-center">
-            Enter your email address and we'll send you a link to reset it
+            Enter your email address and we&apos;ll send you a link to reset it
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
