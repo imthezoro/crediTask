@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase-client'
+import { useRouter } from 'next/navigation'
 
 export default function ResetPasswordConfirmPage() {
   const [message, setMessage] = useState('Loading...')
@@ -13,6 +14,7 @@ export default function ResetPasswordConfirmPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     const handlePasswordReset = async () => {
@@ -36,15 +38,22 @@ export default function ResetPasswordConfirmPage() {
         const code = currentUrl.searchParams.get('code')
         const token = currentUrl.searchParams.get('token') || currentUrl.searchParams.get('token_hash')
 
-        // Do not perform PKCE exchange on password reset page.
-        // If only a code is present (no hash), attempt recovery verification to establish session.
+        // Handle hash-based tokens (direct access_token in URL hash)
+        if (hasHash) {
+          // Let Supabase automatically handle the hash-based session
+          const { error: sessionError } = await supabase.auth.getSession()
+          if (sessionError) {
+            console.warn('Hash session error:', sessionError.message)
+          }
+        }
+        
+        // Handle code/token-based recovery (email link parameters)
         if ((code || token) && !hasHash) {
           const { error: verifyError } = await supabase.auth.verifyOtp({
             type: 'recovery',
             token_hash: code || token || '',
           })
           if (verifyError) {
-            // Continue to retry loop which may still succeed if session was set asynchronously
             console.warn('Recovery verifyOtp error:', verifyError.message)
           }
         }
@@ -63,6 +72,41 @@ export default function ResetPasswordConfirmPage() {
 
           if (established) {
             console.log('Session established successfully')
+            // Validate reset session (block if account/email is still blocked)
+            try {
+              const { data: s } = await supabase.auth.getSession()
+              const userId = s.session?.user.id
+              if (userId) {
+                const resp = await fetch('/api/auth/validate-session-reset', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId })
+                })
+                const result = await resp.json().catch(() => ({}))
+                if (!resp.ok || result?.isBlocked) {
+                  // If blocked, show specific message with remaining time
+                  if (result?.isBlocked && result?.blockedUntil) {
+                    const blockedUntilDate = new Date(result.blockedUntil)
+                    const ms = blockedUntilDate.getTime() - Date.now()
+                    const daysRemaining = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)))
+                    const hoursRemaining = Math.max(1, Math.ceil(ms / (1000 * 60 * 60)))
+                    const timeMessage = daysRemaining > 1 ? `${daysRemaining} days` : `${hoursRemaining} hours`
+                    setError(`This account is temporarily blocked due to deactivation. Please wait ${timeMessage} before attempting password reset.`)
+                  } else {
+                    setError('Unable to validate reset session. Please request a new password reset link.')
+                  }
+                  // Sign out and stop
+                  try { await supabase.auth.signOut() } catch {}
+                  setMessage('Password reset unavailable')
+                  setShowPasswordForm(false)
+                  setIsInitializing(false)
+                  return
+                }
+              }
+            } catch (e) {
+              console.warn('Reset validation error:', e)
+            }
+
             // Clean URL (remove tokens/code) to prevent reprocessing on refresh
             try {
               const cleanUrl = window.location.origin + window.location.pathname
@@ -140,15 +184,16 @@ export default function ResetPasswordConfirmPage() {
         throw new Error(updateError.message)
       }
 
-      setMessage('Password updated successfully! Please use the PromptOK browser extension to sign in with your new password.')
+      setMessage('Password updated successfully! Redirecting to sign in...')
       setShowPasswordForm(false)
 
+      // Sign out to clear the reset session and redirect to signin
+      await supabaseClient.auth.signOut()
+      
       // Redirect to signin after a short delay
       setTimeout(() => {
-        try {
-          window.location.href = '/auth/signin'
-        } catch {}
-      }, 3000)
+        router.push('/auth/signin')
+      }, 2000)
 
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : 'Failed to update password'

@@ -100,10 +100,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // Handle auth routes - redirect authenticated active users to dashboard
+  // Exception: Allow access to reset-password-confirm for password reset flow
   if (user && request.nextUrl.pathname.startsWith('/auth/')) {
+    
     const { isActive } = await checkUserProfile(supabase, user.id)
 
     if (isActive) {
+      // Allow access to password reset confirmation page
+      if (request.nextUrl.pathname === '/auth/reset-password-confirm') {
+        return addSecurityHeaders(response)
+      }
       const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
       // Copy cookies to redirect response
       response.cookies.getAll().forEach((cookie) => {
