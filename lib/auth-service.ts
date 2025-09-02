@@ -89,6 +89,68 @@ export class AuthService {
   }
 
   /**
+   * Set password for current user (works for both OAuth and email users)
+   */
+  async setPassword(password: string): Promise<{
+    success: boolean
+    error?: string
+    isGoogleOAuthUser?: boolean
+  }> {
+    try {
+      // Get current user to check provider
+      const { data: userData } = await this.supabase.auth.getUser()
+      
+      if (!userData.user) {
+        return {
+          success: false,
+          error: 'No authenticated user found'
+        }
+      }
+
+      const isGoogleOAuthUser = userData.user.identities?.some(
+        identity => identity.provider === 'google'
+      ) || false
+
+      // Use updateUser() method - works for both OAuth and email users
+      const { error: updateError } = await this.supabase.auth.updateUser({
+        password: password,
+      })
+
+      if (updateError) {
+        return {
+          success: false,
+          error: updateError.message
+        }
+      }
+
+      return {
+        success: true,
+        isGoogleOAuthUser
+      }
+    } catch (error) {
+      console.error('Set password error:', error)
+      return {
+        success: false,
+        error: 'Failed to set password'
+      }
+    }
+  }
+
+  /**
+   * Check if current user is Google OAuth user
+   */
+  async isGoogleOAuthUser(): Promise<boolean> {
+    try {
+      const { data: userData } = await this.supabase.auth.getUser()
+      return userData.user?.identities?.some(
+        identity => identity.provider === 'google'
+      ) || false
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Listen to auth state changes
    */
   onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {

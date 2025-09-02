@@ -45,6 +45,12 @@ export const validateSessionSchema = z.object({
   userId: uuidSchema
 })
 
+// Set password request schema
+export const setPasswordSchema = z.object({
+  password: passwordSchema,
+  userId: uuidSchema
+})
+
 // Signup request schema
 export const signupSchema = z.object({
   email: emailSchema,

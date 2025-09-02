@@ -175,16 +175,25 @@ export default function ResetPasswordConfirmPage() {
         throw new Error('Session expired. Please request a new password reset.')
       }
 
-      // Update the password using the established session
-      const { error: updateError } = await supabaseClient.auth.updateUser({
-        password: newPassword,
+      // Use the new set-password API endpoint that handles both OAuth and email users
+      const response = await fetch('/api/auth/set-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          password: newPassword,
+          userId: sessionData.session.user.id
+        }),
       })
 
-      if (updateError) {
-        throw new Error(updateError.message)
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to update password')
       }
 
-      setMessage('Password updated successfully! Redirecting to sign in...')
+      setMessage(result.message)
       setShowPasswordForm(false)
 
       // Sign out to clear the reset session and redirect to signin
