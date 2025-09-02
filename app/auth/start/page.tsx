@@ -22,7 +22,7 @@ export default function AuthStartPage() {
         const current = new URL(window.location.href);
         const provider = (current.searchParams.get("provider") || "google") as "google";
         const redirectTo = current.searchParams.get("redirectTo") || 
-          `${window.location.origin}/auth/callback`;
+          `${process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/auth/callback`;
 
         const { error } = await supabase.auth.signInWithOAuth({
           provider,

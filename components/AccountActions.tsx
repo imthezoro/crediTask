@@ -21,7 +21,7 @@ export default function AccountActions({ userEmail, isGuest }: Props) {
     setError(null)
     setLoadingReset(true)
     try {
-      const redirectTo = `${window.location.origin}/auth/reset-password-confirm`
+      const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/auth/reset-password-confirm`
       const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo })
       if (error) throw error
       setMessage('Password reset email sent.')

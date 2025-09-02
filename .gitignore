@@ -24,6 +24,9 @@ Thumbs.db
 .env.*
 !.env.example
 
+# But keep this one
+!.env.sample.txt
+
 # Next.js
 .next/
 out/
