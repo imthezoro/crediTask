@@ -2,8 +2,14 @@ import { createAdminClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
-import Chart from '@/components/Chart'
 import KPI from '@/components/KPI'
+import dynamic from 'next/dynamic'
+
+// Dynamic import for Chart component to reduce bundle size and improve TTFB
+const Chart = dynamic(() => import('@/components/Chart'), {
+  ssr: false,
+  loading: () => <div className="bg-white p-6 rounded-lg shadow border h-80 animate-pulse" />,
+})
 // Export panel removed per requirements
 
 interface UsageItem {
