@@ -1,5 +1,9 @@
 import PageNavigation from '@/components/PageNavigation'
 
+// Route Segment Options
+export const revalidate = 3600; // 1h - FAQ content may be updated more frequently
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: 'FAQ | PromptOK',
   description: 'Frequently asked questions about PromptOK. Find quick answers to common questions.'

@@ -1,5 +1,9 @@
 import PageNavigation from '@/components/PageNavigation'
 
+// Route Segment Options
+export const revalidate = 86400; // 24h - terms change infrequently
+export const dynamic = 'force-static';
+
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-16">

@@ -1,6 +1,10 @@
 import ContactForm from '@/components/ContactForm'
 import PageNavigation from '@/components/PageNavigation'
 
+// Route Segment Options
+export const revalidate = 3600; // 1h - contact info may be updated occasionally
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: 'Contact & Support | PromptOK',
   description: 'Get in touch with PromptOK support. Find contact information and support request options.'
