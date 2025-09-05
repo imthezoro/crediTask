@@ -1,17 +1,14 @@
 import Link from 'next/link'
-import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
-// Homepage shows personalized content based on user login status
-export const dynamic = 'force-dynamic'
+// Static homepage with ISR for optimal performance
+export const dynamic = 'force-static'
+export const revalidate = 3600 // Revalidate every hour
 
-export default async function HomePage() {
-  const { user } = await getHeaderData()
-  const isAuthed = Boolean(user)
-
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Header user={user} showNavigation={false} />
+    <div className="min-h-screen bg-gray-50">
+      <Header forcePublicNav />
       
       <div className="container mx-auto px-4 py-16">
         {/* Header */}
@@ -24,10 +21,10 @@ export default async function HomePage() {
           </p>
           <div className="space-x-4">
             <Link 
-              href={isAuthed ? '/dashboard' : '/auth/signup'}
+              href="/auth/signin"
               className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
-              {isAuthed ? 'Go to Dashboard' : 'Get Started Free'}
+              Get Started Free
             </Link>
             <Link 
               href="/pricing" 
@@ -40,15 +37,15 @@ export default async function HomePage() {
 
         {/* Features */}
         <section className="grid md:grid-cols-3 gap-8 mb-16">
-          <div className="bg-white p-6 rounded-lg shadow-sm">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
             <h3 className="text-xl font-semibold mb-3">Smart Enhancement</h3>
             <p className="text-gray-600">AI-powered prompt optimization for better results</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
             <h3 className="text-xl font-semibold mb-3">Chrome Extension</h3>
             <p className="text-gray-600">Seamless integration with your favorite AI tools</p>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
             <h3 className="text-xl font-semibold mb-3">Analytics</h3>
             <p className="text-gray-600">Track your prompt performance and improvements</p>
           </div>
@@ -63,10 +60,10 @@ export default async function HomePage() {
             Join thousands of users improving their AI interactions
           </p>
           <Link 
-            href={isAuthed ? '/dashboard' : '/auth/signup'}
+            href="/auth/signin"
             className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
           >
-            {isAuthed ? 'Open Dashboard' : 'Start Free Trial'}
+            Get Started Free
           </Link>
         </section>
       </div>

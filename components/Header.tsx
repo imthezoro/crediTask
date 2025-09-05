@@ -13,6 +13,7 @@ interface HeaderProps {
   isAdmin?: boolean
   pageTitle?: string
   showNavigation?: boolean
+  forcePublicNav?: boolean
 }
 
 const userNavItems = [
@@ -29,7 +30,51 @@ const adminNavItems = [
   { href: '/admin/alerts', label: 'Alerts' },
 ]
 
-export default function Header({ user, isAdmin, pageTitle, showNavigation = true }: HeaderProps) {
+export default function Header({ user, isAdmin, pageTitle, showNavigation = true, forcePublicNav = false }: HeaderProps) {
+  // Early return for static public nav to avoid client-side hooks
+  if (forcePublicNav) {
+    return (
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            {/* Left: PromptOK Logo/Name */}
+            <Link 
+              href="/" 
+              className="text-2xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              PromptOK
+            </Link>
+
+            {/* Center: Page Title */}
+            {pageTitle && (
+              <h1 className="text-xl font-semibold text-gray-900 hidden sm:block">
+                {pageTitle}
+              </h1>
+            )}
+
+            {/* Right: Public Navigation */}
+            <div className="flex items-center space-x-4">
+              <nav className="flex items-center space-x-4">
+                <Link href="/pricing" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  Pricing
+                </Link>
+                <Link href="/faq" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  FAQ
+                </Link>
+                <Link href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  Contact
+                </Link>
+                <Link href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">
+                  Terms
+                </Link>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </header>
+    )
+  }
+
   const pathname = usePathname()
   const isAdminPage = pathname?.startsWith('/admin')
   const navItems = isAdminPage ? adminNavItems : userNavItems
@@ -117,8 +162,8 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                 {/* Logout Button */}
                 <LogoutButton />
               </>
-            ) : !user ? (
-              /* Public Navigation */
+            ) : (
+              /* Public Navigation - Always show for home page */
               <nav className="flex items-center space-x-4">
                 <Link href="/pricing" className="text-gray-600 hover:text-blue-600 transition-colors">
                   Pricing
@@ -132,17 +177,8 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                 <Link href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">
                   Terms
                 </Link>
-                <Link href="/auth/signin" className="text-blue-600 hover:text-blue-700 transition-colors">
-                  Sign In
-                </Link>
-                <Link 
-                  href="/auth/signup" 
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Sign Up
-                </Link>
               </nav>
-            ) : null}
+            )}
           </div>
         </div>
       </div>
