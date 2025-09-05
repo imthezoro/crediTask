@@ -6,6 +6,9 @@ import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
 import InterestSignup from '@/components/InterestSignup'
 import ApiAccessSignup from '@/components/ApiAccessSignup'
 
+// User billing is personalized content
+export const dynamic = 'force-dynamic'
+
 export default async function BillingPage() {
   const supabase = await createClient()
   const { user, isAdmin } = await getHeaderData()

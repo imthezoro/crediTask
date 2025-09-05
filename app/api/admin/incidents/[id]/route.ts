@@ -21,7 +21,7 @@ export async function GET(
     // Get incident details
     const { data: incident, error: incidentError } = await admin
       .from('incidents')
-      .select('*')
+      .select('id, title, description, severity, status, created_at, updated_at')
       .eq('id', incidentId)
       .single()
 

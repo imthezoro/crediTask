@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Fetch current page with total count using admin client
     let query = admin
       .from('incidents')
-      .select('*', { count: 'exact' })
+      .select('id, title, description, severity, status, created_at, updated_at', { count: 'exact' })
       .order(sortBy, { ascending: sortDir === 'asc' })
       .range(from, to)
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         severity,
         status: 'active'
       })
-      .select()
+      .select('id, title, description, severity, status, created_at, updated_at')
       .single()
 
     if (createError) {

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     if (authResult.success && authResult.user) {
       // Record successful login for rate limiting
-      const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'login')
+      const identifier = await SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'login')
       rateLimiter.recordSuccess(identifier, 'login', 'auth')
 
       const response = NextResponse.json({

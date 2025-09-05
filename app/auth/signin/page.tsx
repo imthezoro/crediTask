@@ -1,6 +1,9 @@
 import { LoginForm } from '@/components/auth/login-form'
 import { Suspense } from 'react'
 
+// Auth pages need dynamic behavior for redirects and error handling
+export const dynamic = 'force-dynamic'
+
 function SignInContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
+// User dashboard is personalized content
+export const dynamic = 'force-dynamic'
+
 export default async function Dashboard() {
   const supabase = await createClient()
   const { user, isAdmin } = await getHeaderData()

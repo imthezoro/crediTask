@@ -1,5 +1,9 @@
 import PageNavigation from '@/components/PageNavigation'
 
+// Route Segment Options
+export const revalidate = 86400; // 24h - refund policy changes infrequently
+export const dynamic = 'force-static';
+
 export const metadata = {
   title: 'Refund Policy | PromptOK',
   description: 'Refund policy template describing eligibility, timelines, and how to request a refund.'

@@ -1,6 +1,12 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 
+// Use edge runtime for global performance
+export const runtime = 'edge'
+
+// Cache status data briefly for performance
+export const revalidate = 30
+
 export async function GET() {
   try {
     const supabase = await createClient()
@@ -8,7 +14,7 @@ export async function GET() {
     // Get current incidents
     const { data: incidents } = await supabase
       .from('incidents')
-      .select('*')
+      .select('id, title, description, severity, status, created_at')
       .order('created_at', { ascending: false })
       .limit(10)
 
@@ -33,23 +39,33 @@ export async function GET() {
       failed_calls: failedPrompts
     }
 
-    return NextResponse.json({
+    return new NextResponse(JSON.stringify({
       incidents: incidents || [],
       metrics
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        // Edge cache for 30 seconds, allow 5 minutes stale while revalidating
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300',
+      },
     })
   } catch (error) {
     console.error('Status API error:', error)
-    return NextResponse.json(
-      { 
-        incidents: [],
-        metrics: {
-          prompts_last_24h: 0,
-          success_rate: 100,
-          avg_response_time: 0,
-          failed_calls: 0
-        }
+    return new NextResponse(JSON.stringify({ 
+      incidents: [],
+      metrics: {
+        prompts_last_24h: 0,
+        success_rate: 100,
+        avg_response_time: 0,
+        failed_calls: 0
+      }
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        // Don't cache error responses
+        'Cache-Control': 'no-cache',
       },
-      { status: 500 }
-    )
+    })
   }
 }

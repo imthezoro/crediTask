@@ -1,23 +1,26 @@
 // Enhanced security utilities for production use
-import crypto from 'crypto'
-
 export class SecurityUtils {
   // Generate cryptographically secure random strings
   static generateSecureToken(length: number = 32): string {
-    return crypto.randomBytes(length).toString('hex')
+    const array = new Uint8Array(length)
+    crypto.getRandomValues(array)
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
   }
 
-  // Hash sensitive data with salt
-  static hashWithSalt(data: string, salt?: string): { hash: string; salt: string } {
-    const finalSalt = salt || crypto.randomBytes(16).toString('hex')
-    const hash = crypto.pbkdf2Sync(data, finalSalt, 100000, 64, 'sha512').toString('hex')
+  // Hash sensitive data with salt (simplified for Edge Runtime)
+  static async hashWithSalt(data: string, salt?: string): Promise<{ hash: string; salt: string }> {
+    const finalSalt = salt || this.generateSecureToken(16)
+    const encoder = new TextEncoder()
+    const dataBuffer = encoder.encode(data + finalSalt)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer)
+    const hash = Array.from(new Uint8Array(hashBuffer), byte => byte.toString(16).padStart(2, '0')).join('')
     return { hash, salt: finalSalt }
   }
 
-  // Verify hashed data
-  static verifyHash(data: string, hash: string, salt: string): boolean {
-    const verifyHash = crypto.pbkdf2Sync(data, salt, 100000, 64, 'sha512').toString('hex')
-    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(verifyHash, 'hex'))
+  // Verify hashed data (simplified for Edge Runtime)
+  static async verifyHash(data: string, hash: string, salt: string): Promise<boolean> {
+    const { hash: verifyHash } = await this.hashWithSalt(data, salt)
+    return verifyHash === hash
   }
 
   // Enhanced input sanitization
@@ -77,18 +80,24 @@ export class SecurityUtils {
     return xssPatterns.some(pattern => pattern.test(input))
   }
 
-  // Rate limit key generation
-  static generateRateLimitKey(ip: string, userAgent: string, endpoint: string): string {
-    const hash = crypto.createHash('sha256')
-    hash.update(`${ip}:${userAgent}:${endpoint}`)
-    return hash.digest('hex').slice(0, 16)
+  // Rate limit key generation (simplified for Edge Runtime)
+  static async generateRateLimitKey(ip: string, userAgent: string, endpoint: string): Promise<string> {
+    const encoder = new TextEncoder()
+    const data = encoder.encode(`${ip}:${userAgent}:${endpoint}`)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hash = Array.from(new Uint8Array(hashBuffer), byte => byte.toString(16).padStart(2, '0')).join('')
+    return hash.slice(0, 16)
   }
 
-  // Secure comparison for preventing timing attacks
+  // Secure comparison for preventing timing attacks (simplified)
   static secureCompare(a: string, b: string): boolean {
     if (a.length !== b.length) {
       return false
     }
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
+    let result = 0
+    for (let i = 0; i < a.length; i++) {
+      result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+    }
+    return result === 0
   }
 }

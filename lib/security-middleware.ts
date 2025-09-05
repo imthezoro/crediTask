@@ -89,7 +89,7 @@ export async function applyRateLimit(
   const userAgent = request.headers.get('user-agent') || 'unknown'
   
   // Create secure composite identifier using SecurityUtils
-  const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, endpoint)
+  const identifier = await SecurityUtils.generateRateLimitKey(clientIP, userAgent, endpoint)
   
   const result = rateLimiter.check(identifier, endpoint, configType)
   
@@ -342,7 +342,7 @@ export async function securityMiddleware(
     if (suspicious) {
       const clientIP = getClientIP(request)
       const userAgent = request.headers.get('user-agent') || ''
-      const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, endpoint)
+      const identifier = await SecurityUtils.generateRateLimitKey(clientIP, userAgent, endpoint)
       
       // Block for 1 hour
       rateLimiter.block(identifier, endpoint, 60 * 60 * 1000)

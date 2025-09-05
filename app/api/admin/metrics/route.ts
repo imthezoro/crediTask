@@ -23,13 +23,13 @@ export async function GET(request: NextRequest) {
     // Get total users
     const { count: totalUsers } = await admin
       .from('user_profiles')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
 
     // Get prompts in last 24h
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const { count: promptsLast24h } = await admin
       .from('prompt_sessions')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .gte('created_at', yesterday.toISOString())
 
     // Get monthly revenue
@@ -45,14 +45,14 @@ export async function GET(request: NextRequest) {
     // Get active alerts
     const { count: activeAlerts } = await admin
       .from('incidents')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('status', 'active')
 
     // Get user growth (last 30 days)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const { count: newUsers } = await admin
       .from('user_profiles')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .gte('created_at', thirtyDaysAgo.toISOString())
 
     // Get plan distribution
