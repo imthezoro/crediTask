@@ -6,6 +6,9 @@ import Header from '@/components/Header'
 import { GuestCleanupButton } from '@/components/GuestCleanupButton'
 import { ExpiredBlocksCleanupButton } from '@/components/ExpiredBlocksCleanupButton'
 
+// Admin pages are personalized and low-traffic (only you use them)
+export const dynamic = 'force-dynamic'
+
 async function getAdminData() {
   const { user, isAdmin } = await getHeaderData()
   

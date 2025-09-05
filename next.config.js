@@ -29,7 +29,7 @@ const nextConfig = {
     return [
       {
         // Apply to all static assets
-        source: '/:path*\\.(ico|png|jpg|jpeg|gif|webp|svg|css|js|woff|woff2|ttf|eot)',
+        source: '/:path*\\.(ico|png|jpg|jpeg|gif|webp|svg|css|js|woff|woff2|ttf|eot)$',
         headers: [
           {
             key: 'Cache-Control',

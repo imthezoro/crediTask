@@ -1,6 +1,9 @@
 import { createClient, isUserAdmin } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 
+// Admin pages are personalized and low-traffic (only you use them)
+export const dynamic = 'force-dynamic'
+
 async function checkAdminAccess() {
   const supabase = await createClient()
   

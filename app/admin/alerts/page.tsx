@@ -5,6 +5,9 @@ import Header from '@/components/Header'
 import AdminIncidentsTable from '@/components/AdminIncidentsTable'
 import CreateIncidentForm from '@/components/CreateIncidentForm'
 
+// Admin pages are personalized and low-traffic (only you use them)
+export const dynamic = 'force-dynamic'
+
 async function getIncidents() {
   const supabase = await createClient()
   const { data: incidents } = await supabase

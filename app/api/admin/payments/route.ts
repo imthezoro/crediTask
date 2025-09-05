@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     let query = admin
       .from('payments')
       .select(`
-        *,
+        id, provider, provider_payment_id, amount_cents, currency, status, plan, valid_from, valid_to, user_id, created_at,
         user_profiles!inner(id)
       `)
       .order('created_at', { ascending: false })

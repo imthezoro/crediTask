@@ -3,10 +3,13 @@ import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 import KPI from '@/components/KPI'
-import dynamic from 'next/dynamic'
+import dynamicImport from 'next/dynamic'
+
+// Admin pages are personalized and low-traffic (only you use them)
+export const dynamic = 'force-dynamic'
 
 // Dynamic import for Chart component to reduce bundle size and improve TTFB
-const Chart = dynamic(() => import('@/components/Chart'), {
+const Chart = dynamicImport(() => import('@/components/Chart'), {
   ssr: false,
   loading: () => <div className="bg-white p-6 rounded-lg shadow border h-80 animate-pulse" />,
 })

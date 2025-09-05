@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase-server'
 // TODO: Install prom-client dependency and uncomment below
 // import { register, Counter, Gauge, collectDefaultMetrics } from 'prom-client'
 
+// Use edge runtime for global performance
+export const runtime = 'edge'
+
 export async function GET() {
   // PLACEHOLDER: Prometheus metrics endpoint
   // TODO: Install prom-client dependency and uncomment the implementation below

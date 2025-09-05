@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (type === 'users') {
       const { data: users } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('id, email, plan, usage_count, is_active, is_guest, is_admin, created_at, updated_at, plan_valid_until')
         .order('created_at', { ascending: false })
 
       const enrichedUsers = users?.map(user => ({
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (type === 'payments') {
       const { data: payments } = await supabase
         .from('payments')
-        .select('*')
+        .select('id, provider, provider_payment_id, amount_cents, currency, status, plan, valid_from, valid_to, user_id, created_at')
         .order('created_at', { ascending: false })
 
       const userIds = (payments || []).map(p => p.user_id)

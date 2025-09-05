@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
+// Homepage shows personalized content based on user login status
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {

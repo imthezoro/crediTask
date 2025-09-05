@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
+// Pricing page shows personalized CTAs based on user login status
 export const dynamic = 'force-dynamic'
 
 export default async function PricingPage() {

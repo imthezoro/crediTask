@@ -4,6 +4,9 @@ import { Suspense } from 'react'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
+// Admin pages are personalized and low-traffic (only you use them)
+export const dynamic = 'force-dynamic'
+
 export default async function AdminUsersPage() {
   const { user, isAdmin } = await getHeaderData()
   
