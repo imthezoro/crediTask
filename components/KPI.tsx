@@ -1,5 +1,3 @@
-'use client'
-
 interface KPIProps {
   title: string
   value: string | number

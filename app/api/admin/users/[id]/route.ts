@@ -22,7 +22,7 @@ export async function GET(
     // Get user profile
     const { data: profile, error: profileError } = await admin
       .from('user_profiles')
-      .select('*')
+      .select('id, email, plan, usage_count, is_active, is_guest, is_admin, created_at, updated_at, plan_valid_until')
       .eq('id', userId)
       .single()
 
@@ -40,7 +40,7 @@ export async function GET(
     // Get user's prompt sessions
     const { data: sessions } = await admin
       .from('prompt_sessions')
-      .select('*')
+      .select('id, original_prompt, enhanced_prompt, site, created_at, status')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(10)
@@ -48,7 +48,7 @@ export async function GET(
     // Get user's payments
     const { data: payments } = await admin
       .from('payments')
-      .select('*')
+      .select('id, provider, amount_cents, currency, status, plan, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(10)

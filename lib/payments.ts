@@ -30,7 +30,7 @@ export async function reconcilePayment(paymentData: PaymentData) {
       user_id: paymentData.user_id,
       created_at: new Date().toISOString()
     })
-    .select()
+    .select('id, provider, provider_payment_id, amount_cents, currency, status, plan, valid_from, valid_to, user_id, created_at')
     .single()
 
   if (paymentError) {

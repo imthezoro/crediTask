@@ -102,14 +102,15 @@ export async function middleware(request: NextRequest) {
   // Handle auth routes - redirect authenticated active users to dashboard
   // Exception: Allow access to reset-password-confirm for password reset flow
   if (user && request.nextUrl.pathname.startsWith('/auth/')) {
+    // Skip profile check for callback and reset pages (they handle their own validation)
+    if (request.nextUrl.pathname === '/auth/callback' || 
+        request.nextUrl.pathname === '/auth/reset-password-confirm') {
+      return addSecurityHeaders(response)
+    }
     
     const { isActive } = await checkUserProfile(supabase, user.id)
 
     if (isActive) {
-      // Allow access to password reset confirmation page
-      if (request.nextUrl.pathname === '/auth/reset-password-confirm') {
-        return addSecurityHeaders(response)
-      }
       const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
       // Copy cookies to redirect response
       response.cookies.getAll().forEach((cookie) => {
@@ -131,7 +132,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
+     * - api routes (handled separately)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

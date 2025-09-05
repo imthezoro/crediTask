@@ -66,7 +66,7 @@ export async function listPromptSessions(userId: string): Promise<PromptSession[
     const admin = createAdminClient();
     const { data } = await admin
       .from('prompt_sessions')
-      .select('*')
+      .select('id, user_id, original_prompt, enhanced_prompt, site, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(20);
@@ -74,7 +74,7 @@ export async function listPromptSessions(userId: string): Promise<PromptSession[
   }
   const { data } = await supabase!
     .from('prompt_sessions')
-    .select('*')
+    .select('id, user_id, original_prompt, enhanced_prompt, site, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(20);

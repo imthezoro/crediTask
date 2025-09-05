@@ -65,10 +65,12 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                 <nav className="hidden md:flex items-center space-x-4">
                   {navItems.map((item) => {
                     const isActive = pathname === item.href
+                    const isAdminLink = item.href.startsWith('/admin')
                     return (
                       <Link
                         key={item.href}
                         href={item.href}
+                        prefetch={!isAdminLink} // Disable prefetch for admin routes
                         className={`transition-colors ${
                           isActive
                             ? 'text-blue-700 font-semibold'
@@ -84,6 +86,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                   {!isAdminPage && isAdmin && (
                     <Link 
                       href="/admin/dashboard" 
+                      prefetch={false} // Disable prefetch for admin routes
                       className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors"
                     >
                       Admin
@@ -166,10 +169,12 @@ function MobileMenu({ navItems, isAdmin, isAdminPage, pathname }: MobileMenuProp
         <div className="py-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href
+            const isAdminLink = item.href.startsWith('/admin')
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={!isAdminLink} // Disable prefetch for admin routes
                 className={`block px-4 py-2 text-sm transition-colors ${
                   isActive
                     ? 'text-blue-700 font-semibold bg-blue-50'
@@ -185,6 +190,7 @@ function MobileMenu({ navItems, isAdmin, isAdminPage, pathname }: MobileMenuProp
           {!isAdminPage && isAdmin && (
             <Link 
               href="/admin/dashboard" 
+              prefetch={false} // Disable prefetch for admin routes
               className="block px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors border-t border-gray-100 mt-2 pt-2"
             >
               Admin Panel

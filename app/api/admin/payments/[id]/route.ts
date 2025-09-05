@@ -21,7 +21,7 @@ export async function GET(
     // Get payment details
     const { data: payment, error: paymentError } = await admin
       .from('payments')
-      .select('*')
+      .select('id, provider, provider_payment_id, amount_cents, currency, status, plan, valid_from, valid_to, user_id, created_at')
       .eq('id', paymentId)
       .single()
 

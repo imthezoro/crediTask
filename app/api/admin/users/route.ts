@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     // Select email directly from user_profiles now that the column exists
     let query = admin
       .from('user_profiles')
-      .select('*', { count: 'exact' })
+      .select('id, email, plan, usage_count, is_active, is_guest, is_admin, created_at, updated_at, plan_valid_until', { count: 'exact' })
 
     // Server-side filters
     if (plan) {
