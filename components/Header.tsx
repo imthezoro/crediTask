@@ -31,6 +31,10 @@ const adminNavItems = [
 ]
 
 export default function Header({ user, isAdmin, pageTitle, showNavigation = true, forcePublicNav = false }: HeaderProps) {
+  const pathname = usePathname()
+  const isAdminPage = pathname?.startsWith('/admin')
+  const navItems = isAdminPage ? adminNavItems : userNavItems
+
   // Early return for static public nav to avoid client-side hooks
   if (forcePublicNav) {
     return (
@@ -74,10 +78,6 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
       </header>
     )
   }
-
-  const pathname = usePathname()
-  const isAdminPage = pathname?.startsWith('/admin')
-  const navItems = isAdminPage ? adminNavItems : userNavItems
 
   // Don't show navigation on auth pages
   const isAuthPage = pathname?.startsWith('/auth')

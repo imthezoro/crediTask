@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Record successful operation for rate limiting using SecurityUtils
-    const identifier = SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'delete-account')
+    const identifier = await SecurityUtils.generateRateLimitKey(clientIP, userAgent, 'delete-account')
     rateLimiter.recordSuccess(identifier, 'delete-account', 'auth-sensitive')
     
     const response = NextResponse.json({

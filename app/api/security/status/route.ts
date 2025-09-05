@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase-server'
 import { NextResponse } from 'next/server'
 import { rateLimiter, securityLogger } from '@/lib/security-middleware'
 import { addSecurityHeaders } from '@/lib/security-middleware'
