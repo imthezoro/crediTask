@@ -1,18 +1,37 @@
+'use client'
+
+import React from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Check, X, Brain, Zap, Target, TrendingUp, ArrowRight, Sparkles } from "lucide-react"
 import InterestSignup from "@/components/InterestSignup"
 import Header from "@/components/Header"
-
-// Static homepage with ISR for optimal performance
-export const dynamic = 'force-static'
-export const revalidate = 3600 // Revalidate every hour
+import { useScrollAnimation } from "@/hooks/useScrollAnimation"
 
 export default function HomePage() {
+  const heroRef = useScrollAnimation()
+  const comparisonRef = useScrollAnimation()
+  const solutionRef = useScrollAnimation()
+  const howItWorksRef = useScrollAnimation()
+  const performanceRef = useScrollAnimation()
+  const updatesRef = useScrollAnimation()
+
+  // Add page load animations - faster initial load
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      const elements = document.querySelectorAll('.page-load-animate')
+      elements.forEach(el => el.classList.add('loaded'))
+    }, 1) // Reduced from 100ms to 50ms for faster initial load
+    
+    return () => clearTimeout(timer)
+  }, [])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       {/* Global Header */}
-      <Header forcePublicNav={true} />
+      <div className="page-load-animate page-load-stagger-1">
+        <Header forcePublicNav={true} />
+      </div>
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white py-24 px-6">
@@ -20,12 +39,12 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-white/10"></div>
         
         <div className="relative max-w-5xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-8 border border-white/20">
+          <div className="page-load-animate page-load-stagger-2 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-8 border border-white/20">
             <Sparkles className="h-4 w-4 text-yellow-300" />
             <span className="text-sm font-medium text-white/90">AI-Powered Prompt Optimization</span>
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-extrabold mb-8 text-balance leading-tight">
+          <h1 className="page-load-animate page-load-stagger-3 text-5xl md:text-7xl font-extrabold mb-8 text-balance leading-tight">
             <span className="bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
               Prompt Smarter.
             </span>
@@ -33,11 +52,11 @@ export default function HomePage() {
             <span className="text-white">Not Just Harder.</span>
           </h1>
           
-          <p className="text-xl md:text-2xl mb-10 text-slate-200 max-w-3xl mx-auto text-balance leading-relaxed font-light">
+          <p className="page-load-animate page-load-stagger-4 text-xl md:text-2xl mb-10 text-slate-200 max-w-3xl mx-auto text-balance leading-relaxed font-light">
             Transform your AI interactions with intelligent prompt enhancement, real-time analytics, and strategic suggestions based on proven best practices.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+          <div className="page-load-animate page-load-stagger-5 flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
             <a href="/auth/signin" className="inline-block">
               <Button className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-10 py-4 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 group">
                 Get Started Free
@@ -49,7 +68,7 @@ export default function HomePage() {
             </Button>
           </div>
           
-          <p className="text-sm text-slate-300 flex items-center justify-center gap-2">
+          <p className="page-load-animate page-load-stagger-5 text-sm text-slate-300 flex items-center justify-center gap-2">
             <Check className="h-4 w-4 text-emerald-400" />
             No credit card required • 14-day free trial • Cancel anytime
           </p>
@@ -57,7 +76,7 @@ export default function HomePage() {
       </section>
 
       {/* Comparison Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
+      <section ref={comparisonRef} className="scroll-animate py-20 px-6 bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900">
@@ -127,7 +146,7 @@ export default function HomePage() {
       </section>
 
       {/* Smart Solution Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white">
+      <section ref={solutionRef} className="scroll-animate py-20 px-6 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">Our Smart Solution</h2>
@@ -189,7 +208,7 @@ export default function HomePage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 px-6 bg-white">
+      <section ref={howItWorksRef} className="scroll-animate py-20 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900">How It Works</h2>
@@ -242,7 +261,7 @@ export default function HomePage() {
       </section>
 
       {/* Performance Tracking Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+      <section ref={performanceRef} className="scroll-animate py-20 px-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-6 text-gray-900">
@@ -300,7 +319,7 @@ export default function HomePage() {
       </section>
 
       {/* Updates Section */}
-      <section id="updates" className="py-20 px-6 bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white">
+      <section ref={updatesRef} id="updates" className="scroll-animate py-20 px-6 bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 text-white">
         <div className="max-w-4xl mx-auto text-center">
           <div className="mb-12">
             <h2 className="text-4xl md:text-5xl font-bold mb-6">Stay Updated on PromptOK</h2>
