@@ -1,4 +1,4 @@
-import PageNavigation from '@/components/PageNavigation'
+import PageNavigationClient from '@/components/PageNavigationClient'
 
 // Route Segment Options
 export const revalidate = 86400; // 24h - refund policy changes infrequently
@@ -62,7 +62,7 @@ export default function RefundPolicyPage() {
         <p className="text-sm text-muted-foreground mt-8">Last updated: {new Date().toLocaleDateString()}</p>
       </article>
 
-      <PageNavigation />
+      <PageNavigationClient />
     </main>
   )
 }

@@ -6,6 +6,9 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false, // Remove X-Powered-By header for security
+  compress: true,
+  swcMinify: true,
+  productionBrowserSourceMaps: false,
   experimental: {
     serverActions: {
       allowedOrigins: ["localhost:3000"],
@@ -15,6 +18,8 @@ const nextConfig = {
       'lucide-react',
       '@supabase/supabase-js',
       'date-fns',
+      '@radix-ui/react-label',
+      '@radix-ui/react-slot',
     ],
   },
   images: {
@@ -34,6 +39,24 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable', // 1 year cache for static assets
+          },
+        ],
+      },
+      {
+        // Static pages with long cache times (auth pages are dynamic, removing them)
+        source: '/(pricing|faq|contact|terms|privacy|refund-policy)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800', // 24h cache, 1 week stale
+          },
+          {
+            key: 'CDN-Cache-Control',
+            value: 'public, max-age=86400',
+          },
+          {
+            key: 'Vercel-CDN-Cache-Control',
+            value: 'public, max-age=86400',
           },
         ],
       },

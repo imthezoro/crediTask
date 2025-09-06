@@ -1,4 +1,4 @@
-import PageNavigation from '@/components/PageNavigation'
+import PageNavigationClient from '@/components/PageNavigationClient'
 
 // Route Segment Options
 export const revalidate = 3600; // 1h - FAQ content may be updated more frequently
@@ -96,7 +96,7 @@ export default function FAQPage() {
         </div>
       </section>
       
-      <PageNavigation />
+      <PageNavigationClient />
     </main>
   )
 }

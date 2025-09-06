@@ -1,8 +1,14 @@
-import PageNavigation from '@/components/PageNavigation'
+import PageNavigationClient from '@/components/PageNavigationClient'
 
 // Route Segment Options
 export const revalidate = 86400; // 24h - terms change infrequently
 export const dynamic = 'force-static';
+
+export const metadata = {
+  title: 'Terms of Service | PromptOK',
+  description: 'Terms of Service for PromptOK. Read our terms and conditions for using our AI prompt enhancement service.',
+  keywords: 'terms of service, legal, conditions, agreement, PromptOK'
+}
 
 export default function TermsPage() {
   return (
@@ -64,7 +70,7 @@ export default function TermsPage() {
           </div>
         </div>
 
-        <PageNavigation />
+        <PageNavigationClient />
       </div>
     </div>
   )
