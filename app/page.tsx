@@ -16,12 +16,12 @@ export default function HomePage() {
   const performanceRef = useScrollAnimation()
   const updatesRef = useScrollAnimation()
 
-  // Add page load animations - faster initial load
+  // Initialize page load animations
   React.useEffect(() => {
     const timer = setTimeout(() => {
       const elements = document.querySelectorAll('.page-load-animate')
-      elements.forEach(el => el.classList.add('loaded'))
-    }, 1) // Reduced from 100ms to 50ms for faster initial load
+      elements.forEach((el) => el.classList.add('loaded'))
+    }, 1)
     
     return () => clearTimeout(timer)
   }, [])
