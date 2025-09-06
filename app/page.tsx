@@ -32,7 +32,7 @@ export default function HomePage() {
       <Header forcePublicNav={true} />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white py-24 px-6">
+      <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white py-24 px-6">
         {/* Background Overlay (simplified) */}
         <div className="absolute inset-0 bg-white/10"></div>
         
@@ -81,7 +81,7 @@ export default function HomePage() {
               Most AI Users Just... <span className="text-orange-600">Prompt</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              But there's a smarter way to unlock AI's full potential
+              But there&apos;s a smarter way to unlock AI&apos;s full potential
             </p>
           </div>
           
@@ -117,7 +117,7 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                     <X className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-2xl font-bold text-white">What They're Missing</h3>
+                  <h3 className="text-2xl font-bold text-white">What They&apos;re Missing</h3>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 p-3 bg-white/10 rounded-lg backdrop-blur-sm">

@@ -36,7 +36,7 @@ export default function InterestSignup({
             <Check className="h-8 w-8 text-white" />
           </div>
           <h4 className="text-xl font-bold text-white mb-2">Thank you!</h4>
-          <p className="text-slate-300">We'll keep you updated on our latest features and improvements.</p>
+          <p className="text-slate-300">We&apos;ll keep you updated on our latest features and improvements.</p>
         </div>
       ) : (
         <form
@@ -103,7 +103,7 @@ export default function InterestSignup({
               name="feedback"
               rows={3}
               className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300 resize-none"
-              placeholder="Any suggestions or features you'd like to see? (Optional)"
+              placeholder="Any suggestions or features you&apos;d like to see? (Optional)"
             />
           </div>
 
