@@ -19,10 +19,8 @@ export function useScrollAnimation(threshold = 0.1) {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('animate')
-          } else {
-            // Remove animate class when element leaves viewport
-            // This allows re-animation when scrolling back
-            entry.target.classList.remove('animate')
+            // Stop observing once animated to prevent flickering
+            observer.unobserve(entry.target)
           }
         })
       },
