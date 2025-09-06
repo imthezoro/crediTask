@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Expected usage must be a number' }, { status: 400 })
     }
 
-    const allowedTypes = new Set(['general', 'feedback', 'api_access', 'interest', 'other'])
+    const allowedTypes = new Set(['general', 'feedback', 'api_access', 'interest', 'waitlist', 'waiting', 'other'])
     const normalizedType = typeof type === 'string' && allowedTypes.has(type) ? type : 'general'
 
     // Store the interest signup in the database
