@@ -29,9 +29,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       {/* Global Header */}
-      <div className="page-load-animate page-load-stagger-1">
-        <Header forcePublicNav={true} />
-      </div>
+      <Header forcePublicNav={true} />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white py-24 px-6">
