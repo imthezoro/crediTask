@@ -36,7 +36,7 @@ export default async function SettingsPage() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} isAdmin={isAdmin} pageTitle="Settings" />
 
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <div className="container mx-auto px-4 py-8 pt-24 max-w-2xl">
         <div className="space-y-6">
           {/* Profile Settings */}
           <Card>

@@ -31,7 +31,7 @@ export default async function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} isAdmin={isAdmin} pageTitle="Dashboard" />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="pb-2">

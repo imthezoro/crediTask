@@ -122,7 +122,7 @@ export default async function AdminAnalyticsPage() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} isAdmin={isAdmin} pageTitle="Analytics" />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         {/* Summary KPIs */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <KPI

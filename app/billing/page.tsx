@@ -60,7 +60,7 @@ export default async function BillingPage() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} isAdmin={isAdmin} pageTitle="Billing" />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         {/* Current Plan */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Current Plan</h2>

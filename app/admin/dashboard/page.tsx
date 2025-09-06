@@ -138,7 +138,7 @@ export default async function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} isAdmin={isAdmin} pageTitle="Admin Dashboard" />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         {/* System status strip */}
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

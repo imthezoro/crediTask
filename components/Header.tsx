@@ -50,7 +50,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
           ? isScrolled
             ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
             : 'bg-blue-50 shadow-sm border-b border-blue-200/50'
-          : 'bg-white shadow-sm border-b border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+          : 'bg-white shadow-sm border-b border-gray-200'
       }`}>
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 lg:px-8">
           <Link 
@@ -61,7 +61,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
           </Link>
 
           {pageTitle && (
-            <h1 className={`text-xl font-semibold hidden sm:block transition-colors text-gray-900`}>
+            <h1 className="text-xl font-semibold hidden sm:block transition-colors text-gray-900">
               {pageTitle}
             </h1>
           )}
@@ -95,7 +95,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
               ? isScrolled
                 ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
                 : 'bg-blue-50 border-blue-200/50'
-              : 'bg-white border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+              : 'bg-white border-gray-200'
           }`}>
             <nav className="flex flex-col gap-3">
               <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`} onClick={() => setMobileMenuOpen(false)}>
@@ -123,18 +123,22 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
         ? isScrolled
           ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
           : 'bg-blue-50 shadow-sm border-b border-blue-200/50'
-        : 'bg-white shadow-sm border-b border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+        : 'bg-white shadow-sm border-b border-gray-200'
     }`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 lg:px-8">
         <Link 
           href="/" 
-          className={`text-xl font-bold tracking-tight transition-colors text-slate-900 hover:text-slate-700 dark:text-gray-100 dark:hover:text-gray-200`}
+          className={`text-xl font-bold tracking-tight transition-colors ${
+            isLandingPage 
+              ? 'text-slate-900 hover:text-slate-700' 
+              : 'text-gray-900 hover:text-gray-700'
+          }`}
         >
           PromptOK
         </Link>
 
         {pageTitle && (
-          <h1 className={`text-xl font-semibold hidden sm:block transition-colors text-gray-900 dark:text-gray-100`}>
+          <h1 className="text-xl font-semibold hidden sm:block transition-colors text-gray-900">
             {pageTitle}
           </h1>
         )}
@@ -153,8 +157,8 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                       prefetch={!isAdminLink} // Disable prefetch for admin routes
                       className={`text-sm font-medium transition-colors ${
                         isActive
-                          ? 'text-blue-700 font-semibold dark:text-blue-400'
-                          : 'text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                          ? 'text-blue-700 font-semibold'
+                          : 'text-gray-700 hover:text-blue-600'
                       }`}
                     >
                       {item.label}
@@ -184,7 +188,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
 
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className={`rounded-md p-2 md:hidden transition-colors text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800`}
+                className="rounded-md p-2 md:hidden transition-colors text-gray-700 hover:bg-gray-100"
               >
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
@@ -194,16 +198,16 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
           ) : (
             <>
               <nav className="hidden md:flex items-center space-x-4">
-                <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
+                <Link href="/pricing" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600">
                   Pricing
                 </Link>
-                <Link href="/faq" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
+                <Link href="/faq" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600">
                   FAQ
                 </Link>
-                <Link href="/contact" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
+                <Link href="/contact" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600">
                   Contact
                 </Link>
-                <Link href="/terms" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
+                <Link href="/terms" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600">
                   Terms
                 </Link>
               </nav>
@@ -213,7 +217,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                 className={`rounded-md p-2 md:hidden transition-colors ${
                   isLandingPage && !isScrolled
                     ? 'text-white hover:bg-white/10'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -229,7 +233,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
             ? isScrolled
               ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
               : 'bg-blue-50 border-blue-200/50'
-            : 'bg-white border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+            : 'bg-white border-gray-200'
         }`}>
           <nav className="flex flex-col gap-3">
             {shouldShowNav ? (
@@ -244,8 +248,8 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                       prefetch={!isAdminLink}
                       className={`text-sm font-medium transition-colors ${
                         isActive
-                          ? 'text-blue-700 font-semibold dark:text-blue-400'
-                          : 'text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                          ? 'text-blue-700 font-semibold'
+                          : 'text-gray-700 hover:text-blue-600'
                       }`}
                       onClick={() => setMobileMenuOpen(false)}
                     >
@@ -261,7 +265,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                     className={`text-sm font-medium transition-colors border-t pt-3 mt-2 ${
                       isLandingPage && !isScrolled
                         ? 'text-red-300 hover:text-red-200 border-white/20'
-                        : 'text-red-600 hover:text-red-700 border-gray-200 dark:text-red-400 dark:hover:text-red-300 dark:border-gray-700'
+                        : 'text-red-600 hover:text-red-700 border-gray-200'
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
@@ -275,7 +279,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
                     className={`text-sm font-medium transition-colors border-t pt-3 mt-2 ${
                       isLandingPage && !isScrolled
                         ? 'text-blue-300 hover:text-blue-200 border-white/20'
-                        : 'text-blue-600 hover:text-blue-700 border-gray-200 dark:text-blue-400 dark:hover:text-blue-300 dark:border-gray-700'
+                        : 'text-blue-600 hover:text-blue-700 border-gray-200'
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
@@ -285,16 +289,16 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
               </>
             ) : (
               <>
-                <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/pricing" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600" onClick={() => setMobileMenuOpen(false)}>
                   Pricing
                 </Link>
-                <Link href="/faq" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/faq" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600" onClick={() => setMobileMenuOpen(false)}>
                   FAQ
                 </Link>
-                <Link href="/contact" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/contact" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600" onClick={() => setMobileMenuOpen(false)}>
                   Contact
                 </Link>
-                <Link href="/terms" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                <Link href="/terms" className="text-sm font-medium transition-colors text-gray-700 hover:text-blue-600" onClick={() => setMobileMenuOpen(false)}>
                   Terms
                 </Link>
               </>

@@ -23,7 +23,7 @@ export default async function AdminUsersPage() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} isAdmin={isAdmin} pageTitle="User Management" />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 pt-24">
         <Suspense fallback={
           <div className="bg-white rounded-lg shadow p-6">
             <div className="animate-pulse">
