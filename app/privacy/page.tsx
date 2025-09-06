@@ -2,6 +2,12 @@
 export const revalidate = 86400; // 24h - privacy policy changes infrequently
 export const dynamic = 'force-static';
 
+export const metadata = {
+  title: 'Privacy Policy | PromptOK',
+  description: 'Privacy Policy for PromptOK. Learn how we collect, use, and protect your personal information.',
+  keywords: 'privacy policy, data protection, personal information, GDPR, security'
+}
+
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-16">
@@ -74,6 +80,29 @@ export default function PrivacyPage() {
 
           <div className="border-t pt-8 text-sm text-gray-500">
             <p>Last updated: {new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <a 
+              href="/"
+              className="inline-flex h-10 items-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              ← Back to Home
+            </a>
+            <a 
+              href="/auth/signin"
+              className="inline-flex h-10 items-center rounded-md border border-blue-600 bg-white px-4 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              Sign In
+            </a>
+            <a 
+              href="/auth/signup"
+              className="inline-flex h-10 items-center rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              Get Started
+            </a>
           </div>
         </div>
       </div>

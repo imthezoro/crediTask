@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState } from 'react'
+import { Menu, X } from 'lucide-react'
 import { LogoutButton } from '@/components/auth/logout-button'
-import { Button } from '@/components/ui/button'
+import { useScrollPosition } from '@/hooks/useScrollPosition'
 
 interface HeaderProps {
   user?: {
@@ -32,217 +34,274 @@ const adminNavItems = [
 
 export default function Header({ user, isAdmin, pageTitle, showNavigation = true, forcePublicNav = false }: HeaderProps) {
   const pathname = usePathname()
+  const { isScrolled } = useScrollPosition()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isAdminPage = pathname?.startsWith('/admin')
   const navItems = isAdminPage ? adminNavItems : userNavItems
-
-  // Early return for static public nav to avoid client-side hooks
-  if (forcePublicNav) {
-    return (
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            {/* Left: PromptOK Logo/Name */}
-            <Link 
-              href="/" 
-              className="text-2xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              PromptOK
-            </Link>
-
-            {/* Center: Page Title */}
-            {pageTitle && (
-              <h1 className="text-xl font-semibold text-gray-900 hidden sm:block">
-                {pageTitle}
-              </h1>
-            )}
-
-            {/* Right: Public Navigation */}
-            <div className="flex items-center space-x-4">
-              <nav className="flex items-center space-x-4">
-                <Link href="/pricing" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  Pricing
-                </Link>
-                <Link href="/faq" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  FAQ
-                </Link>
-                <Link href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  Contact
-                </Link>
-                <Link href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">
-                  Terms
-                </Link>
-              </nav>
-            </div>
-          </div>
-        </div>
-      </header>
-    )
-  }
-
-  // Don't show navigation on auth pages
+  const isLandingPage = pathname === '/'
   const isAuthPage = pathname?.startsWith('/auth')
   const shouldShowNav = showNavigation && !isAuthPage && user
 
-  return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-between items-center">
-          {/* Left: PromptOK Logo/Name */}
+  // Early return for forcePublicNav
+  if (forcePublicNav) {
+    return (
+      <header className={`fixed top-0 left-0 right-0 z-[999] transition-all duration-300 ${
+        isLandingPage
+          ? isScrolled
+            ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
+            : 'bg-blue-50 shadow-sm border-b border-blue-200/50'
+          : 'bg-white shadow-sm border-b border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+      }`}>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 lg:px-8">
           <Link 
             href="/" 
-            className="text-2xl font-bold text-blue-600 hover:text-blue-700 transition-colors"
+            className={`text-xl font-bold tracking-tight transition-colors text-slate-900 hover:text-slate-700`}
           >
             PromptOK
           </Link>
 
-          {/* Center: Page Title */}
           {pageTitle && (
-            <h1 className="text-xl font-semibold text-gray-900 hidden sm:block">
+            <h1 className={`text-xl font-semibold hidden sm:block transition-colors text-gray-900`}>
               {pageTitle}
             </h1>
           )}
 
-          {/* Right: Navigation */}
-          <div className="flex items-center space-x-4">
-            {shouldShowNav ? (
-              <>
-                {/* Navigation Links */}
-                <nav className="hidden md:flex items-center space-x-4">
-                  {navItems.map((item) => {
-                    const isActive = pathname === item.href
-                    const isAdminLink = item.href.startsWith('/admin')
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        prefetch={!isAdminLink} // Disable prefetch for admin routes
-                        className={`transition-colors ${
-                          isActive
-                            ? 'text-blue-700 font-semibold'
-                            : 'text-blue-600 hover:text-blue-700'
-                        }`}
-                      >
-                        {item.label}
-                      </Link>
-                    )
-                  })}
-                  
-                  {/* Admin Access for Regular Users */}
-                  {!isAdminPage && isAdmin && (
-                    <Link 
-                      href="/admin/dashboard" 
-                      prefetch={false} // Disable prefetch for admin routes
-                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors"
-                    >
-                      Admin
-                    </Link>
-                  )}
-                  
-                  {/* Back to Dashboard for Admin Users */}
-                  {isAdminPage && (
-                    <Link 
-                      href="/dashboard" 
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1 rounded-md text-sm font-medium border border-blue-200 transition-colors"
-                    >
-                      Back to Dashboard
-                    </Link>
-                  )}
-                </nav>
+          <nav className="hidden gap-6 md:flex">
+            <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`}>
+              Pricing
+            </Link>
+            <Link href="/faq" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`}>
+              FAQ
+            </Link>
+            <Link href="/contact" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`}>
+              Contact
+            </Link>
+            <Link href="/terms" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`}>
+              Terms
+            </Link>
+          </nav>
 
-                {/* Mobile Menu Button */}
-                <div className="md:hidden">
-                  <MobileMenu 
-                    navItems={navItems} 
-                    isAdmin={isAdmin} 
-                    isAdminPage={isAdminPage}
-                    pathname={pathname}
-                  />
-                </div>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={`rounded-md p-2 md:hidden transition-colors text-gray-700 hover:bg-gray-100`}
+          >
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
 
-                {/* Logout Button */}
-                <LogoutButton />
-              </>
-            ) : (
-              /* Public Navigation - Always show for home page */
-              <nav className="flex items-center space-x-4">
-                <Link href="/pricing" className="text-gray-600 hover:text-blue-600 transition-colors">
+        {mobileMenuOpen && (
+          <div className={`md:hidden border-t px-4 py-3 ${
+            isLandingPage
+              ? isScrolled
+                ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
+                : 'bg-blue-50 border-blue-200/50'
+              : 'bg-white border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+          }`}>
+            <nav className="flex flex-col gap-3">
+              <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`} onClick={() => setMobileMenuOpen(false)}>
+                Pricing
+              </Link>
+              <Link href="/faq" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`} onClick={() => setMobileMenuOpen(false)}>
+                FAQ
+              </Link>
+              <Link href="/contact" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`} onClick={() => setMobileMenuOpen(false)}>
+                Contact
+              </Link>
+              <Link href="/terms" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600`} onClick={() => setMobileMenuOpen(false)}>
+                Terms
+              </Link>
+            </nav>
+          </div>
+        )}
+      </header>
+    )
+  }
+
+  return (
+    <header className={`fixed top-0 left-0 right-0 z-[999] transition-all duration-300 ${
+      isLandingPage
+        ? isScrolled
+          ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
+          : 'bg-blue-50 shadow-sm border-b border-blue-200/50'
+        : 'bg-white shadow-sm border-b border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+    }`}>
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6 lg:px-8">
+        <Link 
+          href="/" 
+          className={`text-xl font-bold tracking-tight transition-colors text-slate-900 hover:text-slate-700 dark:text-gray-100 dark:hover:text-gray-200`}
+        >
+          PromptOK
+        </Link>
+
+        {pageTitle && (
+          <h1 className={`text-xl font-semibold hidden sm:block transition-colors text-gray-900 dark:text-gray-100`}>
+            {pageTitle}
+          </h1>
+        )}
+
+        <div className="flex items-center space-x-4">
+          {shouldShowNav ? (
+            <>
+              <nav className="hidden md:flex items-center space-x-4">
+                {navItems.map((item) => {
+                  const isActive = pathname === item.href
+                  const isAdminLink = item.href.startsWith('/admin')
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      prefetch={!isAdminLink} // Disable prefetch for admin routes
+                      className={`text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'text-blue-700 font-semibold dark:text-blue-400'
+                          : 'text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                })}
+                
+                {!isAdminPage && isAdmin && (
+                  <Link 
+                    href="/admin/dashboard" 
+                    prefetch={false}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm font-medium transition-colors"
+                  >
+                    Admin
+                  </Link>
+                )}
+                
+                {isAdminPage && (
+                  <Link 
+                    href="/dashboard" 
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1 rounded-md text-sm font-medium border border-blue-200 transition-colors"
+                  >
+                    Back to Dashboard
+                  </Link>
+                )}
+              </nav>
+
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className={`rounded-md p-2 md:hidden transition-colors text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800`}
+              >
+                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+
+              <LogoutButton />
+            </>
+          ) : (
+            <>
+              <nav className="hidden md:flex items-center space-x-4">
+                <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
                   Pricing
                 </Link>
-                <Link href="/faq" className="text-gray-600 hover:text-blue-600 transition-colors">
+                <Link href="/faq" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
                   FAQ
                 </Link>
-                <Link href="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">
+                <Link href="/contact" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
                   Contact
                 </Link>
-                <Link href="/terms" className="text-gray-600 hover:text-blue-600 transition-colors">
+                <Link href="/terms" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`}>
                   Terms
                 </Link>
               </nav>
-            )}
-          </div>
-        </div>
-      </div>
-    </header>
-  )
-}
-
-interface MobileMenuProps {
-  navItems: Array<{ href: string; label: string }>
-  isAdmin?: boolean
-  isAdminPage: boolean
-  pathname: string | null
-}
-
-function MobileMenu({ navItems, isAdmin, isAdminPage, pathname }: MobileMenuProps) {
-  return (
-    <div className="relative group">
-      <Button variant="outline" size="sm" className="md:hidden">
-        Menu
-      </Button>
-      
-      {/* Dropdown Menu */}
-      <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-        <div className="py-2">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href
-            const isAdminLink = item.href.startsWith('/admin')
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={!isAdminLink} // Disable prefetch for admin routes
-                className={`block px-4 py-2 text-sm transition-colors ${
-                  isActive
-                    ? 'text-blue-700 font-semibold bg-blue-50'
-                    : 'text-gray-700 hover:text-blue-700 hover:bg-gray-50'
+              
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className={`rounded-md p-2 md:hidden transition-colors ${
+                  isLandingPage && !isScrolled
+                    ? 'text-white hover:bg-white/10'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
                 }`}
               >
-                {item.label}
-              </Link>
-            )
-          })}
-          
-          {/* Admin/Dashboard Switch */}
-          {!isAdminPage && isAdmin && (
-            <Link 
-              href="/admin/dashboard" 
-              prefetch={false} // Disable prefetch for admin routes
-              className="block px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors border-t border-gray-100 mt-2 pt-2"
-            >
-              Admin Panel
-            </Link>
-          )}
-          
-          {isAdminPage && (
-            <Link 
-              href="/dashboard" 
-              className="block px-4 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors border-t border-gray-100 mt-2 pt-2"
-            >
-              Back to Dashboard
-            </Link>
+                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+            </>
           )}
         </div>
       </div>
-    </div>
+      
+      {mobileMenuOpen && (
+        <div className={`md:hidden border-t px-4 py-3 ${
+          isLandingPage
+            ? isScrolled
+              ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
+              : 'bg-blue-50 border-blue-200/50'
+            : 'bg-white border-gray-200 dark:bg-gray-950 dark:border-gray-800'
+        }`}>
+          <nav className="flex flex-col gap-3">
+            {shouldShowNav ? (
+              <>
+                {navItems.map((item) => {
+                  const isActive = pathname === item.href
+                  const isAdminLink = item.href.startsWith('/admin')
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      prefetch={!isAdminLink}
+                      className={`text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'text-blue-700 font-semibold dark:text-blue-400'
+                          : 'text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400'
+                      }`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  )
+                })}
+                
+                {!isAdminPage && isAdmin && (
+                  <Link 
+                    href="/admin/dashboard" 
+                    prefetch={false}
+                    className={`text-sm font-medium transition-colors border-t pt-3 mt-2 ${
+                      isLandingPage && !isScrolled
+                        ? 'text-red-300 hover:text-red-200 border-white/20'
+                        : 'text-red-600 hover:text-red-700 border-gray-200 dark:text-red-400 dark:hover:text-red-300 dark:border-gray-700'
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Admin Panel
+                  </Link>
+                )}
+                
+                {isAdminPage && (
+                  <Link 
+                    href="/dashboard" 
+                    className={`text-sm font-medium transition-colors border-t pt-3 mt-2 ${
+                      isLandingPage && !isScrolled
+                        ? 'text-blue-300 hover:text-blue-200 border-white/20'
+                        : 'text-blue-600 hover:text-blue-700 border-gray-200 dark:text-blue-400 dark:hover:text-blue-300 dark:border-gray-700'
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Back to Dashboard
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                <Link href="/pricing" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                  Pricing
+                </Link>
+                <Link href="/faq" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                  FAQ
+                </Link>
+                <Link href="/contact" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                  Contact
+                </Link>
+                <Link href="/terms" className={`text-sm font-medium transition-colors text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400`} onClick={() => setMobileMenuOpen(false)}>
+                  Terms
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
+      )}
+    </header>
   )
 }

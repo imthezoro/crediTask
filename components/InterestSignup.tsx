@@ -1,144 +1,128 @@
 "use client"
 
 import React, { useState } from 'react'
+import { Check, Mail, MessageSquare } from 'lucide-react'
 
-export default function InterestSignup() {
-  const [rating, setRating] = useState<number>(5)
-  const [hover, setHover] = useState<number | null>(null)
+interface InterestSignupProps {
+  title?: string
+  description?: string
+  buttonText?: string
+  type?: string
+  className?: string
+}
+
+export default function InterestSignup({ 
+  title = "Stay Updated", 
+  description = "Get notified about PromptOK updates and new features",
+  buttonText = "Get Updates",
+  type = "waiting",
+  className = ""
+}: InterestSignupProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg shadow p-6 border-2 border-dashed border-blue-300">
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Need More Credits?</h3>
-        <p className="text-gray-600">Let us know you&apos;re interested in higher limits</p>
-      </div>
-
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          const form = e.target as HTMLFormElement
-          const formData = new FormData(form)
-
-          // Normalize and validate inputs
-          const emailRaw = (formData.get('email') ?? '').toString().trim()
-          const usageRaw = (formData.get('usage') ?? '').toString().trim()
-          const feedbackRaw = (formData.get('feedback') ?? '').toString().trim()
-          const ratingRaw = (formData.get('rating') ?? '').toString().trim()
-
-          // Coerce to correct types
-          const usage = Number(usageRaw)
-          const ratingVal = Number(ratingRaw)
-
-          if (!emailRaw) {
-            alert('Please provide a valid email address.')
-            return
-          }
-          if (!Number.isFinite(usage) || usage < 0) {
-            alert('Please provide a valid non-negative number for usage.')
-            return
-          }
-          if (!Number.isFinite(ratingVal) || ratingVal < 1 || ratingVal > 5) {
-            alert('Please select a rating between 1 and 5.')
-            return
-          }
-
-          try {
-            const response = await fetch('/api/interest-signup', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: emailRaw,
-                usage,
-                feedback: feedbackRaw,
-                rating: ratingVal,
-              }),
-            })
-            if (response.ok) {
-              alert("Thank you for your interest! We'll be in touch soon.")
-              form.reset()
-            } else {
-              alert('Something went wrong. Please try again.')
-            }
-          } catch {
-            alert('Something went wrong. Please try again.')
-          }
-        }}
-      >
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email Address
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="your@email.com"
-            required
-          />
+    <div className={`space-y-6 ${className}`}>
+      {(title || description) && (
+        <div className="text-center mb-8">
+          {title && <h3 className="text-2xl font-bold text-white mb-3">{title}</h3>}
+          {description && <p className="text-slate-300 text-lg">{description}</p>}
         </div>
+      )}
 
-        <div>
-          <label htmlFor="usage" className="block text-sm font-medium text-gray-700 mb-1">
-            Expected Weekly Usage (number)
-          </label>
-          <input
-            type="number"
-            id="usage"
-            name="usage"
-            min={0}
-            step={1}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="e.g. 250"
-            required
-          />
-        </div>
-
-        <div>
-          <label htmlFor="feedback" className="block text-sm font-medium text-gray-700 mb-1">
-            Feedback (Optional)
-          </label>
-          <textarea
-            id="feedback"
-            name="feedback"
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="What would make PromptOK more useful for you?"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Rating
-          </label>
-          <div className="flex items-center gap-1">
-            {[1,2,3,4,5].map((star) => (
-              <button
-                type="button"
-                key={star}
-                onMouseEnter={() => setHover(star)}
-                onMouseLeave={() => setHover(null)}
-                onClick={() => setRating(star)}
-                aria-label={`Rate ${star} star${star>1?'s':''}`}
-                className={`transition-transform duration-150 ${ (hover ?? rating) >= star ? 'text-yellow-400' : 'text-gray-300' } hover:scale-110`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-7 h-7">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.802 2.035a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.802-2.035a1 1 0 00-1.175 0L6.659 16.28c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L3.024 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.025-3.292z" />
-                </svg>
-              </button>
-            ))}
+      {isSuccess ? (
+        <div className="text-center py-8">
+          <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Check className="h-8 w-8 text-white" />
           </div>
-          {/* Hidden input to submit rating value */}
-          <input type="hidden" name="rating" value={rating} />
+          <h4 className="text-xl font-bold text-white mb-2">Thank you!</h4>
+          <p className="text-slate-300">We&apos;ll keep you updated on our latest features and improvements.</p>
         </div>
+      ) : (
+        <form
+          className="space-y-6"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            setIsSubmitting(true)
+            const form = e.target as HTMLFormElement
+            const formData = new FormData(form)
 
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            // Normalize and validate inputs
+            const emailRaw = (formData.get('email') ?? '').toString().trim()
+            const feedbackRaw = (formData.get('feedback') ?? '').toString().trim()
+
+            if (!emailRaw) {
+              alert('Please provide a valid email address.')
+              setIsSubmitting(false)
+              return
+            }
+
+            try {
+              const response = await fetch('/api/interest-signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  email: emailRaw,
+                  feedback: feedbackRaw,
+                  type: type,
+                }),
+              })
+              if (response.ok) {
+                setIsSuccess(true)
+                form.reset()
+              } else {
+                alert('Something went wrong. Please try again.')
+              }
+            } catch {
+              alert('Something went wrong. Please try again.')
+            } finally {
+              setIsSubmitting(false)
+            }
+          }}
         >
-          Express Interest
-        </button>
-      </form>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Mail className="h-5 w-5 text-slate-400" />
+            </div>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300"
+              placeholder="Enter your email address"
+              required
+            />
+          </div>
+
+          <div className="relative">
+            <div className="absolute top-4 left-0 pl-4 flex items-start pointer-events-none">
+              <MessageSquare className="h-5 w-5 text-slate-400" />
+            </div>
+            <textarea
+              id="feedback"
+              name="feedback"
+              rows={3}
+              className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300 resize-none"
+              placeholder="Any suggestions or features you&apos;d like to see? (Optional)"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-500 disabled:to-gray-600 text-white py-4 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 shadow-lg hover:shadow-xl"
+          >
+            {isSubmitting ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Submitting...
+              </div>
+            ) : (
+              buttonText
+            )}
+          </button>
+        </form>
+      )}
     </div>
   )
 }

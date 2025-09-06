@@ -1,5 +1,5 @@
 import ContactForm from '@/components/ContactForm'
-import PageNavigation from '@/components/PageNavigation'
+import PageNavigationClient from '@/components/PageNavigationClient'
 
 // Route Segment Options
 export const revalidate = 3600; // 1h - contact info may be updated occasionally
@@ -50,7 +50,7 @@ export default function ContactSupportPage() {
         </div>
       </section>
       
-      <PageNavigation />
+      <PageNavigationClient />
     </main>
   )
 }

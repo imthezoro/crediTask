@@ -6,6 +6,11 @@
   * {
     box-sizing: border-box;
   }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
   body {
     margin: 0; 
     padding: 0; 
@@ -17,4 +22,106 @@
 main { 
   max-width: 900px; 
   margin: 0 auto; 
+}
+
+/* Scroll animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+.animate-slide-in-top {
+  animation: slideInFromTop 0.8s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.6s ease-out forwards;
+}
+
+/* Page load animations - Fast initial appearance */
+.page-load-animate {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-load-animate.loaded {
+  animation: fadeInUp 0.25s ease-out forwards;
+}
+
+.page-load-stagger-1 {
+  animation-delay: 0.02s;
+}
+
+.page-load-stagger-2 {
+  animation-delay: 0.04s;
+}
+
+.page-load-stagger-3 {
+  animation-delay: 0.06s;
+}
+
+.page-load-stagger-4 {
+  animation-delay: 0.08s;
+}
+
+.page-load-stagger-5 {
+  animation-delay: 0.1s;
+}
+
+/* Scroll-triggered animations */
+.scroll-animate {
+  opacity: 0;
+  transform: translateY(30px);
+  /* TUNING: Animation speed - change 0.55s to make slower/faster */
+  transition: all 0.55s ease-out;
+}
+
+.scroll-animate.animate {
+  opacity: 1;
+  transform: translateY(0);
 }
