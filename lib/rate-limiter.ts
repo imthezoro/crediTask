@@ -29,7 +29,7 @@ class RateLimiter {
 
     this.configs.set('auth-sensitive', {
       windowMs: 60 * 1000, // 1 minute
-      maxRequests: 5,
+      maxRequests: 10,
       blockDurationMs: 30 * 60 * 1000, // 30 minutes
       skipSuccessfulRequests: false
     })

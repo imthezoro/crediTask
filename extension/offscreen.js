@@ -10,6 +10,7 @@ class PromptOKOffscreenAuth {
     this.isRefreshing = false;
     this.extensionId = chrome.runtime.id;
     this.bridgeUrl = null;
+    this.cooldownUntil = 0; // epoch ms; when > now, we are in cooldown (e.g., after 429)
     
     console.log('[PromptOK Offscreen] Initializing auth bridge');
     this.init();
@@ -65,6 +66,14 @@ class PromptOKOffscreenAuth {
       this.iframe.remove();
     }
 
+    // Respect cooldown window to avoid hammering server after 429
+    if (Date.now() < this.cooldownUntil) {
+      const waitMs = this.cooldownUntil - Date.now();
+      console.warn('[PromptOK Offscreen] In cooldown, delaying iframe creation by', Math.round(waitMs / 1000), 'seconds');
+      setTimeout(() => this.createIframe(), waitMs + 50);
+      return;
+    }
+
     // Ensure we have the bridge URL
     if (!this.bridgeUrl) {
       this.bridgeUrl = await this.getBridgeUrl();
@@ -94,6 +103,12 @@ class PromptOKOffscreenAuth {
   handleTokenMessage(payload) {
     if (payload.error) {
       console.error('[PromptOK Offscreen] Token error:', payload.error);
+      // Enter cooldown on rate limits to avoid repeated 429s
+      if (typeof payload.error === 'string' && payload.error.includes('429')) {
+        // 5-minute cooldown
+        this.cooldownUntil = Date.now() + (2 * 60 * 1000);
+        console.warn('[PromptOK Offscreen] Entering cooldown for 2 minutes due to rate limit (429)');
+      }
       this.currentJWT = null;
       this.clearStoredJWT();
       this.notifyAuthStateChange(false);
@@ -127,6 +142,8 @@ class PromptOKOffscreenAuth {
       
       this.storeJWT();
       this.scheduleRefresh();
+      // Successful token clears any cooldown
+      this.cooldownUntil = 0;
       
       // Notify if authentication state changed
       if (!wasAuthenticated) {
@@ -194,6 +211,12 @@ class PromptOKOffscreenAuth {
   }
 
   refreshToken() {
+    // Respect cooldown window
+    if (Date.now() < this.cooldownUntil) {
+      const waitMs = this.cooldownUntil - Date.now();
+      console.warn('[PromptOK Offscreen] In cooldown, skipping refresh. Remaining', Math.round(waitMs / 1000), 'seconds');
+      return;
+    }
     if (this.isRefreshing) {
       console.log('[PromptOK Offscreen] Refresh already in progress');
       return;
@@ -221,11 +244,15 @@ class PromptOKOffscreenAuth {
 
   // Start periodic sync to ensure extension stays in sync with webapp
   startPeriodicSync() {
-    // Check authentication status every 30 seconds
+    // Check authentication status every 2 minutes
+    // Only refresh if token is missing or will expire within 2 minutes
     this.syncTimer = setInterval(() => {
-      console.log('[PromptOK Offscreen] Performing periodic auth sync check');
-      this.refreshToken();
-    }, 30000);
+      const msLeft = this.currentJWT ? (this.currentJWT.expiresAt - Date.now()) : 0;
+      console.log('[PromptOK Offscreen] Periodic auth sync check. msLeft=', msLeft);
+      if (!this.currentJWT || msLeft < 120000) {
+        this.refreshToken();
+      }
+    }, 120000);
   }
 
   // Stop periodic sync (cleanup)
