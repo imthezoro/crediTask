@@ -8,8 +8,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Default guest quota
-const DEFAULT_GUEST_QUOTA = 10
+// Guest quota - single source of truth for guest limits
+const GUEST_QUOTA = 5 // Guest users get 5 prompts
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -83,12 +83,12 @@ serve(async (req) => {
 
     // Check if user is a guest and enforce quota
     if (userProfile.is_guest) {
-      if (userProfile.usage_count >= DEFAULT_GUEST_QUOTA) {
+      if (userProfile.usage_count >= GUEST_QUOTA) {
         return new Response(
           JSON.stringify({ 
             error: 'Guest quota exceeded', 
-            message: `You've reached the limit of ${DEFAULT_GUEST_QUOTA} requests as a guest user. Please sign up for a full account to continue.`,
-            quota: DEFAULT_GUEST_QUOTA,
+            message: `You've reached the limit of ${GUEST_QUOTA} requests as a guest user. Please sign up for a full account to continue.`,
+            quota: GUEST_QUOTA,
             usage: userProfile.usage_count
           }),
           {
@@ -148,7 +148,7 @@ serve(async (req) => {
           ...enhanceData,
           usage_count: userProfile.usage_count + 1,
           is_guest: userProfile.is_guest,
-          quota: userProfile.is_guest ? DEFAULT_GUEST_QUOTA : null
+          quota: userProfile.is_guest ? GUEST_QUOTA : null
         }),
         {
           status: 200,

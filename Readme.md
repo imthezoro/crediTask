@@ -214,15 +214,31 @@ All API endpoints require authentication via Supabase JWT tokens.
 
 ### How it works
 1. Extension captures prompt text from supported AI platforms
-2. Sends enhancement request to `/api/extension/enhance` endpoint
+2. Sends enhancement request to Supabase Edge Functions
 3. Displays enhanced prompt to user
 4. Logs session data for analytics
 
-### Supported Platforms
+### Supported Platforms (Restricted Access)
+The extension now only works on approved LLM sites and requires authentication with available credits:
+
 - ChatGPT (chat.openai.com)
 - Claude (claude.ai)
 - Gemini (gemini.google.com)
-- Custom platform support via content scripts
+- Bard (bard.google.com)
+- Poe (poe.com)
+- Character.AI (character.ai)
+- Perplexity (perplexity.ai)
+- You.com (you.com)
+- Microsoft Copilot (copilot.microsoft.com)
+- HuggingFace (huggingface.co)
+- Replicate (replicate.com)
+- OpenRouter (openrouter.ai)
+
+### Authentication & Usage Requirements
+- Extension only activates on allowed sites (see manifest.json)
+- Requires user authentication via JWT tokens
+- Checks user credits/usage limits before showing enhancement UI
+- Shows appropriate error messages for unauthenticated users or insufficient credits
 
 ### Environment Configuration
 The Chrome extension automatically detects the environment via `extension/env-config.js` using the extension's unique ID (`chrome.runtime.id`).
@@ -389,6 +405,47 @@ extension/             # Chrome extension source
 - Review Supabase logs for database issues
 - Monitor Vercel deployment logs
 - Use browser dev tools for frontend debugging
+
+## Usage Limits & Enforcement
+
+### Single Source of Truth
+Usage limits are enforced **only** in Supabase Edge Functions to maintain consistency and prevent bypasses:
+
+#### Current Limits (Enforced in Edge Functions)
+- **Paid Plans**: Unlimited usage
+- **Free Users**: 10 prompts maximum (`usage_count < 10`)
+- **Guest Users**: 5 prompts maximum (`usage_count < 5`)
+
+#### Enforcement Points
+1. **Primary**: `supabase/functions/enhance-prompt/index.ts` - Main enhancement endpoint
+2. **Secondary**: `supabase/functions/guest-prompt/index.ts` - Guest-specific wrapper
+
+#### What Was Removed
+- **Next.js API Routes**: No longer check quotas (e.g., `/app/api/analyze/route.ts`)
+- **lib/rateLimit.ts**: Still exists but usage checks removed from API routes
+- **Extension Client**: Only provides UX feedback, not authoritative enforcement
+
+#### Why This Architecture
+- **Security**: Server-side enforcement prevents client bypasses
+- **Consistency**: Single codebase manages all usage limits
+- **Simplicity**: No need to sync limits across multiple files
+- **Performance**: Edge Functions handle the core enhancement flow
+
+#### Modifying Limits
+To change usage limits, update only these constants:
+```typescript
+// supabase/functions/enhance-prompt/index.ts
+const FREE_PLAN_LIMIT = 10 // Free users get 10 prompts
+
+// supabase/functions/guest-prompt/index.ts  
+const GUEST_QUOTA = 5 // Guest users get 5 prompts
+```
+
+#### Usage Tracking
+- `usage_count` incremented after successful enhancements
+- Stored in `user_profiles` table
+- Checked before processing each request
+- Reset behavior depends on your business logic (not implemented)
 
 ## License
 

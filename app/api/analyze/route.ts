@@ -6,7 +6,6 @@ import { getOpenAI } from '@/lib/openai';
 import { createClient } from '@/lib/supabase-server';
 import { recordPromptSession } from '@/lib/db';
 import { corsEmpty, corsJson } from '@/lib/cors';
-import { checkPlanQuota, incrementUsage, GUEST_QUOTA } from '@/lib/rateLimit';
 
 const AnalyzeSchema = z.object({
   prompt: z.string().min(1),
@@ -24,32 +23,8 @@ export async function POST(req: NextRequest) {
     const json = await req.json();
     const { prompt, site } = AnalyzeSchema.parse(json);
 
-    // Centralized plan/guest quota check
-    let quota;
-    try {
-      quota = await checkPlanQuota(user.id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to verify user plan';
-      return corsJson({ error: msg }, { status: msg.includes('not found') ? 404 : 500 });
-    }
-
-    if (!quota.allowed) {
-      if (quota.isGuest && (quota.usage ?? 0) >= (quota.quota ?? GUEST_QUOTA)) {
-        return corsJson(
-          {
-            error: 'Guest quota exceeded',
-            message: "You've reached the limit of 10 requests as a guest user. Please sign up for a full account to continue.",
-            quota: quota.quota ?? GUEST_QUOTA,
-            usage: quota.usage ?? 0,
-          },
-          { status: 403 }
-        );
-      }
-      return corsJson(
-        { error: 'Usage limit reached. Please upgrade your plan.' },
-        { status: 403 }
-      );
-    }
+    // Note: Usage limits are now enforced only in Supabase Edge Functions
+    // This API route no longer checks quotas - rely on Edge Function enforcement
 
     const key = `analysis:${hashString(prompt)}`;
     const cached = await redis.get<string>(key);
@@ -88,13 +63,8 @@ export async function POST(req: NextRequest) {
       site: site || 'unknown',
     });
 
-    // Increment usage_count on success (centralized helper)
-    try {
-      await incrementUsage(user.id);
-    } catch (incErr) {
-      console.warn('Failed to increment usage_count after analyze:', incErr);
-      // Do not fail the response on usage update issues
-    }
+    // Note: Usage counting is now handled by Edge Functions only
+    // This API route no longer increments usage_count
 
     return corsJson(JSON.parse(body));
   } catch (error: unknown) {

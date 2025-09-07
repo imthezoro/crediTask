@@ -82,13 +82,18 @@ serve(async (req) => {
       )
     }
 
-    // Basic plan validation - adjust based on your business logic
+    // Plan validation - single source of truth for usage limits
     const isPaidPlan = userProfile.plan !== 'free'
-    const isFreeWithLowUsage = userProfile.plan === 'free' && userProfile.usage_count < 10 // Allow 10 free uses
+    const FREE_PLAN_LIMIT = 10 // Free users get 10 prompts
+    const isFreeWithLowUsage = userProfile.plan === 'free' && userProfile.usage_count < FREE_PLAN_LIMIT
     
     if (!isPaidPlan && !isFreeWithLowUsage) {
       return new Response(
-        JSON.stringify({ error: 'Usage limit reached. Please upgrade your plan.' }),
+        JSON.stringify({ 
+          error: 'Usage limit reached. Please upgrade your plan.',
+          usage: userProfile.usage_count,
+          limit: FREE_PLAN_LIMIT
+        }),
         {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
