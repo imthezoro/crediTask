@@ -127,11 +127,9 @@ class PromptOKOffscreenAuth {
 
   async storeJWT() {
     try {
-      await chrome.storage.local.set({
-        'extension_jwt': this.currentJWT,
-        'extension_jwt_updated_at': Date.now()
-      });
-      console.log('[PromptOK Offscreen] JWT stored successfully');
+      // Store JWT in memory only - no persistent storage for security
+      // The iframe bridge will provide fresh tokens as needed
+      console.log('[PromptOK Offscreen] JWT stored in memory');
     } catch (error) {
       console.error('[PromptOK Offscreen] Failed to store JWT:', error);
     }
@@ -139,8 +137,9 @@ class PromptOKOffscreenAuth {
 
   async clearStoredJWT() {
     try {
-      await chrome.storage.local.remove(['extension_jwt', 'extension_jwt_updated_at']);
-      console.log('[PromptOK Offscreen] JWT cleared from storage');
+      // Clear JWT from memory
+      this.currentJWT = null;
+      console.log('[PromptOK Offscreen] JWT cleared from memory');
     } catch (error) {
       console.error('[PromptOK Offscreen] Failed to clear JWT:', error);
     }
@@ -262,9 +261,8 @@ class PromptOKOffscreenAuth {
         return;
       }
 
-      // Try to get JWT from storage
-      const result = await chrome.storage.local.get(['extension_jwt']);
-      const storedJWT = result.extension_jwt;
+      // No stored JWT - rely on iframe bridge for fresh tokens
+      const storedJWT = null;
 
       if (storedJWT && storedJWT.expiresAt > Date.now() + (30 * 1000)) {
         // Stored JWT is still valid

@@ -71,22 +71,22 @@ async function checkAuthenticationViaJWT() {
       if (data.jwt && data.expiresAt > Date.now()) {
         console.log('[PromptOK Popup] Valid JWT received, user is authenticated');
         
-        // Store JWT for future use
-        await chrome.storage.local.set({
-          'extension_jwt': data,
-          'extension_jwt_updated_at': Date.now()
-        });
+        // Store JWT data temporarily in memory for immediate use
+        // No persistent storage needed - iframe bridge handles token refresh
+        
+        // Store user data for immediate use (avoid second API call)
+        if (data.user) {
+          window.promptokUserData = data.user;
+        }
         
         return true;
       } else if (data.loggedIn === false) {
         console.log('[PromptOK Popup] Server reports user not logged in');
-        await chrome.storage.local.remove(['extension_jwt', 'extension_jwt_updated_at']);
         return false;
       }
     }
     
     console.log('[PromptOK Popup] Authentication check failed');
-    await chrome.storage.local.remove(['extension_jwt', 'extension_jwt_updated_at']);
     return false;
   } catch (error) {
     console.error('[PromptOK Popup] Error checking authentication:', error);
@@ -97,15 +97,30 @@ async function checkAuthenticationViaJWT() {
 // Load user credits and profile information
 async function loadUserCredits() {
   try {
+    // First try to use cached user data from authentication check
+    if (window.promptokUserData) {
+      console.log('[PromptOK Popup] Using cached user data from auth check');
+      const userData = window.promptokUserData;
+      
+      updateUserProfile({
+        name: userData.name || 'User',
+        email: userData.email || 'user@promptok.com',
+        plan: userData.plan || 'free',
+        credits: userData.credits || userData.usage_remaining || 0
+      });
+      
+      setAvatarInitials(userData.name || 'User', userData.email || '');
+      return;
+    }
+
     const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
       ? await window.promptokConfig.getApiBase()
       : 'http://localhost:3000';
 
-    // Get stored JWT token
-    const result = await chrome.storage.local.get(['extension_jwt']);
-    const jwtData = result.extension_jwt;
+    // Get JWT token from background script (via iframe bridge)
+    const jwtResult = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_JWT' });
     
-    if (!jwtData || !jwtData.jwt) {
+    if (!jwtResult || !jwtResult.jwt) {
       console.log('No JWT available for loading credits');
       return;
     }
@@ -114,25 +129,29 @@ async function loadUserCredits() {
     const response = await fetch(`${base}/api/user/profile`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${jwtData.jwt}`,
+        'Authorization': `Bearer ${jwtResult.jwt}`,
         'Content-Type': 'application/json'
       }
     });
 
     if (response.ok) {
       const userData = await response.json();
+      console.log('[PromptOK Popup] Loaded user profile from API:', userData);
       
       // Update the UI with actual user data
       updateUserProfile({
-        name: userData.name || userData.full_name || 'User',
+        name: userData.name || 'User',
         email: userData.email || 'user@promptok.com',
         plan: userData.plan || 'free',
         credits: userData.credits || userData.usage_remaining || 0
       });
       
-      setAvatarInitials(userData.name || userData.full_name || 'User', userData.email || '');
+      setAvatarInitials(userData.name || 'User', userData.email || '');
     } else {
-      console.warn('Failed to load user profile, using defaults');
+      console.warn('Failed to load user profile, response status:', response.status);
+      const errorText = await response.text();
+      console.warn('Error response:', errorText);
+      
       // Fallback to basic authenticated state
       updateUserProfile({
         name: 'Authenticated User',
@@ -307,8 +326,8 @@ async function handleLogout() {
       console.warn('Server logout failed, continuing with local cleanup:', logoutError);
     }
     
-    // Clear JWT tokens from extension storage
-    await chrome.storage.local.remove(['extension_jwt', 'extension_jwt_updated_at']);
+    // Clear any cached user data
+    window.promptokUserData = null;
     
     // Trigger JWT refresh to sync with server state (user is now logged out)
     try {
