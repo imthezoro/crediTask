@@ -25,10 +25,13 @@ export async function POST(request: NextRequest) {
           get(name: string) {
             return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options: any) {
-            cookieStore.set(name, value, options);
+          set(name: string, value: string, options: unknown) {
+            // Cast to object to avoid explicit any while remaining compatible with Next's cookie options type
+            cookieStore.set(name, value, options as object);
           },
-          remove(name: string, options: any) {
+          remove(name: string, _options: unknown) {
+            // Mark parameter as used to satisfy no-unused-vars
+            void _options;
             cookieStore.delete(name);
           },
         },
