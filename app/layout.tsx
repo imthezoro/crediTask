@@ -23,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <Footer />
-        <script src="/extension-sync.js" defer></script>
         <Analytics />
         <SpeedInsights />
       </body>

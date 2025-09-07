@@ -133,7 +133,8 @@ export const config = {
      * - favicon.ico (favicon file)
      * - public folder
      * - api routes (handled separately)
+     * - extension-auth/bridge (handled by route.ts with custom headers)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|extension-auth/bridge|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

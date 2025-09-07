@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PromptOK Extension Auth Bridge</title>
+  <meta name="description" content="Secure authentication bridge for PromptOK extension">
+</head>
+<body style="display: none;">
+  <!-- This offscreen document hosts the iframe for secure JWT token retrieval -->
+  <div id="auth-container" style="width: 0; height: 0; overflow: hidden;">
+    <!-- Iframe will be dynamically created here -->
+  </div>
+  
+  <script src="offscreen.js"></script>
+</body>
+</html>

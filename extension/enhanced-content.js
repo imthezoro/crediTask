@@ -237,12 +237,12 @@ class AdvancedPromptEnhancer {
   }
 
   async getEnhancementData(prompt) {
-    const accessToken = await this.getAccessToken();
-    if (!accessToken) {
+    const jwtData = await this.getExtensionJWT();
+    if (!jwtData.jwt) {
       throw new Error('AUTH_ERROR');
     }
 
-    const response = await this.makeApiRequest(prompt, accessToken);
+    const response = await this.makeApiRequest(prompt, jwtData.jwt);
     const data = await this.handleApiResponse(response);
     return {
       rawResponse: data.enhancedPrompt,
@@ -250,47 +250,95 @@ class AdvancedPromptEnhancer {
     };
   }
 
-  async getAccessToken() {
-    // Try primary storage key first
-    let accessToken = await this.getStorageItem('access_token');
-    
-    // Fallback to alternative storage format
-    if (!accessToken) {
-      const authData = await this.getStorageItem('supabase.auth.token');
-      accessToken = authData?.access_token;
+  async getExtensionJWT() {
+    try {
+      // Request JWT from background script
+      const response = await chrome.runtime.sendMessage({
+        type: 'GET_EXTENSION_JWT'
+      });
+
+      if (response.error) {
+        console.error('[PromptOK Content] JWT error:', response.error);
+        return { jwt: null, expiresAt: null };
+      }
+
+      if (!response.jwt) {
+        console.log('[PromptOK Content] No JWT available');
+        return { jwt: null, expiresAt: null };
+      }
+
+      return response;
+    } catch (error) {
+      console.error('[PromptOK Content] Error getting JWT:', error);
+      return { jwt: null, expiresAt: null };
     }
-    
-    return accessToken;
   }
 
-  async makeApiRequest(prompt, accessToken) {
-    return fetch(this.apiEndpoint, {
+  async makeApiRequest(prompt, jwt) {
+    // Use new PromptOK API endpoint instead of Supabase Edge Function
+    const apiEndpoint = this.getApiEndpoint();
+    
+    return fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${jwt}`
       },
       body: JSON.stringify({ prompt })
     });
   }
 
+  getApiEndpoint() {
+    // Use localhost for development, production URL for published extension
+    const extensionId = chrome.runtime.id;
+    const baseUrl = extensionId === 'agoffikldhbnplphjknagiacideikboj' 
+      ? 'http://localhost:3000'
+      : 'https://prompt-ok.vercel.app';
+    
+    return `${baseUrl}/api/extension/enhance`;
+  }
+
   async handleApiResponse(response) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-      const errorMessage = errorData.error || `HTTP ${response.status}: Enhancement failed`;
+      const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: Enhancement failed`;
       
-      // Check for specific error types
-      if (response.status === 401 || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('not authenticated')) {
+      // Handle JWT-specific error responses
+      if (response.status === 401) {
+        // Token expired or invalid, try to refresh
+        console.log('[PromptOK Content] JWT expired, attempting refresh');
+        await this.refreshJWT();
         throw new Error('AUTH_ERROR');
       }
       
-      if (response.status === 403 || errorMessage.toLowerCase().includes('usage limit') || errorMessage.toLowerCase().includes('rate limit') || errorMessage.toLowerCase().includes('upgrade')) {
+      if (response.status === 403) {
+        // Insufficient permissions or rate limit
+        if (errorMessage.toLowerCase().includes('insufficient permissions')) {
+          throw new Error('AUTH_ERROR');
+        } else {
+          throw new Error('RATE_LIMIT_ERROR');
+        }
+      }
+      
+      // Handle other error types
+      if (errorMessage.toLowerCase().includes('usage limit') || errorMessage.toLowerCase().includes('rate limit') || errorMessage.toLowerCase().includes('upgrade')) {
         throw new Error('RATE_LIMIT_ERROR');
       }
       
       throw new Error(errorMessage);
     }
     return response.json();
+  }
+
+  async refreshJWT() {
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'REFRESH_EXTENSION_JWT'
+      });
+      console.log('[PromptOK Content] JWT refresh requested');
+    } catch (error) {
+      console.error('[PromptOK Content] Error refreshing JWT:', error);
+    }
   }
 
   parseEnhancementResponse(responseText) {

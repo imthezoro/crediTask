@@ -41,6 +41,13 @@ class RateLimiter {
       skipSuccessfulRequests: true
     })
 
+    this.configs.set('enhancePrompt', {
+      windowMs: 60 * 1000, // 1 minute
+      maxRequests: 30,
+      blockDurationMs: 5 * 1000, // 5 sec
+      skipSuccessfulRequests: true
+    })
+
     // Cleanup expired entries every 5 minutes with proper cleanup
     this.startCleanup()
   }

@@ -168,21 +168,7 @@ export class SecureAuthUtils {
         }
       }
 
-      // If not blocked and profile missing, create a minimal active profile (first-time OAuth)
-      if (!isBlocked && !profile) {
-        const { error: insertError } = await admin
-          .from('user_profiles')
-          .insert({ id: userId, is_active: true, is_guest: false })
-        
-        if (!insertError) {
-          const { data: createdProfile } = await admin
-            .from('user_profiles')
-            .select('is_active, is_guest, email')
-            .eq('id', userId)
-            .single()
-          profile = createdProfile
-        }
-      }
+      // Profile creation should only happen during signup, not during validation
 
       // Determine validity from current state (initial fetch error is irrelevant if we created/reactivated a profile)
       const hasProfile = Boolean(profile)

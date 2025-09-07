@@ -1,51 +1,115 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('PromptOK installed');
+  console.log('[PromptOK Background] Extension installed');
+  // Initialize offscreen document for JWT authentication
+  setupOffscreenDocument();
 });
 
-// Check if chrome.storage.local is available
-const storage = {
-  set: async (key, value) => {
-    if (chrome.storage && chrome.storage.local) {
-      return chrome.storage.local.set({ [key]: value });
-    } else {
-      // Fallback to localStorage if chrome.storage is not available
-      console.warn('chrome.storage.local not available, falling back to localStorage');
-      localStorage.setItem(key, value);
-      return Promise.resolve();
+chrome.runtime.onStartup.addListener(() => {
+  console.log('[PromptOK Background] Extension startup');
+  // Ensure offscreen document is available on startup
+  setupOffscreenDocument();
+});
+
+// Offscreen document management
+let offscreenDocumentReady = false;
+
+async function setupOffscreenDocument() {
+  try {
+    // Check if offscreen document already exists
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [chrome.runtime.getURL('offscreen.html')]
+    });
+
+    if (existingContexts.length > 0) {
+      console.log('[PromptOK Background] Offscreen document already exists');
+      offscreenDocumentReady = true;
+      return;
     }
-  },
-  get: async (key) => {
-    if (chrome.storage && chrome.storage.local) {
-      const result = await chrome.storage.local.get(key);
-      return result[key];
-    } else {
-      // Fallback to localStorage
-      return Promise.resolve(localStorage.getItem(key));
-    }
+
+    // Create offscreen document
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['DOM_SCRAPING'], // Required reason for MV3
+      justification: 'Secure JWT token management via iframe bridge'
+    });
+
+    offscreenDocumentReady = true;
+    console.log('[PromptOK Background] Offscreen document created successfully');
+  } catch (error) {
+    console.error('[PromptOK Background] Failed to setup offscreen document:', error);
+    offscreenDocumentReady = false;
   }
-};
+}
 
 // Keeps track of the tab/window that initiated OAuth so we can return focus
 let originContext = { tabId: null, windowId: null };
 
-// Notify all PromptOK tabs about token updates
-async function notifyPromptOKTabs(token, updatedAt) {
+// JWT token management functions
+async function getExtensionJWT() {
   try {
-    const tabs = await chrome.tabs.query({ 
-      url: ['*://localhost/*', '*://127.0.0.1/*'] 
+    if (!offscreenDocumentReady) {
+      console.log('[PromptOK Background] Offscreen document not ready, setting up...');
+      await setupOffscreenDocument();
+      
+      if (!offscreenDocumentReady) {
+        throw new Error('Offscreen document not available');
+      }
+      
+      // Wait a moment for offscreen document to initialize
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Send message directly to offscreen document
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
     });
     
-    const notifications = tabs.map(tab => 
-      chrome.tabs.sendMessage(tab.id, { 
-        type: 'TOKEN_UPDATE', 
-        token, 
-        updatedAt 
-      }).catch(() => {}) // Ignore errors for tabs without content script
-    );
-    
-    await Promise.allSettled(notifications);
+    if (contexts.length === 0) {
+      throw new Error('No offscreen document found');
+    }
+
+    // Request JWT from offscreen document using tabs messaging
+    return new Promise((resolve) => {
+      const messageHandler = (message, sender, sendResponse) => {
+        if (message.type === 'JWT_RESPONSE') {
+          chrome.runtime.onMessage.removeListener(messageHandler);
+          resolve(message.data);
+        }
+      };
+      
+      chrome.runtime.onMessage.addListener(messageHandler);
+      
+      // Send message to offscreen document
+      chrome.runtime.sendMessage({
+        type: 'GET_EXTENSION_JWT',
+        target: 'offscreen'
+      }).catch(() => {
+        // If direct messaging fails, try alternative approach
+        setTimeout(() => {
+          resolve({ jwt: null, expiresAt: null, error: 'Offscreen communication failed' });
+        }, 5000);
+      });
+    });
   } catch (error) {
-    console.warn('[PromptOK] Failed to notify tabs:', error);
+    console.error('[PromptOK Background] Error getting JWT:', error);
+    return { jwt: null, expiresAt: null, error: error.message };
+  }
+}
+
+async function refreshExtensionJWT() {
+  try {
+    if (!offscreenDocumentReady) {
+      await setupOffscreenDocument();
+    }
+
+    await chrome.runtime.sendMessage({
+      type: 'REFRESH_EXTENSION_JWT'
+    });
+
+    console.log('[PromptOK Background] JWT refresh triggered');
+  } catch (error) {
+    console.error('[PromptOK Background] Error refreshing JWT:', error);
   }
 }
 
@@ -58,76 +122,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return; // no async work needed
   }
-  
-  // Handle token requests from content script
-  if (message.type === 'GET_TOKEN') {
-    storage.get('access_token')
-      .then(token => {
-        sendResponse({ token });
+
+  // Handle authentication state changes from offscreen document
+  if (message.type === 'AUTH_STATE_CHANGED') {
+    console.log('[PromptOK Background] Auth state changed:', message.isAuthenticated);
+    // Could notify other parts of extension if needed
+    sendResponse({ ok: true });
+    return;
+  }
+
+  // New JWT-based token requests
+  if (message.type === 'GET_EXTENSION_JWT') {
+    getExtensionJWT()
+      .then(result => {
+        sendResponse(result);
       })
       .catch(error => {
-        console.error('Error getting token:', error);
-        sendResponse({ token: null });
+        console.error('[PromptOK Background] JWT request failed:', error);
+        sendResponse({ jwt: null, expiresAt: null, error: error.message });
       });
     return true; // Keep message channel open for async response
   }
-  if (message.type === 'SET_TOKEN') {
-    const updatedAt = typeof message.updatedAt === 'number' ? message.updatedAt : Date.now();
-    Promise.all([
-      storage.set('access_token', message.token),
-      storage.set('access_token_updated_at', updatedAt),
-    ])
+
+  if (message.type === 'REFRESH_EXTENSION_JWT') {
+    refreshExtensionJWT()
       .then(() => {
-        notifyPromptOKTabs(message.token, updatedAt);
-        // If this message came from the OAuth callback tab, first refocus origin then close it
-        try {
-          const callbackTabId = sender?.tab?.id;
-          const url = sender?.tab?.url || '';
-          if (callbackTabId && typeof callbackTabId === 'number' && url.includes('/auth/callback')) {
-            // Focus the original tab/window if we have them
-            if (originContext.windowId != null) {
-              chrome.windows.update(originContext.windowId, { focused: true }, () => void 0);
-            }
-            if (originContext.tabId != null) {
-              chrome.tabs.update(originContext.tabId, { active: true }, () => void 0);
-            }
-            // Clear context so it doesn't affect future flows
-            originContext = { tabId: null, windowId: null };
-            // Now close the callback tab
-            chrome.tabs.remove(callbackTabId, () => {
-              if (chrome.runtime.lastError) {
-                console.warn('Could not close OAuth tab:', chrome.runtime.lastError.message);
-              }
-            });
-          }
-        } catch (e) {
-          console.warn('Error trying to close OAuth tab:', e);
-        }
         sendResponse({ ok: true });
       })
       .catch(error => {
-        console.error('Error setting token:', error);
-        sendResponse({ ok: false, error: error.message });
-      });
-    return true; // Keep the message channel open for async response
-  }
-  if (message.type === 'CLEAR_TOKEN') {
-    // Remove token and notify all tabs to clear their page-local tokens
-    const updatedAt = Date.now();
-    Promise.all([
-      storage.set('access_token', null),
-      storage.set('access_token_updated_at', updatedAt),
-    ])
-      .then(() => {
-        notifyPromptOKTabs(null, updatedAt);
-        sendResponse({ ok: true });
-      })
-      .catch(error => {
-        console.error('Error clearing token:', error);
+        console.error('[PromptOK Background] JWT refresh failed:', error);
         sendResponse({ ok: false, error: error.message });
       });
     return true;
   }
+  
+  // Legacy handlers removed - now using JWT-based authentication only
 });
 
 

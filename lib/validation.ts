@@ -85,10 +85,29 @@ export function validateRequest<T>(schema: z.ZodSchema<T>, data: unknown): {
 
 // Sanitization helpers
 export function sanitizeString(input: string): string {
+  if (typeof input !== 'string') return '';
+  
   return input
     .trim()
     .replace(/[<>]/g, '') // Remove potential HTML tags
-    .slice(0, 1000) // Limit length
+    .slice(0, 10000); // Limit length
+}
+
+export function createErrorResponse(message: string) {
+  return {
+    error: message,
+    success: false,
+    timestamp: new Date().toISOString()
+  };
+}
+
+export function createSuccessResponse<T>(data: T, message?: string) {
+  return {
+    success: true,
+    data,
+    message,
+    timestamp: new Date().toISOString()
+  };
 }
 
 export function sanitizeEmail(email: string): string {
