@@ -52,9 +52,10 @@ async function checkAuthenticationViaJWT() {
   try {
     console.log('[PromptOK Popup] Checking authentication status...');
     
-    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
-      ? await window.promptokConfig.getApiBase()
-      : 'http://localhost:3000';
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const base = await window.promptokEnvConfig.getApiBase();
 
     // Check authentication directly with server using cookies
     const response = await fetch(`${base}/api/extension-token`, {
@@ -113,9 +114,10 @@ async function loadUserCredits() {
       return;
     }
 
-    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
-      ? await window.promptokConfig.getApiBase()
-      : 'http://localhost:3000';
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const base = await window.promptokEnvConfig.getApiBase();
 
     // Get JWT token from background script (via iframe bridge)
     const jwtResult = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_JWT' });
@@ -177,9 +179,10 @@ async function loadUserCredits() {
 // Handle sign-in redirect
 async function handleSignInRedirect() {
   try {
-    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
-      ? await window.promptokConfig.getApiBase()
-      : 'http://localhost:3000';
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const base = await window.promptokEnvConfig.getApiBase();
     
     // Open the sign-in page in a new tab
     chrome.tabs.create({ url: `${base}/auth/signin` });
@@ -288,9 +291,10 @@ function stopProfileSkeleton() {
 // Parameterize portal links (dashboard/billing/profile)
 async function setPortalLinksBase() {
   try {
-    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
-      ? await window.promptokConfig.getApiBase()
-      : 'http://localhost:3000';
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const base = await window.promptokEnvConfig.getApiBase();
     const dash = document.getElementById('linkDashboard');
     const bill = document.getElementById('linkBilling');
     const prof = document.getElementById('linkProfile');
@@ -308,9 +312,10 @@ async function handleLogout() {
     // Show loading state
     showView('loading');
     
-    const base = (window.promptokConfig && typeof window.promptokConfig.getApiBase === 'function')
-      ? await window.promptokConfig.getApiBase()
-      : 'http://localhost:3000';
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const base = await window.promptokEnvConfig.getApiBase();
     
     // First, call the server logout endpoint to clear the session
     try {

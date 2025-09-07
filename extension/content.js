@@ -256,7 +256,12 @@ async function enhanceWithAPI(prompt, enhancementType) {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch('https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt', {
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    
+    const supabaseUrl = await window.promptokEnvConfig.getSupabaseUrl();
+    const response = await fetch(`${supabaseUrl}/functions/v1/enhance-prompt`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

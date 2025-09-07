@@ -209,12 +209,12 @@ All API endpoints require authentication via Supabase JWT tokens.
 
 ### Installation
 1. Load extension from `extension/` directory in Chrome
-2. Configure API endpoint in extension settings
-3. Users authenticate via popup linking to web app
+2. No manual API configuration needed — environment is auto-detected via `extension/env-config.js`
+3. Users authenticate via popup linking to the web app
 
 ### How it works
 1. Extension captures prompt text from supported AI platforms
-2. Sends enhancement request to `/api/enhance` endpoint
+2. Sends enhancement request to `/api/extension/enhance` endpoint
 3. Displays enhanced prompt to user
 4. Logs session data for analytics
 
@@ -223,6 +223,69 @@ All API endpoints require authentication via Supabase JWT tokens.
 - Claude (claude.ai)
 - Gemini (gemini.google.com)
 - Custom platform support via content scripts
+
+### Environment Configuration
+The Chrome extension automatically detects the environment via `extension/env-config.js` using the extension's unique ID (`chrome.runtime.id`).
+
+- The mapping lives in `extension/env-config.js` under `extensionIdMapping`.
+- If the current extension ID is found in the map, it selects that environment (`development` or `production`).
+- If the ID is not found, it safely falls back to `development` (localhost), preventing accidental calls to production.
+
+Example mapping:
+
+```js
+// extension/env-config.js
+extensionIdMapping: {
+  'agoffikldhbnplphjknagiacideikboj': 'development', // Dev extension ID
+  // 'YOUR_PROD_EXTENSION_ID': 'production',        // Add when available
+}
+```
+
+Safe defaults:
+- Unknown/unmapped IDs → `development` → `http://localhost:3000`
+- Production builds must be explicitly mapped to `production`
+
+### Testing Scenarios
+
+Use these approaches to test different environments:
+
+1) Temporarily map your dev extension ID to production (recommended)
+
+- Find your dev extension ID in `chrome://extensions` (enable Developer mode).
+- Edit `extension/env-config.js` and map that ID to `'production'`:
+
+```js
+extensionIdMapping: {
+  // 'agoffikldhbnplphjknagiacideikboj': 'development', // keep if still used for localhost
+  'YOUR_DEV_EXTENSION_ID': 'production'                  // temporary for testing
+}
+```
+
+- Reload the extension in `chrome://extensions`.
+- Verify in DevTools console on any active page:
+
+```js
+await window.promptokEnvConfig.getApiBase() // should be https://prompt-ok.vercel.app
+```
+
+- Revert the mapping after testing so development goes back to localhost by default.
+
+2) Temporarily change the development URL to production (quick but confusing)
+
+- In `extension/env-config.js`, set `urls.development.apiBase = 'https://prompt-ok.vercel.app'`.
+- Reload, test, then change it back to `http://localhost:3000`.
+
+3) Change the fallback to production (not recommended)
+
+- You can change the fallback in `initialize()` to use `production` when the ID is unmapped. This is risky because all unmapped builds will hit production; avoid unless absolutely necessary.
+
+Important caveats:
+- The offscreen auth bridge (`extension/offscreen.js`) builds `parentOrigin` using the current extension ID. If your production web app restricts the bridge to specific IDs, you may need to allowlist your test extension ID during testing.
+- Do not commit temporary mappings of dev IDs to production.
+
+Deprecated scripts:
+- `extension/gemini-service.js` — functionality moved to `enhanced-content.js`.
+- `extension/set-environment.js` — manual switching removed; environment is auto-detected.
 
 ## Manual Setup Steps
 

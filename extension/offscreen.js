@@ -9,23 +9,24 @@ class PromptOKOffscreenAuth {
     this.syncTimer = null;
     this.isRefreshing = false;
     this.extensionId = chrome.runtime.id;
-    this.bridgeUrl = this.getBridgeUrl();
+    this.bridgeUrl = null;
     
     console.log('[PromptOK Offscreen] Initializing auth bridge');
     this.init();
   }
 
-  getBridgeUrl() {
-    // Use localhost for development, production URL for published extension
-    const baseUrl = this.extensionId === 'agoffikldhbnplphjknagiacideikboj' 
-      ? 'http://localhost:3000'
-      : 'https://prompt-ok.vercel.app';
-    
+  async getBridgeUrl() {
+    // Use environment-based configuration
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const baseUrl = await window.promptokEnvConfig.getApiBase();
     const parentOrigin = `chrome-extension://${this.extensionId}`;
     return `${baseUrl}/extension-auth/bridge?parentOrigin=${encodeURIComponent(parentOrigin)}`;
   }
 
-  init() {
+  async init() {
+    this.bridgeUrl = await this.getBridgeUrl();
     this.setupMessageListener();
     this.createIframe();
     this.setupBackgroundMessageHandler();
@@ -33,11 +34,15 @@ class PromptOKOffscreenAuth {
   }
 
   setupMessageListener() {
-    window.addEventListener('message', (event) => {
-      // Validate origin
-      const expectedOrigin = this.bridgeUrl.startsWith('http://localhost:3000') 
-        ? 'http://localhost:3000'
-        : 'https://prompt-ok.vercel.app';
+    window.addEventListener('message', async (event) => {
+      // Validate origin using environment config
+      if (!window.promptokEnvConfig) {
+        console.error('[PromptOK Offscreen] Environment configuration not loaded');
+        return;
+      }
+      
+      const apiBase = await window.promptokEnvConfig.getApiBase();
+      const expectedOrigin = new URL(apiBase).origin;
       
       if (event.origin !== expectedOrigin) {
         console.warn('[PromptOK Offscreen] Ignored message from unauthorized origin:', event.origin);
@@ -54,10 +59,15 @@ class PromptOKOffscreenAuth {
     });
   }
 
-  createIframe() {
+  async createIframe() {
     // Remove existing iframe if present
     if (this.iframe) {
       this.iframe.remove();
+    }
+
+    // Ensure we have the bridge URL
+    if (!this.bridgeUrl) {
+      this.bridgeUrl = await this.getBridgeUrl();
     }
 
     console.log('[PromptOK Offscreen] Creating iframe:', this.bridgeUrl);

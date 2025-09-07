@@ -2,7 +2,6 @@ class AdvancedPromptEnhancer {
   constructor() {
     this.currentEnhancementData = null;
     this.selectedOptions = new Set();
-    this.apiEndpoint = 'https://coqwcumwpixmrjqnmhkv.supabase.co/functions/v1/enhance-prompt';
     this.buttonClass = 'promptok-enhance-button';
     this.overlayClass = 'promptok-overlay';
     this.isMinimized = false;
@@ -275,8 +274,8 @@ class AdvancedPromptEnhancer {
   }
 
   async makeApiRequest(prompt, jwt) {
-    // Use new PromptOK API endpoint instead of Supabase Edge Function
-    const apiEndpoint = this.getApiEndpoint();
+    // Use environment-based API endpoint
+    const apiEndpoint = await this.getApiEndpoint();
     
     return fetch(apiEndpoint, {
       method: 'POST',
@@ -288,13 +287,12 @@ class AdvancedPromptEnhancer {
     });
   }
 
-  getApiEndpoint() {
-    // Use localhost for development, production URL for published extension
-    const extensionId = chrome.runtime.id;
-    const baseUrl = extensionId === 'agoffikldhbnplphjknagiacideikboj' 
-      ? 'http://localhost:3000'
-      : 'https://prompt-ok.vercel.app';
-    
+  async getApiEndpoint() {
+    // Use environment-based configuration
+    if (!window.promptokEnvConfig) {
+      throw new Error('Environment configuration not loaded');
+    }
+    const baseUrl = await window.promptokEnvConfig.getApiBase();
     return `${baseUrl}/api/extension/enhance`;
   }
 
