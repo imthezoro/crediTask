@@ -177,25 +177,13 @@ async function loadUserCredits() {
       const errorText = await response.text();
       console.warn('Error response:', errorText);
       
-      // Fallback to basic authenticated state
-      updateUserProfile({
-        name: 'Authenticated User',
-        email: 'user@promptok.com',
-        plan: 'free',
-        credits: 0
-      });
-      setAvatarInitials('Authenticated User', 'user@promptok.com');
+      // Show profile load error instead of fake data
+      showProfileLoadError('Unable to load profile data');
     }
   } catch (error) {
     console.error('Error loading user credits:', error);
-    // Fallback to basic authenticated state
-    updateUserProfile({
-      name: 'Authenticated User', 
-      email: 'user@promptok.com',
-      plan: 'free',
-      credits: 0
-    });
-    setAvatarInitials('Authenticated User', 'user@promptok.com');
+    // Show profile load error instead of fake data
+    showProfileLoadError('Unable to load profile data');
   }
 }
 
@@ -286,6 +274,31 @@ function setAvatarInitials(name, email) {
   const el = document.querySelector('.user-avatar .initials');
   if (!el) return;
   el.textContent = computeInitials(name, email);
+}
+
+// Show profile load error with clear messaging
+function showProfileLoadError(message) {
+  // Update UI to show authenticated but with profile load error
+  userNameEl.textContent = 'Signed In';
+  userEmailEl.textContent = message;
+  
+  // Set generic initials
+  setAvatarInitials('Signed In', '');
+  
+  // Show error styling on email field
+  userEmailEl.style.color = '#ef4444';
+  userEmailEl.style.fontStyle = 'italic';
+  
+  // Clear plan and credits
+  const planBadge = document.querySelector('.plan-badge span');
+  if (planBadge) {
+    planBadge.textContent = 'FREE';
+  }
+  
+  const creditCount = document.querySelector('.credit-count');
+  if (creditCount) {
+    creditCount.textContent = '0';
+  }
 }
 
 // Skeleton toggles for profile and nav

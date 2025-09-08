@@ -456,7 +456,11 @@ class AdvancedPromptEnhancer {
 
   attachGlobalPositionListeners() {
     if (this._repositionBound) return;
+    
+    // Throttled reposition function with better performance
     const reposition = () => {
+      if (this.floatingButtons.size === 0) return; // Skip if no buttons
+      
       for (const [input, button] of this.floatingButtons.entries()) {
         if (!document.body.contains(input) || !this.isValidInput(input)) {
           // Remove stale
@@ -467,16 +471,44 @@ class AdvancedPromptEnhancer {
         this.updateFloatingButtonPosition(input, button);
       }
     };
-    this._repositionBound = reposition;
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition, true);
-    // Mutation observer to catch layout changes
-    const mo = new MutationObserver(() => {
-      // throttle via rAF
-      if (this._rafReposition) cancelAnimationFrame(this._rafReposition);
-      this._rafReposition = requestAnimationFrame(reposition);
+    
+    // Throttle scroll and resize events more aggressively
+    let scrollTimeout;
+    const throttledReposition = () => {
+      if (scrollTimeout) return;
+      scrollTimeout = setTimeout(() => {
+        reposition();
+        scrollTimeout = null;
+      }, 16); // ~60fps
+    };
+    
+    this._repositionBound = throttledReposition;
+    window.addEventListener('scroll', throttledReposition, { passive: true, capture: true });
+    window.addEventListener('resize', throttledReposition, { passive: true });
+    
+    // More targeted mutation observer - only watch for layout changes
+    const mo = new MutationObserver((mutations) => {
+      // Only reposition if mutations affect layout
+      const hasLayoutChange = mutations.some(mutation => 
+        mutation.type === 'childList' || 
+        (mutation.type === 'attributes' && 
+         ['style', 'class', 'hidden'].includes(mutation.attributeName))
+      );
+      
+      if (hasLayoutChange) {
+        if (this._rafReposition) cancelAnimationFrame(this._rafReposition);
+        this._rafReposition = requestAnimationFrame(reposition);
+      }
     });
-    mo.observe(document.documentElement || document.body, { attributes: true, childList: true, subtree: true });
+    
+    // More targeted observation - only body and specific containers
+    mo.observe(document.body, { 
+      attributes: true, 
+      attributeFilter: ['style', 'class', 'hidden'],
+      childList: true, 
+      subtree: false // Don't watch entire subtree
+    });
+    
     this._mutationObserver = mo;
   }
 
@@ -504,8 +536,9 @@ class AdvancedPromptEnhancer {
   }
 
   async startEnhancement() {
-    // Re-check authentication and credits before enhancement
-    if (!this.isAuthenticated) {
+    // Re-check authentication status on each button click
+    const isAuthenticated = await this.checkAuthenticationStatus();
+    if (!isAuthenticated) {
       this.showAuthRequired();
       return;
     }
@@ -603,6 +636,13 @@ class AdvancedPromptEnhancer {
     // Use environment-based API endpoint
     const apiEndpoint = await this.getApiEndpoint();
     
+    console.log('[PromptOK Content] Making API request:', {
+      endpoint: apiEndpoint,
+      hasJWT: !!jwt,
+      jwtLength: jwt ? jwt.length : 0,
+      promptLength: prompt.length
+    });
+    
     return fetch(apiEndpoint, {
       method: 'POST',
       headers: {
@@ -626,6 +666,15 @@ class AdvancedPromptEnhancer {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Network error' }));
       const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: Enhancement failed`;
+      
+      // Enhanced logging for debugging
+      console.error('[PromptOK Content] API Error Details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        errorMessage,
+        url: response.url
+      });
       
       // Handle JWT-specific error responses
       if (response.status === 401) {
@@ -2190,19 +2239,38 @@ class PromptEnhancerManager {
     if (this.observer) return;
     
     this.observer = new MutationObserver((mutations) => {
-      // Throttle observer calls
+      // More intelligent throttling - only detect if relevant changes
       if (this.observerTimeout) return;
       
-      this.observerTimeout = setTimeout(() => {
-        this.enhancer.detect();
-        this.observerTimeout = null;
-      }, 100);
+      // Check if mutations are relevant (new form elements, textareas, etc.)
+      const hasRelevantChanges = mutations.some(mutation => {
+        if (mutation.type === 'childList') {
+          const addedNodes = Array.from(mutation.addedNodes);
+          return addedNodes.some(node => {
+            if (node.nodeType !== Node.ELEMENT_NODE) return false;
+            const element = node;
+            return element.tagName === 'TEXTAREA' ||
+                   element.querySelector?.('textarea') ||
+                   element.getAttribute?.('contenteditable') === 'true' ||
+                   element.querySelector?.('[contenteditable="true"]');
+          });
+        }
+        return false;
+      });
+      
+      if (hasRelevantChanges) {
+        this.observerTimeout = setTimeout(() => {
+          this.enhancer.detect();
+          this.observerTimeout = null;
+        }, 200); // Slightly longer delay for better batching
+      }
     });
 
-    this.observer.observe(document.documentElement, { 
+    // More targeted observation
+    this.observer.observe(document.body, { 
       childList: true, 
       subtree: true,
-      attributes: false // Reduce observer overhead
+      attributes: false
     });
   }
 
@@ -2232,13 +2300,37 @@ if (document.readyState === 'loading') {
   enhancer.detect().catch(console.error);
 }
 
-// Also run detection periodically for dynamic content (async)
-setInterval(async () => {
+// Run detection periodically for dynamic content with adaptive timing
+let detectionInterval = 3000; // Start with 3 seconds
+let consecutiveNoChanges = 0;
+
+const periodicDetection = async () => {
   try {
     // Clean up orphaned buttons first
     enhancer.cleanupOrphanedButtons();
+    
+    const hadButtons = enhancer.floatingButtons.size;
     await enhancer.detect();
+    const hasButtons = enhancer.floatingButtons.size;
+    
+    // Adaptive timing: slow down if no changes detected
+    if (hadButtons === hasButtons) {
+      consecutiveNoChanges++;
+      if (consecutiveNoChanges > 3) {
+        detectionInterval = Math.min(10000, detectionInterval * 1.5); // Max 10s
+      }
+    } else {
+      consecutiveNoChanges = 0;
+      detectionInterval = 3000; // Reset to fast detection
+    }
+    
   } catch (error) {
     console.error('[PromptOK] Periodic detection error:', error);
   }
-}, 3000);
+  
+  // Schedule next detection with adaptive timing
+  setTimeout(periodicDetection, detectionInterval);
+};
+
+// Start periodic detection
+setTimeout(periodicDetection, 3000);

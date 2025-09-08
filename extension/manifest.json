@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Clarify and enhance prompts across LLM sites",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://coqwcumwpixmrjqnmhkv.supabase.co https://openrouter.ai https://*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://coqwcumwpixmrjqnmhkv.supabase.co https://openrouter.ai; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
   },
   "permissions": [
     "storage",
@@ -13,7 +13,21 @@
     "tabs",
     "offscreen"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "*://chat.openai.com/*",
+    "*://*.chatgpt.com/*",
+    "*://*.claude.ai/*",
+    "*://bard.google.com/*",
+    "*://gemini.google.com/*",
+    "*://*.poe.com/*",
+    "*://*.character.ai/*",
+    "*://*.perplexity.ai/*",
+    "*://*.you.com/*",
+    "*://copilot.microsoft.com/*",
+    "*://huggingface.co/*",
+    "*://replicate.com/*",
+    "*://openrouter.ai/*"
+  ],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html" },
   "content_scripts": [
@@ -43,10 +57,24 @@
     {
       "resources": [
         "css/*",
-        "fonts/*",
+        "font/*",
         "popup.html"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "*://chat.openai.com/*",
+        "*://*.chatgpt.com/*",
+        "*://*.claude.ai/*",
+        "*://bard.google.com/*",
+        "*://gemini.google.com/*",
+        "*://*.poe.com/*",
+        "*://*.character.ai/*",
+        "*://*.perplexity.ai/*",
+        "*://*.you.com/*",
+        "*://copilot.microsoft.com/*",
+        "*://huggingface.co/*",
+        "*://replicate.com/*",
+        "*://openrouter.ai/*"
+      ]
     }
   ]
 }
