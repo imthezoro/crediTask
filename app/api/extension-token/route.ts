@@ -3,6 +3,12 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createExtensionJWT, type ExtensionJWTResult } from '@/lib/jwt-utils';
 import { securityMiddleware, addSecurityHeaders } from '@/lib/security-middleware';
+import { getCorsHeaders, createCorsResponse, corsEmpty } from '@/lib/cors';
+
+// Handle preflight OPTIONS requests
+export async function OPTIONS(request: NextRequest) {
+  return corsEmpty(200, request);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,9 +46,7 @@ export async function GET(request: NextRequest) {
 
     if (authError || !user) {
       console.log('[extension-token] No valid session found');
-      return addSecurityHeaders(
-        NextResponse.json({ loggedIn: false }, { status: 200 })
-      );
+      return createCorsResponse({ loggedIn: false }, 200, request);
     }
 
     // Check if user profile exists and is active
@@ -54,20 +58,16 @@ export async function GET(request: NextRequest) {
 
     if (profileError || !profile) {
       console.log('[extension-token] User profile not found:', user.id);
-      return addSecurityHeaders(
-        NextResponse.json({ 
-          loggedIn: false, 
-          error: 'User profile not found. Please complete signup in the web app.' 
-        }, { status: 200 })
-      );
+      return createCorsResponse({
+        loggedIn: false, 
+        error: 'User profile not found. Please complete signup in the web app.'
+      }, 200, request);
     }
 
     // Check if user is deactivated or soft-deleted
     if (!profile || !profile.is_active || profile.deleted_at) {
       console.log('[extension-token] User is deactivated or soft-deleted:', user.id);
-      return addSecurityHeaders(
-        NextResponse.json({ loggedIn: false }, { status: 200 })
-      );
+      return createCorsResponse({ loggedIn: false }, 200, request);
     }
 
     // Create JWT using the utility function
@@ -102,17 +102,10 @@ export async function GET(request: NextRequest) {
 
     console.log('[extension-token] JWT issued for user:', user.id, 'expires:', new Date(jwtResult.expiresAt).toISOString());
 
-    return addSecurityHeaders(
-      NextResponse.json(responseData, { status: 200 })
-    );
+    return createCorsResponse(responseData, 200, request);
 
   } catch (error) {
     console.error('[extension-token] Error issuing JWT:', error);
-    return addSecurityHeaders(
-      NextResponse.json(
-        { error: 'Internal server error' },
-        { status: 500 }
-      )
-    );
+    return createCorsResponse({ error: 'Internal server error' }, 500, request);
   }
 }

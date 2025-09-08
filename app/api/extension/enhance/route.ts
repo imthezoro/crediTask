@@ -5,12 +5,15 @@ import { addSecurityHeaders } from '@/lib/security-middleware';
 import { 
   validateRequest,
   sanitizeString,
- 
 } from '@/lib/validation';
 import { z } from 'zod';
-
-// Security middleware with rate limiting
 import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
+import { getCorsHeaders, createCorsResponse, corsEmpty } from '@/lib/cors';
+
+// Handle preflight OPTIONS requests
+export async function OPTIONS(request: NextRequest) {
+  return corsEmpty(200, request);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,21 +24,21 @@ export async function POST(request: NextRequest) {
     const rateLimitResult = await rateLimiter.check(clientIP, rateLimitKey, 'enhancePrompt');
     
     if (!rateLimitResult.allowed) {
-      return addSecurityHeaders(NextResponse.json(
+      return createCorsResponse(
         { error: 'Too many requests. Please try again in few seconds.' },
-        { status: 429 }
-      ));
+        429,
+        request
+      );
     }
 
     // Extract and validate Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log('[extension/enhance] Missing or invalid Authorization header');
-      return addSecurityHeaders(
-        NextResponse.json(
-          { error: 'UNAUTHORIZED', message: 'Bearer token required' },
-          { status: 401 }
-        )
+      return createCorsResponse(
+        { error: 'UNAUTHORIZED', message: 'Bearer token required' },
+        401,
+        request
       );
     }
 
@@ -46,22 +49,20 @@ export async function POST(request: NextRequest) {
       payload = await verifyExtensionJWT(token);
     } catch (jwtError) {
       console.log('[extension/enhance] JWT verification failed:', jwtError);
-      return addSecurityHeaders(
-        NextResponse.json(
-          { error: 'UNAUTHORIZED', message: 'Invalid or expired token' },
-          { status: 401 }
-        )
+      return createCorsResponse(
+        { error: 'UNAUTHORIZED', message: 'Invalid or expired token' },
+        401,
+        request
       );
     }
 
     // Validate scope contains 'enhance'
     if (!payload.scope || !payload.scope.includes('enhance')) {
       console.log('[extension/enhance] Insufficient scope:', payload.scope);
-      return addSecurityHeaders(
-        NextResponse.json(
-          { error: 'FORBIDDEN', message: 'Insufficient permissions for enhancement' },
-          { status: 403 }
-        )
+      return createCorsResponse(
+        { error: 'FORBIDDEN', message: 'Insufficient permissions for enhancement' },
+        403,
+        request
       );
     }
 
@@ -77,11 +78,10 @@ export async function POST(request: NextRequest) {
     );
 
     if (!validation.success) {
-      return addSecurityHeaders(
-        NextResponse.json(
-          { error: 'INVALID_INPUT', message: validation.error },
-          { status: 400 }
-        )
+      return createCorsResponse(
+        { error: 'INVALID_INPUT', message: validation.error },
+        400,
+        request
       );
     }
 
@@ -93,47 +93,38 @@ export async function POST(request: NextRequest) {
 
     console.log(`[extension/enhance] Enhanced prompt for user ${payload.userId}`);
 
-    return addSecurityHeaders(
-      NextResponse.json({
-        success: true,
-        enhancedPrompt: result.enhancedPrompt,
-        structuredData: result.structuredData
-      })
-    );
+    return createCorsResponse({
+      success: true,
+      enhancedPrompt: result.enhancedPrompt,
+      structuredData: result.structuredData
+    }, 200, request);
 
   } catch (error) {
     console.error('[extension/enhance] Unexpected error:', error);
-    return addSecurityHeaders(
-      NextResponse.json(
-        { error: 'INTERNAL_ERROR', message: 'Enhancement service temporarily unavailable' },
-        { status: 500 }
-      )
+    return createCorsResponse(
+      { error: 'INTERNAL_ERROR', message: 'Enhancement service temporarily unavailable' },
+      500,
+      request
     );
   }
 }
 export async function GET() {
-  return addSecurityHeaders(
-    NextResponse.json(
-      { error: 'METHOD_NOT_ALLOWED', message: 'Only POST requests are supported' },
-      { status: 405 }
-    )
+  return createCorsResponse(
+    { error: 'METHOD_NOT_ALLOWED', message: 'Only POST requests are supported' },
+    405
   );
 }
 
 export async function PUT() {
-  return addSecurityHeaders(
-    NextResponse.json(
-      { error: 'METHOD_NOT_ALLOWED', message: 'Only POST requests are supported' },
-      { status: 405 }
-    )
+  return createCorsResponse(
+    { error: 'METHOD_NOT_ALLOWED', message: 'Only POST requests are supported' },
+    405
   );
 }
 
 export async function DELETE() {
-  return addSecurityHeaders(
-    NextResponse.json(
-      { error: 'METHOD_NOT_ALLOWED', message: 'Only POST requests are supported' },
-      { status: 405 }
-    )
+  return createCorsResponse(
+    { error: 'METHOD_NOT_ALLOWED', message: 'Only POST requests are supported' },
+    405
   );
 }
