@@ -18,14 +18,25 @@
   "action": { "default_popup": "popup.html" },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "exclude_matches": [
-        "*://localhost/*",
-        "*://127.0.0.1/*"
+      "matches": [
+        "*://chat.openai.com/*",
+        "*://*.chatgpt.com/*",
+        "*://*.claude.ai/*",
+        "*://bard.google.com/*",
+        "*://gemini.google.com/*",
+        "*://*.poe.com/*",
+        "*://*.character.ai/*",
+        "*://*.perplexity.ai/*",
+        "*://*.you.com/*",
+        "*://copilot.microsoft.com/*",
+        "*://huggingface.co/*",
+        "*://replicate.com/*",
+        "*://openrouter.ai/*"
       ],
       "js": ["env-config.js", "enhanced-content.js"],
       "css": ["overlay.css"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [

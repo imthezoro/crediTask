@@ -22,6 +22,23 @@
       }
     },
     
+    // Allowed sites for extension functionality
+    allowedSites: [
+      'chat.openai.com',
+      'chatgpt.com',
+      'claude.ai',
+      'bard.google.com',
+      'gemini.google.com',
+      'poe.com',
+      'character.ai',
+      'perplexity.ai',
+      'you.com',
+      'copilot.microsoft.com',
+      'huggingface.co',
+      'replicate.com',
+      'openrouter.ai'
+    ],
+    
     // Extension ID mapping for automatic environment detection
     extensionIdMapping: {
       'agoffikldhbnplphjknagiacideikboj': 'development', // Development extension ID
@@ -105,6 +122,24 @@
     async getAllUrls() {
       await this.initialize();
       return { ...this.currentUrls };
+    }
+
+    async getAllowedSites() {
+      await this.initialize();
+      return [...this.config.allowedSites];
+    }
+
+    async isAllowedSite(hostname) {
+      await this.initialize();
+      if (!hostname) return false;
+      
+      // Remove www. prefix for comparison
+      const cleanHostname = hostname.replace(/^www\./, '');
+      
+      return this.config.allowedSites.some(site => {
+        const cleanSite = site.replace(/^www\./, '');
+        return cleanHostname === cleanSite || cleanHostname.endsWith('.' + cleanSite);
+      });
     }
 
 

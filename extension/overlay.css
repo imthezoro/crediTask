@@ -1,34 +1,47 @@
-/* Enhance button styles */
+/* Enhance button styles - simplified and more reliable */
 .promptok-enhance-button {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(0,0,0,0.05);
-  z-index: 10000;
-  transition: all 0.2s ease;
-  opacity: 0.7;
+  position: absolute !important;
+  right: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 28px !important;
+  height: 28px !important;
+  background: #667eea !important;
+  border: 1px solid rgba(255,255,255,0.5) !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  color: white !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  opacity: 0.9 !important;
 }
 
 .promptok-enhance-button:hover {
-  opacity: 1;
-  background: rgba(0,0,0,0.1);
-  transform: translateY(-50%) scale(1.1);
+  background: #5a67d8 !important;
+  opacity: 1 !important;
+  transform: translateY(-50%) scale(1.05) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
 }
 
-/* Make sure the input has enough padding for the button */
-textarea[placeholder*="message" i],
-textarea[placeholder*="prompt" i],
-[contenteditable="true"] {
-  position: relative !important;
+/* Ensure input containers can hold absolutely positioned buttons */
+textarea,
+[contenteditable="true"],
+[role="textbox"],
+input[type="text"] {
+  box-sizing: border-box !important;
+}
+
+/* Add padding only when button is present */
+.promptok-input-with-button {
   padding-right: 40px !important;
 }
+
+/* Remove complex site-specific overrides - keep it simple */
 
 /* Overlay styles */
 .promptok-overlay {

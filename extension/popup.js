@@ -47,9 +47,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   initEventListeners();
 });
 
+// Debounce authentication checks to prevent duplicate API calls
+let authCheckInProgress = false;
+let lastAuthCheck = 0;
+const minAuthCheckInterval = 1000; // Minimum 1 second between auth checks
+
 // Check authentication status via direct server call (simplified approach)
 async function checkAuthenticationViaJWT() {
   try {
+    // Debounce authentication checks
+    if (authCheckInProgress) {
+      console.log('[PromptOK Popup] Auth check already in progress, skipping');
+      return false;
+    }
+
+    const timeSinceLastCheck = Date.now() - lastAuthCheck;
+    if (timeSinceLastCheck < minAuthCheckInterval) {
+      const waitMs = minAuthCheckInterval - timeSinceLastCheck;
+      console.log('[PromptOK Popup] Debouncing auth check, waiting', Math.round(waitMs / 1000), 'seconds');
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    }
+
+    authCheckInProgress = true;
+    lastAuthCheck = Date.now();
+
     console.log('[PromptOK Popup] Checking authentication status...');
     
     if (!window.promptokEnvConfig) {
@@ -92,6 +113,8 @@ async function checkAuthenticationViaJWT() {
   } catch (error) {
     console.error('[PromptOK Popup] Error checking authentication:', error);
     return false;
+  } finally {
+    authCheckInProgress = false;
   }
 }
 

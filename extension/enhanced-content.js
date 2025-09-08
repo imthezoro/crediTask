@@ -2,14 +2,30 @@ class AdvancedPromptEnhancer {
   constructor() {
     this.currentEnhancementData = null;
     this.selectedOptions = new Set();
-    this.buttonClass = 'promptok-enhance-button';
+    // Use a distinct class to avoid overlay.css '!important' rules meant for in-DOM buttons
+    this.buttonClass = 'promptok-floating-button';
     this.overlayClass = 'promptok-overlay';
     this.isMinimized = false;
     this.minimizedButtonClass = 'promptok-minimized-button';
     this.sessionStorageKey = 'promptok.session';
+    this.userProfile = null;
+    this.isAuthenticated = false;
+    this.currentInput = null;
+    this.processedInputs = new Set();
+    this.floatingButtons = new Map(); // inputEl -> buttonEl
+    this._repositionBound = null;
     
     // Debug mode - set to true for detailed logging
     this.debug = true;
+    
+    // Initialize authentication check
+    this.initializeAuth();
+    
+    // Clean up orphaned buttons on initialization
+    this.cleanupOrphanedButtons();
+
+    // Attach global listeners once for repositioning
+    this.attachGlobalPositionListeners();
   }
 
   // Session persistence helpers
@@ -68,6 +84,109 @@ class AdvancedPromptEnhancer {
     }
   }
 
+  // Initialize authentication and site validation
+  async initializeAuth() {
+    try {
+      // Check if current site is allowed
+      const isAllowed = await this.isCurrentSiteAllowed();
+      if (!isAllowed) {
+        this.debugLog('Current site not allowed, extension disabled');
+        return;
+      }
+
+      // Check authentication status
+      await this.checkAuthenticationStatus();
+    } catch (error) {
+      console.error('[PromptOK] Failed to initialize auth:', error);
+    }
+  }
+
+  // Check if current site is in the allowed list
+  async isCurrentSiteAllowed() {
+    try {
+      if (!window.promptokEnvConfig) {
+        console.warn('[PromptOK] Environment config not loaded');
+        return false;
+      }
+      
+      const hostname = window.location.hostname;
+      return await window.promptokEnvConfig.isAllowedSite(hostname);
+    } catch (error) {
+      console.error('[PromptOK] Error checking allowed site:', error);
+      return false;
+    }
+  }
+
+  // Check user authentication and profile
+  async checkAuthenticationStatus() {
+    try {
+      const jwtData = await this.getExtensionJWT();
+      if (!jwtData.jwt) {
+        this.debugLog('User not authenticated');
+        this.isAuthenticated = false;
+        this.userProfile = null;
+        return false;
+      }
+      // We consider the user authenticated if a JWT is available. Credits are enforced by API rate limits.
+      this.isAuthenticated = true;
+      this.userProfile = null;
+      this.debugLog('User authenticated (JWT present)');
+      return true;
+    } catch (error) {
+      console.error('[PromptOK] Error checking authentication:', error);
+      this.isAuthenticated = false;
+      this.userProfile = null;
+      return false;
+    }
+  }
+
+  // Get user profile from API
+  async getUserProfile(jwt) {
+    try {
+      if (!window.promptokEnvConfig) {
+        throw new Error('Environment configuration not loaded');
+      }
+      
+      const baseUrl = await window.promptokEnvConfig.getApiBase();
+      const response = await fetch(`${baseUrl}/api/user/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${jwt}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Profile request failed: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[PromptOK] Error getting user profile:', error);
+      return null;
+    }
+  }
+
+  // Check if user has sufficient credits
+  hasCredits() {
+    if (!this.userProfile) return false;
+    
+    // Check if user has credits or usage remaining
+    const credits = this.userProfile.credits || this.userProfile.usage_remaining || 0;
+    return credits > 0;
+  }
+
+  // Show authentication required message
+  showAuthRequired() {
+    this.showError('Please sign in to PromptOK to use this feature. Click the extension icon to sign in.');
+  }
+
+  // Show insufficient credits message
+  showInsufficientCredits() {
+    const credits = this.userProfile?.credits || this.userProfile?.usage_remaining || 0;
+    this.showError(`Insufficient credits (${credits} remaining). Please upgrade your plan to continue using prompt enhancement.`);
+  }
+
   // Test function to debug apply functionality
   testApply() {
     this.debugLog('Testing apply functionality...');
@@ -75,30 +194,139 @@ class AdvancedPromptEnhancer {
     this.applyPromptToInput(testPrompt);
   }
 
-  detect() {
-    const selectors = [
+  getSiteSpecificSelectors() {
+    const hostname = window.location.hostname;
+    const url = window.location.href;
+    const selectors = [];
+    
+    if (hostname.includes('openai.com') || hostname.includes('chatgpt.com') || url.includes('chat.openai.com')) {
+      // ChatGPT selectors - more comprehensive
+      selectors.push(
+        'textarea[data-id="root"]',
+        '#prompt-textarea',
+        'textarea[placeholder*="message" i]',
+        'textarea[placeholder*="send a message" i]',
+        'div[contenteditable="true"][data-testid="composer-text-input"]',
+        'div[contenteditable="true"][role="textbox"]',
+        'textarea'
+      );
+    } else if (hostname.includes('claude.ai')) {
+      // Claude selectors
+      selectors.push(
+        'div[contenteditable="true"][data-testid="chat-input"]',
+        'div[contenteditable="true"] p',
+        'div[contenteditable="true"][role="textbox"]'
+      );
+    } else if (hostname.includes('perplexity.ai')) {
+      // Perplexity selectors - more comprehensive
+      selectors.push(
+        'textarea[placeholder*="ask anything" i]',
+        'textarea[placeholder*="ask follow-up" i]',
+        'textarea[placeholder*="search" i]',
+        'textarea[placeholder*="ask" i]',
+        'div[contenteditable="true"]',
+        'div[role="textbox"]',
+        '[role="textbox"]',
+        // Slate/Lexical editors commonly used by Perplexity
+        '[data-slate-editor="true"]',
+        'div[contenteditable="true"][data-slate-editor="true"]',
+        'div[contenteditable="true"][data-lexical-editor]',
+        '[data-testid*="editor" i]',
+        'div[contenteditable="true"][data-testid*="search" i]',
+        'div[contenteditable="true"][aria-label*="ask" i]',
+        'textarea'
+      );
+    } else if (hostname.includes('gemini.google.com') || hostname.includes('bard.google.com')) {
+      // Gemini/Bard selectors
+      selectors.push(
+        'textarea[placeholder*="enter a prompt" i]',
+        'div[contenteditable="true"][aria-label*="message" i]',
+        'textarea[jsname]'
+      );
+    }
+    
+    return selectors;
+  }
+
+  // Deep query across shadow roots
+  queryDeepAll(selector, root = document) {
+    const out = [];
+    const traverse = (node) => {
+      try {
+        if (!node) return;
+        // Regular matches in this root
+        const matches = node.querySelectorAll ? node.querySelectorAll(selector) : [];
+        matches && matches.forEach && matches.forEach((el) => out.push(el));
+        // Traverse shadow roots
+        const tree = node.querySelectorAll ? node.querySelectorAll('*') : [];
+        tree && tree.forEach && tree.forEach((el) => {
+          if (el.shadowRoot) traverse(el.shadowRoot);
+        });
+      } catch (_) {
+        // ignore
+      }
+    };
+    traverse(root);
+    return out;
+  }
+
+  async detect() {
+    // Check if site is allowed before proceeding
+    const isAllowed = await this.isCurrentSiteAllowed();
+    if (!isAllowed) {
+      this.debugLog('Site not allowed, skipping detection');
+      return null;
+    }
+    // Note: We no longer gate the button on auth/credits here.
+    // Auth/credits are checked in startEnhancement() when user clicks the button.
+
+    // Site-specific selectors with priority order
+    const siteSelectors = this.getSiteSpecificSelectors();
+    const genericSelectors = [
+      // Most common patterns first
       'textarea[placeholder*="message" i]',
-      'textarea[placeholder*="prompt" i]',
+      'textarea[placeholder*="send a message" i]', 
+      'textarea[placeholder*="type a message" i]',
       'textarea[placeholder*="chat" i]',
       'textarea[placeholder*="ask" i]',
+      'textarea[placeholder*="prompt" i]',
       'textarea[placeholder*="type" i]',
       'textarea[placeholder*="enter" i]',
+      'textarea[placeholder*="write" i]',
+      // Contenteditable elements
+      'div[contenteditable="true"][role="textbox"]',
       '[contenteditable="true"]',
-      'input[type="text"][placeholder*="prompt" i]',
-      'textarea',
       'div[contenteditable="true"]',
-      '[role="textbox"]'
+      '[role="textbox"]',
+      // Fallback to any visible textarea
+      'textarea:not([readonly]):not([disabled]):not([style*="display: none"]):not([hidden])',
+      'input[type="text"]:not([readonly]):not([disabled]):not([style*="display: none"]):not([hidden])'
     ];
+    
+    const selectors = [...siteSelectors, ...genericSelectors];
     
     // Try each selector individually for better debugging
     let input = null;
     for (const selector of selectors) {
-      const found = document.querySelector(selector);
-      if (found && this.isValidInput(found)) {
-        input = found;
-        console.log('Found input with selector:', selector, input);
-        break;
+      try {
+        // Search both light DOM and shadow DOM
+        const elements = this.queryDeepAll(selector, document);
+        // Prefer textareas first among matches, else first valid
+        const sorted = Array.from(elements).sort((a, b) => (b.tagName === 'TEXTAREA') - (a.tagName === 'TEXTAREA'));
+        for (const element of sorted) {
+          if (this.isValidInput(element)) {
+            input = element;
+            console.log('Found input with selector:', selector, input);
+            break;
+          }
+        }
+        if (input) break;
+      } catch (e) {
+        this.debugLog('Selector failed:', selector, e);
       }
+    }
+    if (!input) {
+      this.debugLog('No valid input found. Host:', window.location.hostname, 'Tried selectors count:', selectors.length);
     }
     
     if (input && !this.hasEnhanceButton(input)) {
@@ -108,84 +336,182 @@ class AdvancedPromptEnhancer {
   }
 
   isValidInput(element) {
-    // Check if element is visible and interactable
-    const style = window.getComputedStyle(element);
-    return style.display !== 'none' && 
-           style.visibility !== 'hidden' && 
-           !element.disabled &&
-           element.offsetParent !== null;
+    if (!element) return false;
+    try {
+      const style = window.getComputedStyle(element);
+      const isVisible = style.display !== 'none' && style.visibility !== 'hidden' && element.offsetWidth > 0 && element.offsetHeight > 0;
+      const isInteractable = !element.disabled && !element.readOnly;
+      const isTextarea = element.tagName === 'TEXTAREA';
+      const isContentEditable = element.getAttribute && (element.getAttribute('contenteditable') === 'true' || element.getAttribute('role') === 'textbox');
+      return isVisible && isInteractable && (isTextarea || isContentEditable);
+    } catch (e) {
+      this.debugLog('Error validating input:', e);
+      return false;
+    }
   }
 
   hasEnhanceButton(input) {
-    return input.parentNode?.querySelector(`.${this.buttonClass}`) !== null;
+    // Check if button already exists for this specific input
+    const inputId = input.id || input.getAttribute('data-promptok-id') || this.generateInputId(input);
+    if (!input.getAttribute('data-promptok-id')) {
+      input.setAttribute('data-promptok-id', inputId);
+    }
+    return document.querySelector(`.${this.buttonClass}[data-input-id="${inputId}"]`) !== null;
+  }
+
+  generateInputId(input) {
+    // Generate a unique ID for the input based on its properties
+    const tagName = input.tagName.toLowerCase();
+    const placeholder = input.placeholder || '';
+    const className = input.className || '';
+    const position = Array.from(document.querySelectorAll(tagName)).indexOf(input);
+    return `promptok-input-${tagName}-${position}-${Date.now()}`;
+  }
+
+  cleanupOrphanedButtons() {
+    // Remove buttons that no longer have corresponding inputs
+    const buttons = document.querySelectorAll(`.${this.buttonClass}`);
+    buttons.forEach(button => {
+      const inputId = button.getAttribute('data-input-id');
+      if (inputId) {
+        const correspondingInput = document.querySelector(`[data-promptok-id="${inputId}"]`);
+        if (!correspondingInput || !this.isValidInput(correspondingInput)) {
+          button.remove();
+          this.debugLog('Removed orphaned button for input:', inputId);
+        }
+      } else {
+        // Remove buttons without proper input association
+        button.remove();
+        this.debugLog('Removed button without input association');
+      }
+    });
   }
 
   addEnhanceButton(input) {
-    const button = this.createEnhanceButton();
+    const button = this.createEnhanceButton(input);
     this.positionButton(input, button);
-    this.attachButtonEvents(button);
+    this.attachButtonEvents(button, input);
+    
+    // Mark input as having button
+    input.classList.add('promptok-input-with-button');
   }
 
-  createEnhanceButton() {
+  createEnhanceButton(input) {
     const button = document.createElement('button');
     button.className = this.buttonClass;
     button.innerHTML = '✨';
     button.title = 'Enhance prompt with AI';
     button.setAttribute('aria-label', 'Enhance prompt with AI');
-    this.applyButtonStyles(button);
+    // Link button to specific input
+    const inputId = input.getAttribute('data-promptok-id');
+    button.setAttribute('data-input-id', inputId);
+    // Inline styles with !important to win over page CSS
+    const s = (prop, val) => button.style.setProperty(prop, val, 'important');
+    s('position', 'fixed');
+    s('width', '28px');
+    s('height', '28px');
+    s('z-index', '2147483647');
+    s('display', 'flex');
+    s('align-items', 'center');
+    s('justify-content', 'center');
+    s('background', '#667eea');
+    s('color', '#fff');
+    s('border', '1px solid rgba(255,255,255,0.5)');
+    s('border-radius', '6px');
+    s('cursor', 'pointer');
+    s('box-shadow', '0 2px 8px rgba(0,0,0,0.2)');
+    s('opacity', '0.95');
+    s('font-size', '14px');
+    s('line-height', '1');
+    // Position will be set by updateFloatingButtonPosition()
     return button;
   }
 
   applyButtonStyles(button) {
-    Object.assign(button.style, {
-      position: 'absolute',
-      right: '8px',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      background: 'rgba(0,0,0,0.1)',
-      border: 'none',
-      fontSize: '16px',
-      cursor: 'pointer',
-      padding: '4px',
-      borderRadius: '4px',
-      zIndex: '1000',
-      transition: 'all 0.2s ease'
-    });
-    
-    button.addEventListener('mouseenter', () => {
-      button.style.background = 'rgba(0,0,0,0.2)';
-    });
-    
-    button.addEventListener('mouseleave', () => {
-      button.style.background = 'rgba(0,0,0,0.1)';
-    });
+    // No-op: styles are applied inline with !important in createEnhanceButton()
   }
 
   positionButton(input, button) {
-    // Ensure input has relative positioning
-    if (getComputedStyle(input).position === 'static') {
-      input.style.position = 'relative';
+    // Use a floating button appended to body to avoid site CSS/layout conflicts
+    if (!document.body.contains(button)) {
+      document.body.appendChild(button);
     }
-    input.style.paddingRight = '30px';
-    
-    // Insert button appropriately
-    if (input.nextSibling) {
-      input.parentNode.insertBefore(button, input.nextSibling);
-    } else {
-      input.parentNode.appendChild(button);
+    this.updateFloatingButtonPosition(input, button);
+    this.floatingButtons.set(input, button);
+  }
+
+  updateFloatingButtonPosition(input, button) {
+    try {
+      const rect = input.getBoundingClientRect();
+      const btnW = 28, btnH = 28;
+      const padding = 6; // gap from right edge
+      const left = Math.floor(rect.right - btnW - padding);
+      const top = Math.floor(rect.top + rect.height / 2 - btnH / 2);
+      button.style.setProperty('left', left + 'px', 'important');
+      button.style.setProperty('top', top + 'px', 'important');
+    } catch (e) {
+      // ignore
     }
   }
 
-  attachButtonEvents(button) {
+  attachGlobalPositionListeners() {
+    if (this._repositionBound) return;
+    const reposition = () => {
+      for (const [input, button] of this.floatingButtons.entries()) {
+        if (!document.body.contains(input) || !this.isValidInput(input)) {
+          // Remove stale
+          if (button && document.body.contains(button)) button.remove();
+          this.floatingButtons.delete(input);
+          continue;
+        }
+        this.updateFloatingButtonPosition(input, button);
+      }
+    };
+    this._repositionBound = reposition;
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition, true);
+    // Mutation observer to catch layout changes
+    const mo = new MutationObserver(() => {
+      // throttle via rAF
+      if (this._rafReposition) cancelAnimationFrame(this._rafReposition);
+      this._rafReposition = requestAnimationFrame(reposition);
+    });
+    mo.observe(document.documentElement || document.body, { attributes: true, childList: true, subtree: true });
+    this._mutationObserver = mo;
+  }
+
+  addInputPadding(input) {
+    // Not needed for floating button; keep as no-op to avoid changing site layouts
+  }
+
+  attachButtonEvents(button, input) {
+    // Store reference to input for this button
+    button._promptokInput = input;
+    
     button.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
+      
+      // Set the current input context
+      this.currentInput = input;
       this.startEnhancement();
-    });
+    }, true);
+    
+    // Ensure button stays clickable
+    button.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    }, true);
   }
 
   async startEnhancement() {
-    const input = this.detect();
+    // Re-check authentication and credits before enhancement
+    if (!this.isAuthenticated) {
+      this.showAuthRequired();
+      return;
+    }
+
+    // Use the stored current input or detect a new one
+    const input = this.currentInput || await this.detect();
     if (!input) return;
     
     const prompt = input.value || input.textContent || '';
@@ -638,7 +964,7 @@ class AdvancedPromptEnhancer {
 
   applyPromptToInput(finalPrompt) {
     this.debugLog('Starting applyPromptToInput');
-    const input = this.detect();
+    const input = this.currentInput || this.detect();
     if (!input) {
       this.showError('Could not find input field to apply prompt');
       return;
@@ -1897,12 +2223,22 @@ const enhancer = new AdvancedPromptEnhancer();
 // Expose globally for debugging
 window.promptOKEnhancer = enhancer;
 
-// Start detection when DOM is ready
+// Start detection when DOM is ready (async)
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => enhancer.detect());
+  document.addEventListener('DOMContentLoaded', async () => {
+    await enhancer.detect();
+  });
 } else {
-  enhancer.detect();
+  enhancer.detect().catch(console.error);
 }
 
-// Also run detection periodically for dynamic content
-setInterval(() => enhancer.detect(), 2000);
+// Also run detection periodically for dynamic content (async)
+setInterval(async () => {
+  try {
+    // Clean up orphaned buttons first
+    enhancer.cleanupOrphanedButtons();
+    await enhancer.detect();
+  } catch (error) {
+    console.error('[PromptOK] Periodic detection error:', error);
+  }
+}, 3000);

@@ -11,6 +11,9 @@ class PromptOKOffscreenAuth {
     this.extensionId = chrome.runtime.id;
     this.bridgeUrl = null;
     this.cooldownUntil = 0; // epoch ms; when > now, we are in cooldown (e.g., after 429)
+    this.iframeCreationInProgress = false; // Debounce iframe creation
+    this.lastIframeCreation = 0; // Track last creation time
+    this.minIframeInterval = 2000; // Minimum 2 seconds between iframe creations
     
     console.log('[PromptOK Offscreen] Initializing auth bridge');
     this.init();
@@ -61,43 +64,70 @@ class PromptOKOffscreenAuth {
   }
 
   async createIframe() {
-    // Remove existing iframe if present
-    if (this.iframe) {
-      this.iframe.remove();
-    }
-
-    // Respect cooldown window to avoid hammering server after 429
-    if (Date.now() < this.cooldownUntil) {
-      const waitMs = this.cooldownUntil - Date.now();
-      console.warn('[PromptOK Offscreen] In cooldown, delaying iframe creation by', Math.round(waitMs / 1000), 'seconds');
-      setTimeout(() => this.createIframe(), waitMs + 50);
+    // Debounce iframe creation to prevent duplicate calls
+    if (this.iframeCreationInProgress) {
+      console.log('[PromptOK Offscreen] Iframe creation already in progress, skipping');
       return;
     }
 
-    // Ensure we have the bridge URL
-    if (!this.bridgeUrl) {
-      this.bridgeUrl = await this.getBridgeUrl();
+    const timeSinceLastCreation = Date.now() - this.lastIframeCreation;
+    if (timeSinceLastCreation < this.minIframeInterval) {
+      const waitMs = this.minIframeInterval - timeSinceLastCreation;
+      console.log('[PromptOK Offscreen] Debouncing iframe creation, waiting', Math.round(waitMs / 1000), 'seconds');
+      setTimeout(() => this.createIframe(), waitMs);
+      return;
     }
 
-    console.log('[PromptOK Offscreen] Creating iframe:', this.bridgeUrl);
-    
-    this.iframe = document.createElement('iframe');
-    this.iframe.src = this.bridgeUrl;
-    this.iframe.style.display = 'none';
-    this.iframe.style.width = '0';
-    this.iframe.style.height = '0';
-    
-    // Add error handling
-    this.iframe.onerror = () => {
-      console.error('[PromptOK Offscreen] Iframe failed to load');
-      this.scheduleRetry();
-    };
+    this.iframeCreationInProgress = true;
+    this.lastIframeCreation = Date.now();
 
-    this.iframe.onload = () => {
-      console.log('[PromptOK Offscreen] Iframe loaded successfully');
-    };
+    try {
+      // Remove existing iframe if present
+      if (this.iframe) {
+        this.iframe.remove();
+      }
 
-    document.getElementById('auth-container').appendChild(this.iframe);
+      // Respect cooldown window to avoid hammering server after 429
+      if (Date.now() < this.cooldownUntil) {
+        const waitMs = this.cooldownUntil - Date.now();
+        console.warn('[PromptOK Offscreen] In cooldown, delaying iframe creation by', Math.round(waitMs / 1000), 'seconds');
+        setTimeout(() => {
+          this.iframeCreationInProgress = false;
+          this.createIframe();
+        }, waitMs + 50);
+        return;
+      }
+
+      // Ensure we have the bridge URL
+      if (!this.bridgeUrl) {
+        this.bridgeUrl = await this.getBridgeUrl();
+      }
+
+      console.log('[PromptOK Offscreen] Creating iframe:', this.bridgeUrl);
+      
+      this.iframe = document.createElement('iframe');
+      this.iframe.src = this.bridgeUrl;
+      this.iframe.style.display = 'none';
+      this.iframe.style.width = '0';
+      this.iframe.style.height = '0';
+      
+      // Add error handling
+      this.iframe.onerror = () => {
+        console.error('[PromptOK Offscreen] Iframe failed to load');
+        this.iframeCreationInProgress = false;
+        this.scheduleRetry();
+      };
+
+      this.iframe.onload = () => {
+        console.log('[PromptOK Offscreen] Iframe loaded successfully');
+        this.iframeCreationInProgress = false;
+      };
+
+      document.getElementById('auth-container').appendChild(this.iframe);
+    } catch (error) {
+      console.error('[PromptOK Offscreen] Error creating iframe:', error);
+      this.iframeCreationInProgress = false;
+    }
   }
 
   handleTokenMessage(payload) {
