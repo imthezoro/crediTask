@@ -627,6 +627,14 @@ class AdvancedPromptEnhancer {
 
       return response;
     } catch (error) {
+      // Handle the specific MV3 error where the extension context becomes invalid
+      const msg = (error && (error.message || String(error))) || '';
+      if (typeof msg === 'string' && msg.toLowerCase().includes('extension context invalidated')) {
+        console.warn('[PromptOK Content] Extension context invalidated. Please refresh the page and open the PromptOK popup once to reinitialize.');
+        // Provide a clear user-facing cue without retrying
+        this.showAuthRequired();
+        return { jwt: null, expiresAt: null };
+      }
       console.error('[PromptOK Content] Error getting JWT:', error);
       return { jwt: null, expiresAt: null };
     }
@@ -2285,52 +2293,55 @@ class PromptEnhancerManager {
   }
 }
 
-// Initialize the enhancer
-const enhancer = new AdvancedPromptEnhancer();
+// Initialize only in top-level window to avoid sandboxed iframes
+if (window.top === window) {
+  // Initialize the enhancer
+  const enhancer = new AdvancedPromptEnhancer();
 
-// Expose globally for debugging
-window.promptOKEnhancer = enhancer;
+  // Expose globally for debugging
+  window.promptOKEnhancer = enhancer;
 
-// Start detection when DOM is ready (async)
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', async () => {
-    await enhancer.detect();
-  });
-} else {
-  enhancer.detect().catch(console.error);
-}
+  // Start detection when DOM is ready (async)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', async () => {
+      await enhancer.detect();
+    });
+  } else {
+    enhancer.detect().catch(console.error);
+  }
 
-// Run detection periodically for dynamic content with adaptive timing
-let detectionInterval = 3000; // Start with 3 seconds
-let consecutiveNoChanges = 0;
+  // Run detection periodically for dynamic content with adaptive timing
+  let detectionInterval = 3000; // Start with 3 seconds
+  let consecutiveNoChanges = 0;
 
-const periodicDetection = async () => {
-  try {
-    // Clean up orphaned buttons first
-    enhancer.cleanupOrphanedButtons();
-    
-    const hadButtons = enhancer.floatingButtons.size;
-    await enhancer.detect();
-    const hasButtons = enhancer.floatingButtons.size;
-    
-    // Adaptive timing: slow down if no changes detected
-    if (hadButtons === hasButtons) {
-      consecutiveNoChanges++;
-      if (consecutiveNoChanges > 3) {
-        detectionInterval = Math.min(10000, detectionInterval * 1.5); // Max 10s
+  const periodicDetection = async () => {
+    try {
+      // Clean up orphaned buttons first
+      enhancer.cleanupOrphanedButtons();
+      
+      const hadButtons = enhancer.floatingButtons.size;
+      await enhancer.detect();
+      const hasButtons = enhancer.floatingButtons.size;
+      
+      // Adaptive timing: slow down if no changes detected
+      if (hadButtons === hasButtons) {
+        consecutiveNoChanges++;
+        if (consecutiveNoChanges > 3) {
+          detectionInterval = Math.min(10000, detectionInterval * 1.5); // Max 10s
+        }
+      } else {
+        consecutiveNoChanges = 0;
+        detectionInterval = 3000; // Reset to fast detection
       }
-    } else {
-      consecutiveNoChanges = 0;
-      detectionInterval = 3000; // Reset to fast detection
+      
+    } catch (error) {
+      console.error('[PromptOK] Periodic detection error:', error);
     }
     
-  } catch (error) {
-    console.error('[PromptOK] Periodic detection error:', error);
-  }
-  
-  // Schedule next detection with adaptive timing
-  setTimeout(periodicDetection, detectionInterval);
-};
+    // Schedule next detection with adaptive timing
+    setTimeout(periodicDetection, detectionInterval);
+  };
 
-// Start periodic detection
-setTimeout(periodicDetection, 3000);
+  // Start periodic detection
+  setTimeout(periodicDetection, 3000);
+}
