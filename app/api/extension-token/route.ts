@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createExtensionJWT, type ExtensionJWTResult } from '@/lib/jwt-utils';
-import { securityMiddleware, addSecurityHeaders } from '@/lib/security-middleware';
-import { getCorsHeaders, createCorsResponse, corsEmpty } from '@/lib/cors';
+import { securityMiddleware } from '@/lib/security-middleware';
+import { createCorsResponse, corsEmpty } from '@/lib/cors';
 
 // Handle preflight OPTIONS requests
 export async function OPTIONS(request: NextRequest) {

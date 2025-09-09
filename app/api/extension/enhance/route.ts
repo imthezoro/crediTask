@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { verifyExtensionJWT, ExtensionJWTPayload } from '../../../../lib/jwt-utils';
-import { addSecurityHeaders } from '@/lib/security-middleware';
 import { 
   validateRequest,
   sanitizeString,
 } from '@/lib/validation';
 import { z } from 'zod';
 import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
-import { getCorsHeaders, createCorsResponse, corsEmpty } from '@/lib/cors';
+import { createCorsResponse, corsEmpty } from '@/lib/cors';
 
 // Handle preflight OPTIONS requests
 export async function OPTIONS(request: NextRequest) {

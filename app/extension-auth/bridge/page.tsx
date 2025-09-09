@@ -122,7 +122,23 @@ export default function ExtensionAuthBridge() {
     };
 
     // Send token message to extension
-    const sendTokenMessage = (parentOrigin: string, payload: any) => {
+    type ExtensionTokenPayload =
+      | { loggedIn: false; error?: string }
+      | {
+          loggedIn: true;
+          jwt: string;
+          expiresAt: number;
+          scope: string[];
+          iss: string;
+          aud: string;
+          sub: string;
+          iat: number;
+          exp: number;
+          jti: string;
+          token_version: number;
+        };
+
+    const sendTokenMessage = (parentOrigin: string, payload: ExtensionTokenPayload) => {
       try {
         window.parent.postMessage({
           type: 'PROMPTOK_EXTENSION_TOKEN',
