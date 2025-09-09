@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyExtensionJWT, ExtensionJWTPayload } from '../../../../lib/jwt-utils';
-import { enhancePrompt } from '../../../../lib/ai-service';
 import { addSecurityHeaders } from '@/lib/security-middleware';
 import { 
   validateRequest,
@@ -34,7 +33,6 @@ export async function POST(request: NextRequest) {
     // Extract and validate Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('[extension/enhance] Missing or invalid Authorization header');
       return createCorsResponse(
         { error: 'UNAUTHORIZED', message: 'Bearer token required' },
         401,
@@ -44,11 +42,12 @@ export async function POST(request: NextRequest) {
 
     // Verify JWT token
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    
     let payload: ExtensionJWTPayload;
     try {
       payload = await verifyExtensionJWT(token);
     } catch (jwtError) {
-      console.log('[extension/enhance] JWT verification failed:', jwtError);
+      console.error('[extension/enhance] JWT verification failed:', jwtError);
       return createCorsResponse(
         { error: 'UNAUTHORIZED', message: 'Invalid or expired token' },
         401,
@@ -58,15 +57,13 @@ export async function POST(request: NextRequest) {
 
     // Validate scope contains 'enhance'
     if (!payload.scope || !payload.scope.includes('enhance')) {
-      console.log('[extension/enhance] Insufficient scope:', payload.scope);
+      console.error('[extension/enhance] Insufficient scope:', payload.scope);
       return createCorsResponse(
         { error: 'FORBIDDEN', message: 'Insufficient permissions for enhancement' },
         403,
         request
       );
     }
-
-    console.log(`[extension/enhance] Authenticated user: ${payload.userId}`);
 
     // Parse and validate request body
     const body = await request.json();
@@ -88,15 +85,58 @@ export async function POST(request: NextRequest) {
     const { prompt } = validation.data!;
     const sanitizedPrompt = sanitizeString(prompt);
 
-    // Call AI service to enhance the prompt
-    const result = await enhancePrompt(sanitizedPrompt);
+    // Validate environment configuration
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('[extension/enhance] Missing required environment variables:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseAnonKey
+      });
+      return createCorsResponse(
+        { error: 'CONFIGURATION_ERROR', message: 'Service configuration error' },
+        500,
+        request
+      );
+    }
+    
+    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/enhance-prompt`;
 
-    console.log(`[extension/enhance] Enhanced prompt for user ${payload.userId}`);
+    // Call Edge Function with extension token in custom header
+    // Use anon key for Supabase gateway authentication
+    const edgeResponse = await fetch(edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'apikey': supabaseAnonKey,
+        'x-extension-token': token,
+      },
+      body: JSON.stringify({ prompt: sanitizedPrompt })
+    });
+
+    if (!edgeResponse.ok) {
+      const errorData = await edgeResponse.json().catch(() => ({ error: 'Edge function error' }));
+      console.error('[extension/enhance] Edge function failed:', {
+        status: edgeResponse.status,
+        statusText: edgeResponse.statusText,
+        error: errorData
+      });
+      return createCorsResponse(
+        { error: 'ENHANCEMENT_FAILED', message: errorData.error || 'Enhancement service unavailable' },
+        edgeResponse.status,
+        request
+      );
+    }
+
+    const result = await edgeResponse.json();
 
     return createCorsResponse({
       success: true,
       enhancedPrompt: result.enhancedPrompt,
-      structuredData: result.structuredData
+      structuredData: result.structuredData,
+      usageCount: result.usageCount
     }, 200, request);
 
   } catch (error) {

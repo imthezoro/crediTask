@@ -39,12 +39,14 @@ export async function createExtensionJWT(userId: string, scopes: string[]): Prom
     }
 
     // Use site URL for issuer with fallback to localhost for development
-    const iss = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // Normalize by removing any trailing slashes to avoid exact string mismatches
+    const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const iss = rawSiteUrl.replace(/\/+$/, '');
     const aud = 'promptok-extension';
     const sub = userId;
     const token_version = 1;
     const iat = Math.floor(Date.now() / 1000);
-    const exp = iat + 5 * 60; // 5 minutes
+    const exp = iat + 10 * 60; // 10 minutes
     const jti = randomUUID();
 
     const payload = {
@@ -102,18 +104,22 @@ export async function verifyExtensionJWT(token: string): Promise<ExtensionJWTPay
     }
 
     // Validate issuer and audience - support both localhost and production
+    // Normalize issuers by removing any trailing slashes to avoid exact string mismatches
+    const normalize = (url?: string) => (url ? url.replace(/\/+$/, '') : url);
     const allowedIssuers = [
       'http://localhost:3000',
-      'https://prompt-ok.vercel.app'
-    ];
-    
+      'http://127.0.0.1:3000',
+      'https://prompt-ok.vercel.app',
+    ].map(normalize) as string[];
+
     // Add custom site URL if set and different from defaults
-    const customSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    const customSiteUrl = normalize(process.env.NEXT_PUBLIC_SITE_URL);
     if (customSiteUrl && !allowedIssuers.includes(customSiteUrl)) {
       allowedIssuers.push(customSiteUrl);
     }
-    
-    if (!allowedIssuers.includes(payload.iss as string)) {
+
+    const payloadIss = normalize(payload.iss as string);
+    if (!payloadIss || !allowedIssuers.includes(payloadIss)) {
       throw new Error(`Invalid issuer: expected one of [${allowedIssuers.join(', ')}], got ${payload.iss}`);
     }
 

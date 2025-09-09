@@ -1,9 +1,68 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { jwtVerify } from 'https://esm.sh/jose@5.2.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Extension JWT verification function
+async function verifyExtensionJWT(token: string) {
+  try {
+    console.log('[Edge Function] Starting JWT verification')
+    console.log('[Edge Function] Token length:', token.length)
+    console.log('[Edge Function] Token starts with:', token.substring(0, 20) + '...')
+    
+    const secretEnv = Deno.env.get('EXTENSION_JWT_SECRET')
+    if (!secretEnv) {
+      throw new Error('EXTENSION_JWT_SECRET not configured')
+    }
+
+    const secret = new TextEncoder().encode(secretEnv)
+    console.log('[Edge Function] Encoded secret length:', secret.length)
+
+    console.log('[Edge Function] Attempting jwtVerify...')
+    const { payload } = await jwtVerify(token, secret)
+    
+    // Validate payload structure 
+    if (!payload.userId || !Array.isArray(payload.scope)) {
+      console.error('[Edge Function] Invalid payload structure:', { userId: !!payload.userId, scope: Array.isArray(payload.scope) })
+      throw new Error('Invalid JWT payload structure')
+    }
+
+    // Validate issuer and audience
+    const normalize = (url?: string) => (url ? url.replace(/\/+$/, '') : url)
+    const allowedIssuers = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'https://prompt-ok.vercel.app'
+    ].map(normalize)
+    
+    // Add custom site URL if set
+    const customSiteUrl = normalize(Deno.env.get('NEXT_PUBLIC_SITE_URL') || undefined)
+    if (customSiteUrl && !allowedIssuers.includes(customSiteUrl)) {
+      allowedIssuers.push(customSiteUrl)
+    }
+    
+    const payloadIss = normalize(payload.iss as string)
+    if (!payloadIss || !allowedIssuers.includes(payloadIss)) {
+      throw new Error(`Invalid issuer: expected one of [${allowedIssuers.join(', ')}], got ${payload.iss}`)
+    }
+
+    console.log('[Edge Function] Checking audience:', payload.aud)
+    if (payload.aud !== 'promptok-extension') {
+      throw new Error(`Invalid audience: expected promptok-extension, got ${payload.aud}`)
+    }
+    
+    console.log('[Edge Function] JWT validation completed successfully')
+    return payload
+  } catch (error) {
+    console.error('[Edge Function] JWT verification failed:', error)
+    console.error('[Edge Function] Error type:', error.constructor.name)
+    console.error('[Edge Function] Error message:', error.message)
+    throw new Error('Invalid or expired JWT token')
+  }
 }
 
 serve(async (req) => {
@@ -13,32 +72,54 @@ serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
-    )
-
-    // Get the user from the request
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser()
-
-    if (userError || !user) {
+    // Extract Extension JWT token
+    // Prefer custom header to avoid conflicts with Supabase gateway expectations
+    const customHeader = req.headers.get('x-extension-token')
+    const authHeader = req.headers.get('authorization')
+    let token = customHeader || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : '')
+    if (!token) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Extension token required' }),
         {
           status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
     }
+
+    // Verify Extension JWT token
+    let jwtPayload
+    try {
+      jwtPayload = await verifyExtensionJWT(token)
+    } catch (jwtError) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // Validate scope contains 'enhance'
+    if (!jwtPayload.scope || !jwtPayload.scope.includes('enhance')) {
+      console.log('[Edge Function] Insufficient scope:', jwtPayload.scope)
+      return new Response(
+        JSON.stringify({ error: 'Insufficient permissions for enhancement' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    const userId = jwtPayload.userId as string
+
+    // Initialize Supabase client with service role for user profile access
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
     // Parse request body
     const { prompt } = await req.json()
@@ -57,7 +138,7 @@ serve(async (req) => {
     const { data: userProfile, error: profileError } = await supabaseClient
       .from('user_profiles')
       .select('plan, usage_count, plan_valid_until')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (profileError) {
@@ -249,7 +330,7 @@ Now, when you are given the user prompt, do the above.`
         usage_count: userProfile.usage_count + 1,
         updated_at: new Date().toISOString()
       })
-      .eq('id', user.id)
+      .eq('id', userId)
 
     if (updateError) {
       console.error('Error updating user usage:', updateError)
@@ -260,7 +341,7 @@ Now, when you are given the user prompt, do the above.`
     const { error: sessionError } = await supabaseClient
       .from('prompt_sessions')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         original_prompt: prompt,
         base_enhanced_prompt: enhancedText.trim(),
         site: 'extension'
