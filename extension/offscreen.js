@@ -151,7 +151,7 @@ class PromptOKOffscreenAuth {
       this.currentJWT = null;
       this.clearStoredJWT();
       // Enter a short quarantine window to avoid race conditions immediately after logout
-      this.logoutQuarantineUntil = Date.now() + 10 * 1000; // 60s
+      this.logoutQuarantineUntil = Date.now() + 10 * 1000; // 10s
       this.notifyAuthStateChange(false);
       return;
     }

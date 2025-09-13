@@ -202,7 +202,7 @@ export default function ExtensionAuthBridge() {
             console.log('[Extension Bridge] Supabase SIGNED_OUT event detected, notifying extension');
             sendTokenMessage(parentOrigin, { loggedIn: false });
           }
-        } catch (_e) {
+        } catch {
           // ignore
         }
       }
@@ -214,12 +214,12 @@ export default function ExtensionAuthBridge() {
         if (authChannel) {
           authChannel.close();
         }
-      } catch (_e) {
+      } catch {
         // ignore
       }
       try {
         authListener?.subscription?.unsubscribe();
-      } catch (_e) {
+      } catch {
         // ignore
       }
     };
