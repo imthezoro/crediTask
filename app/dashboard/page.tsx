@@ -63,7 +63,7 @@ export default async function Dashboard() {
               <p className="text-2xl font-semibold">
                 {profile?.plan_valid_until 
                   ? new Date(profile.plan_valid_until).toLocaleDateString()
-                  : 'N/A'
+                  : '-'
                 }
               </p>
             </CardContent>
@@ -100,20 +100,7 @@ export default async function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Your recent prompt enhancement activity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No recent activity. Install the extension to get started!</p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )
 }
-
-
