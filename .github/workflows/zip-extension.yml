@@ -1,0 +1,102 @@
+name: Build and Deploy Extension ZIP
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'extension/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed for commits and releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Zip extension folder
+      - name: Zip extension folder
+        run: |
+          mkdir -p output
+          # Zip from repo root so the archive has a top-level 'extension/' folder
+          zip -r output/extension.zip extension
+
+      # Step 3: Upload artifact
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: output/extension.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 4: Checkout repo for commit (do this first to avoid cleaning after artifact download)
+      - name: Checkout repo for commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 5: Download artifact
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-zip
+          path: ./dist
+
+      # Step 6: Validate artifact exists
+      - name: Validate artifact exists
+        run: |
+          if [ ! -f ./dist/extension.zip ]; then
+            echo "extension.zip not found in ./dist after download" >&2
+            ls -la ./dist || true
+            exit 1
+          fi
+
+      # Step 7: Copy ZIP to public/ for Vercel
+      - name: Copy extension ZIP to public folder
+        run: |
+          mkdir -p public/extension
+          cp ./dist/extension.zip public/extension/extension.zip
+
+      # Step 8: Commit and push if changed
+      - name: Commit and push updated ZIP
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage the new artifact
+          git add public/extension/extension.zip
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: update extension build"
+            git push origin HEAD:main
+          fi
+
+      # Step 9: Create/Update GitHub release
+      - name: Create/Update "Latest Extension" Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-extension
+          name: Latest Extension Build
+          files: ./dist/extension.zip
+          make_latest: true
+          overwrite: true
+          body: |
+            Automated build of the browser extension.
+
+            Public download (served from your site):
+            ${{ secrets.PROD_SITE_URL }}/extension/extension.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
