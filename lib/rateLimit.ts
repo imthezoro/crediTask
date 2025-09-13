@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { createAdminClient } from './supabase-server';
 
 // Centralized quota constants to keep behavior consistent across API routes and edge functions
-export const FREE_PLAN_LIMIT = 15; // Free signed users get 15 prompts
+export const FREE_PLAN_LIMIT = 10; // Free signed users get 10 prompts (matches edge function's limit)
 export const GUEST_QUOTA = 5;      // Guest users get 5 prompts
 
 export type PlanQuotaResult = {
@@ -18,8 +18,8 @@ export type PlanQuotaResult = {
  * Check whether a user is allowed to proceed based on user_profiles plan/guest usage.
  * Behavior mirrors Supabase edge functions:
  * - Paid plan: allowed
- * - Free plan: usage_count < 10
- * - Guest users: usage_count < 10 (same cap)
+ * - Free plan: usage_count < FREE_PLAN_LIMIT (currently 15)
+ * - Guest users: usage_count < GUEST_QUOTA (currently 5)
  */
 export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
   const admin = createAdminClient();
