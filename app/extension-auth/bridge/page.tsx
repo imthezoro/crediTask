@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase-client';
  */
 export default function ExtensionAuthBridge() {
   useEffect(() => {
+    // Create a Supabase client in the effect scope for auth state subscription
+    const supabaseForEvents = createClient();
     const handleAuthBridge = async () => {
       try {
         // Get parent origin from URL params
@@ -170,8 +172,56 @@ export default function ExtensionAuthBridge() {
 
     window.addEventListener('message', handleMessage);
 
+    // Listen for immediate logout broadcast from the web app and relay to extension
+    // This enables zero-latency logout sync without waiting for periodic refresh
+    let authChannel: BroadcastChannel | null = null;
+    try {
+      authChannel = new BroadcastChannel('promptok-auth');
+      authChannel.onmessage = (bcEvent) => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const parentOrigin = urlParams.get('parentOrigin');
+        if (!parentOrigin) return;
+
+        const payload = bcEvent?.data;
+        if (payload && payload.type === 'PROMPTOK_LOGOUT') {
+          console.log('[Extension Bridge] Received PROMPTOK_LOGOUT broadcast, notifying extension');
+          sendTokenMessage(parentOrigin, { loggedIn: false });
+        }
+      };
+    } catch (e) {
+      console.warn('[Extension Bridge] BroadcastChannel not available:', e);
+    }
+
+    // Subscribe to Supabase auth state changes to catch logout events instantly
+    const { data: authListener } = supabaseForEvents.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const parentOrigin = urlParams.get('parentOrigin');
+          if (parentOrigin) {
+            console.log('[Extension Bridge] Supabase SIGNED_OUT event detected, notifying extension');
+            sendTokenMessage(parentOrigin, { loggedIn: false });
+          }
+        } catch (_e) {
+          // ignore
+        }
+      }
+    });
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      try {
+        if (authChannel) {
+          authChannel.close();
+        }
+      } catch (_e) {
+        // ignore
+      }
+      try {
+        authListener?.subscription?.unsubscribe();
+      } catch (_e) {
+        // ignore
+      }
     };
   }, []);
 

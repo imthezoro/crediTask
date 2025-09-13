@@ -14,6 +14,15 @@ export function LogoutButton() {
     setLoading(true)
     try {
       await supabase.auth.signOut()
+      // Broadcast immediate logout to any listening contexts (e.g., extension bridge)
+      try {
+        const ch = new BroadcastChannel('promptok-auth')
+        ch.postMessage({ type: 'PROMPTOK_LOGOUT' })
+        // Close shortly after to avoid leaks
+        setTimeout(() => ch.close(), 50)
+      } catch (e) {
+        console.warn('[LogoutButton] BroadcastChannel not available:', e)
+      }
       router.push('/auth/signin')
       router.refresh()
     } catch (error) {

@@ -100,6 +100,20 @@ export async function GET(request: NextRequest) {
         }
       }
       
+      // Listen for immediate logout broadcast via BroadcastChannel and notify extension instantly
+      try {
+        const ch = new BroadcastChannel('promptok-auth');
+        ch.onmessage = (ev) => {
+          const data = ev && ev.data;
+          if (data && data.type === 'PROMPTOK_LOGOUT') {
+            console.log('[PromptOK Bridge] Received PROMPTOK_LOGOUT broadcast, notifying extension');
+            sendToParent({ loggedIn: false });
+          }
+        };
+      } catch (e) {
+        console.warn('[PromptOK Bridge] BroadcastChannel not available:', e);
+      }
+
       // Main execution
       async function main() {
         console.log('[PromptOK Bridge] Fetching extension token...');

@@ -11,6 +11,7 @@ class PromptOKOffscreenAuth {
     this.extensionId = chrome.runtime.id;
     this.bridgeUrl = null;
     this.cooldownUntil = 0; // epoch ms; when > now, we are in cooldown (e.g., after 429)
+    this.logoutQuarantineUntil = 0; // epoch ms; when > now, do not serve any JWT (post-logout)
     this.iframeCreationInProgress = false; // Debounce iframe creation
     this.lastIframeCreation = 0; // Track last creation time
     this.minIframeInterval = 2000; // Minimum 2 seconds between iframe creations
@@ -149,6 +150,8 @@ class PromptOKOffscreenAuth {
       console.log('[PromptOK Offscreen] User not logged in');
       this.currentJWT = null;
       this.clearStoredJWT();
+      // Enter a short quarantine window to avoid race conditions immediately after logout
+      this.logoutQuarantineUntil = Date.now() + 10 * 1000; // 60s
       this.notifyAuthStateChange(false);
       return;
     }
@@ -174,6 +177,8 @@ class PromptOKOffscreenAuth {
       this.scheduleRefresh();
       // Successful token clears any cooldown
       this.cooldownUntil = 0;
+      // Clear any logout quarantine upon successful new token
+      this.logoutQuarantineUntil = 0;
       
       // Notify if authentication state changed
       if (!wasAuthenticated) {
@@ -318,6 +323,12 @@ class PromptOKOffscreenAuth {
 
   async handleJWTRequest(sendResponse) {
     try {
+      // If we're within the logout quarantine window, do not serve any token
+      if (this.logoutQuarantineUntil && Date.now() < this.logoutQuarantineUntil) {
+        console.log('[PromptOK Offscreen] In logout quarantine window, not serving JWT');
+        sendResponse({ jwt: null, expiresAt: null });
+        return;
+      }
       // Check if current JWT is still valid
       if (this.currentJWT && this.currentJWT.expiresAt > Date.now() + (30 * 1000)) {
         // JWT is valid for at least 30 more seconds
