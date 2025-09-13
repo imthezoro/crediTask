@@ -447,6 +447,39 @@ const GUEST_QUOTA = 5 // Guest users get 5 prompts
 - Checked before processing each request
 - Reset behavior depends on your business logic (not implemented)
 
+## Browser Extension Build & Release (GitHub Actions)
+
+The browser extension ZIP is built and published automatically via GitHub Actions.
+
+• Path: `.github/workflows/zip-extension.yml`
+
+### What the workflow does
+1. Zips the repository's `extension/` directory so the archive contains a top-level `extension/` folder.
+2. Uploads the ZIP as an artifact from the build job.
+3. In the release job:
+   - Checks out the repo (first, to avoid cleaning the downloaded artifact later)
+   - Downloads the artifact to `./dist/extension.zip`
+   - Copies it into the repo at `public/extension/extension.zip`
+   - Commits and pushes that file to `main` (commit message: `chore: update extension build`)
+   - Creates/updates a GitHub Release with the same ZIP (`tag_name: latest-extension`)
+
+### Triggers
+- On push to `main` that touches `extension/**`
+- Manual trigger via the “Run workflow” button in GitHub Actions
+
+### Outputs
+- Public file in the web app (served by Vercel):
+  - URL: `https://prompt-ok.vercel.app/extension/extension.zip`
+  - Source path in repo: `public/extension/extension.zip`
+- GitHub Release asset:
+  - Tag: `latest-extension`
+  - File: `./dist/extension.zip` (uploaded by the workflow)
+
+### Notes
+- The public URL is only updated after Vercel deploys the commit that updates `public/extension/extension.zip`.
+- The workflow’s commit no longer includes `[skip ci]`, so Vercel will build and deploy that change automatically.
+- If you change the filename or folder, update both the copy step and any references in this README.
+
 ## License
 
 MIT License - see LICENSE file for details.
