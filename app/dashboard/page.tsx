@@ -80,13 +80,21 @@ export default async function Dashboard() {
           <CardContent>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <ol className="list-decimal list-inside text-blue-700 space-y-2 mb-4">
-                <li>Download the extension from the Chrome Web Store</li>
-                <li>Pin the extension to your toolbar</li>
-                <li>Sign in with your PromptOK account</li>
-                <li>Start enhancing prompts on any AI platform</li>
+                <li>Click the button below to download the ZIP file.</li>
+                <li>Extract the downloaded ZIP to a folder on your computer.</li>
+                <li>Open Chrome and go to <span className="font-mono">chrome://extensions</span>.</li>
+                <li>Enable <span className="font-semibold">Developer mode</span> (top-right toggle).</li>
+                <li>Click <span className="font-semibold">Load unpacked</span> and select the extracted folder.</li>
+                <li>Pin the PromptOK extension to your toolbar for quick access.</li>
+                <li>Open the extension and sign in with your prompt-ok.vercel.app account.</li>
               </ol>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                Install Extension
+              <Button className="bg-blue-600 hover:bg-blue-700" asChild>
+                <a
+                  href="https://prompt-ok.vercel.app/extension/extension.zip"
+                  download="promptok-extension.zip"
+                >
+                  Install Extension
+                </a>
               </Button>
             </div>
           </CardContent>
