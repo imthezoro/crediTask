@@ -445,71 +445,21 @@ class AdvancedPromptEnhancer {
       const rect = input.getBoundingClientRect();
       const btnW = 28, btnH = 28;
       const padding = 6; // gap from right edge
-      const left = Math.floor(rect.right - btnW - padding);
-      const top = Math.floor(rect.top + rect.height / 2 - btnH / 2);
+      // Robust vertical centering using translateY(-50%) like the sample extension pattern
+      const left = Math.round(rect.right - btnW - padding);
+      const topCenter = Math.round(rect.top + rect.height / 2);
       button.style.setProperty('left', left + 'px', 'important');
-      button.style.setProperty('top', top + 'px', 'important');
+      button.style.setProperty('top', topCenter + 'px', 'important');
+      button.style.setProperty('transform', 'translateY(calc(-50% - 5px))', 'important');
     } catch (e) {
       // ignore
     }
   }
 
   attachGlobalPositionListeners() {
+    // No-op: keep the icon fixed after initial placement; do not listen to scroll/resize/mutations
     if (this._repositionBound) return;
-    
-    // Throttled reposition function with better performance
-    const reposition = () => {
-      if (this.floatingButtons.size === 0) return; // Skip if no buttons
-      
-      for (const [input, button] of this.floatingButtons.entries()) {
-        if (!document.body.contains(input) || !this.isValidInput(input)) {
-          // Remove stale
-          if (button && document.body.contains(button)) button.remove();
-          this.floatingButtons.delete(input);
-          continue;
-        }
-        this.updateFloatingButtonPosition(input, button);
-      }
-    };
-    
-    // Throttle scroll and resize events more aggressively
-    let scrollTimeout;
-    const throttledReposition = () => {
-      if (scrollTimeout) return;
-      scrollTimeout = setTimeout(() => {
-        reposition();
-        scrollTimeout = null;
-      }, 16); // ~60fps
-    };
-    
-    this._repositionBound = throttledReposition;
-    window.addEventListener('scroll', throttledReposition, { passive: true, capture: true });
-    window.addEventListener('resize', throttledReposition, { passive: true });
-    
-    // More targeted mutation observer - only watch for layout changes
-    const mo = new MutationObserver((mutations) => {
-      // Only reposition if mutations affect layout
-      const hasLayoutChange = mutations.some(mutation => 
-        mutation.type === 'childList' || 
-        (mutation.type === 'attributes' && 
-         ['style', 'class', 'hidden'].includes(mutation.attributeName))
-      );
-      
-      if (hasLayoutChange) {
-        if (this._rafReposition) cancelAnimationFrame(this._rafReposition);
-        this._rafReposition = requestAnimationFrame(reposition);
-      }
-    });
-    
-    // More targeted observation - only body and specific containers
-    mo.observe(document.body, { 
-      attributes: true, 
-      attributeFilter: ['style', 'class', 'hidden'],
-      childList: true, 
-      subtree: false // Don't watch entire subtree
-    });
-    
-    this._mutationObserver = mo;
+    this._repositionBound = () => {};
   }
 
   addInputPadding(input) {
