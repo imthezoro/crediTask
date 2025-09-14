@@ -432,7 +432,9 @@ class AdvancedPromptEnhancer {
     // GPT-only: use closest NON-scrollable ancestor so inner scrolling doesn't move the icon
     const host = (window.location && window.location.hostname) || '';
     const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
-    const parent = isGPT ? (this.findClosestNonScrollableAncestor(input) || document.body) : (input.parentElement || document.body);
+    const isClaude = host.includes('claude.ai');
+    const useStableAncestor = isGPT || isClaude;
+    const parent = useStableAncestor ? (this.findClosestNonScrollableAncestor(input) || document.body) : (input.parentElement || document.body);
     // Ensure parent can host absolute children
     try {
       const cs = window.getComputedStyle(parent);
@@ -462,7 +464,8 @@ class AdvancedPromptEnhancer {
     try {
       const host = (window.location && window.location.hostname) || '';
       const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
-      if (!isGPT && window.IntersectionObserver) {
+      const isClaude = host.includes('claude.ai');
+      if (!(isGPT || isClaude) && window.IntersectionObserver) {
         const io = new IntersectionObserver((entries) => {
           const entry = entries && entries[0];
           const visible = !!(entry && entry.isIntersecting);
@@ -471,7 +474,7 @@ class AdvancedPromptEnhancer {
         io.observe(input);
         button._promptokIntersectionObserver = io;
       } else {
-        // Ensure visible on GPT
+        // Ensure visible on GPT/Claude
         button.style.setProperty('display', 'flex', 'important');
       }
     } catch (_) { /* ignore */ }
@@ -499,9 +502,10 @@ class AdvancedPromptEnhancer {
       // Fixed offsets within the parent container
       const host = (window.location && window.location.hostname) || '';
       const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
-      // For GPT, push even further left (additional 44px) so we don't overlap send/voice icons
-      const rightOffset = isGPT ? 100 : 44;
-      const bottomOffset = isGPT ? 12 : 10;
+      const isClaude = host.includes('claude.ai');
+      // Site-specific offsets so we don't overlap native controls
+      const rightOffset = isGPT ? 100 : (isClaude ? 180 : 44);
+      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : 10);
       button.style.setProperty('right', rightOffset + 'px', 'important');
       button.style.setProperty('bottom', bottomOffset + 'px', 'important');
       // Clear any conflicting props
