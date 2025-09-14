@@ -28,6 +28,65 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
 }
 
+/* Loading state: scale to 1.1x and show a spinning outline ring */
+.promptok-enhance-button.loading {
+  /* maintain vertical centering while scaling */
+  transform: translateY(-50%) scale(1.1) !important;
+  position: absolute !important;
+}
+
+/* Create a ring using a pseudo-element so layout doesn't shift */
+.promptok-enhance-button.loading::after {
+  content: '';
+  position: absolute;
+  inset: -3px; /* halo just around edges */
+  border-radius: 10px; /* slightly more rounded to match scale */
+  /* Create a sweeping light using a conic-gradient */
+  background: conic-gradient(
+    from 0deg,
+    rgba(102, 126, 234, 0) 0deg,
+    rgba(102, 126, 234, 0.15) 40deg,
+    rgba(102, 126, 234, 0.85) 90deg,
+    rgba(102, 126, 234, 0.15) 140deg,
+    rgba(102, 126, 234, 0) 360deg
+  );
+  /* Mask to show only a thin ring (2px) */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  animation: promptok-spin 1s linear infinite; /* 1s per revolution */
+  z-index: 1; /* above the emoji for visibility */
+}
+
+@keyframes promptok-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Tooltip shown during loading on hover */
+.promptok-tooltip {
+  position: absolute;
+  bottom: 36px; /* above the button */
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(31, 41, 55, 0.98); /* slate-800 */
+  color: #f9fafb;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 2147483647;
+}
+
+.promptok-tooltip.show {
+  opacity: 1;
+  transform: translate(-50%, -2px);
+}
+
 /* Ensure input containers can hold absolutely positioned buttons */
 textarea,
 [contenteditable="true"],

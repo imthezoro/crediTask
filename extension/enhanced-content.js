@@ -402,7 +402,8 @@ class AdvancedPromptEnhancer {
     // Include the generic class so stylesheet rules apply
     button.className = `${this.buttonClass} promptok-enhance-button`;
     button.innerHTML = '✨';
-    button.title = 'Enhance prompt with AI';
+    // Remove default browser tooltip; keep aria-label for accessibility
+    try { button.removeAttribute('title'); } catch (_) { /* ignore */ }
     button.setAttribute('aria-label', 'Enhance prompt with AI');
     // Link button to specific input
     const inputId = input.getAttribute('data-promptok-id');
@@ -421,6 +422,48 @@ class AdvancedPromptEnhancer {
     s('line-height', '1');
     // Position will be set by updateFloatingButtonPosition()
     return button;
+  }
+
+  // Toggle loading state on the floating button with tooltip support
+  setButtonLoading(button, isLoading, message = 'Enhancing…') {
+    try {
+      if (!button) return;
+      if (isLoading) {
+        button.classList.add('loading');
+        button.setAttribute('aria-busy', 'true');
+        button.dataset.loading = 'true';
+        button.style.setProperty('pointer-events', 'auto', 'important'); // keep hover events
+        // Store tooltip text; show only on hover
+        button._promptokTooltipText = message;
+        this.updateButtonTooltip(button, '', /*show*/ false);
+      } else {
+        button.classList.remove('loading');
+        button.removeAttribute('aria-busy');
+        delete button.dataset.loading;
+        button._promptokTooltipText = '';
+        this.updateButtonTooltip(button, '', /*show*/ false);
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  // Ensure a tooltip element exists for the button and update its text/visibility
+  updateButtonTooltip(button, text, show) {
+    try {
+      let tip = button._promptokTooltip;
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.className = 'promptok-tooltip';
+        tip.textContent = '';
+        button.appendChild(tip);
+        button._promptokTooltip = tip;
+      }
+      if (typeof text === 'string') tip.textContent = text;
+      if (show) {
+        tip.classList.add('show');
+      } else {
+        tip.classList.remove('show');
+      }
+    } catch (_) { /* ignore */ }
   }
 
   applyButtonStyles(button) {
@@ -614,23 +657,63 @@ class AdvancedPromptEnhancer {
     button.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
-      
+      // Prevent duplicate requests if loading
+      if (button.classList.contains('loading')) {
+        return;
+      }
       // Set the current input context
       this.currentInput = input;
-      this.startEnhancement();
+      // Start loading UX on the icon
+      this.setButtonLoading(button, true, 'Enhancing…');
+      // Set a long-wait tooltip updater after 5s from click
+      try {
+        if (button._promptokLongWaitTimer) clearTimeout(button._promptokLongWaitTimer);
+      } catch(_){}
+      button._promptokLongWaitTimer = setTimeout(() => {
+        // Update stored hover text for long wait
+        const longText = 'Taking longer than expected….';
+        button._promptokTooltipText = longText;
+        // If tooltip is currently visible, update it
+        if (button._promptokTooltip && button._promptokTooltip.classList.contains('show')) {
+          this.updateButtonTooltip(button, longText, true);
+        }
+      }, 5000);
+      this.startEnhancement(button);
     }, true);
     
     // Ensure button stays clickable
     button.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     }, true);
+
+    // Show tooltip on hover
+    button.addEventListener('mouseenter', () => {
+      if (button.classList.contains('loading')) {
+        // Show the current stored tooltip text (default or long-wait)
+        const txt = typeof button._promptokTooltipText === 'string' && button._promptokTooltipText.length
+          ? button._promptokTooltipText
+          : 'Enhancing…';
+        this.updateButtonTooltip(button, txt, true);
+      } else {
+        // Not loading: show brand tooltip
+        this.updateButtonTooltip(button, 'PromptOK', true);
+      }
+    });
+    button.addEventListener('mouseleave', () => {
+      this.updateButtonTooltip(button, '', false);
+    });
   }
 
-  async startEnhancement() {
+  async startEnhancement(button) {
     // Re-check authentication status on each button click
     const isAuthenticated = await this.checkAuthenticationStatus();
     if (!isAuthenticated) {
       this.showAuthRequired();
+      // Clear loading state if present
+      if (button) {
+        try { if (button._promptokLongWaitTimer) clearTimeout(button._promptokLongWaitTimer); } catch(_){}
+        this.setButtonLoading(button, false);
+      }
       return;
     }
 
@@ -641,12 +724,14 @@ class AdvancedPromptEnhancer {
     const prompt = input.value || input.textContent || '';
     if (!prompt.trim()) {
       this.showError('Please enter a prompt first');
+      if (button) {
+        try { if (button._promptokLongWaitTimer) clearTimeout(button._promptokLongWaitTimer); } catch(_){}
+        this.setButtonLoading(button, false);
+      }
       return;
     }
 
-    // Show loading overlay
-    this.showLoadingOverlay();
-    
+    // Use button animation instead of full-screen overlay during loading
     try {
       // Get enhanced prompt data from API
       const enhancementData = await this.getEnhancementData(prompt);
@@ -681,6 +766,12 @@ class AdvancedPromptEnhancer {
       } else {
         console.error('[PromptOK] Enhancement failed:', error.message || error);
         this.showError('Failed to enhance prompt. Please try again.');
+      }
+    } finally {
+      // Always clear loading UX
+      if (button) {
+        try { if (button._promptokLongWaitTimer) clearTimeout(button._promptokLongWaitTimer); } catch(_){}
+        this.setButtonLoading(button, false);
       }
     }
   }
