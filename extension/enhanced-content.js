@@ -503,9 +503,10 @@ class AdvancedPromptEnhancer {
       const host = (window.location && window.location.hostname) || '';
       const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
       const isClaude = host.includes('claude.ai');
+      const isPerplexity = host.includes('perplexity.ai');
       // Site-specific offsets so we don't overlap native controls
-      const rightOffset = isGPT ? 100 : (isClaude ? 180 : 44);
-      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : 10);
+      const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 3 : 44));
+      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : (isPerplexity ? 0 : 10));
       button.style.setProperty('right', rightOffset + 'px', 'important');
       button.style.setProperty('bottom', bottomOffset + 'px', 'important');
       // Clear any conflicting props
