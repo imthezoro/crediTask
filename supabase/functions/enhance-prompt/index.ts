@@ -328,18 +328,29 @@ Now, when you are given the user prompt, do the above.`
       console.log('Could not parse structured response, using simple format')
     }
 
-    // Update usage count and save session
-    const { error: updateError } = await supabaseClient
-      .from('user_profiles')
-      .update({ 
-        usage_count: userProfile.usage_count + 1,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
+    // Atomically increment usage with limit enforcement
+    const { data: incData, error: rpcError } = await supabaseClient
+      .rpc('increment_usage_if_allowed', { p_user_id: userId, p_increment: 1 })
 
-    if (updateError) {
-      console.error('Error updating user usage:', updateError)
-      // Continue anyway - don't fail the request for usage update issues
+    if (rpcError) {
+      console.error('Error in increment_usage_if_allowed RPC:', rpcError)
+      // Continue anyway but do not silently allow overuse; fall back to denying if we know we're at limit
+    }
+
+    const incRow = Array.isArray(incData) ? incData[0] : null
+    if (incRow && incRow.allowed === false) {
+      // Another concurrent tab likely consumed the last quota. Deny this request to keep limits correct.
+      return new Response(
+        JSON.stringify({ 
+          error: 'Usage limit reached. Please upgrade your plan.',
+          usage: incRow.new_usage ?? userProfile.usage_count,
+          limit: incRow.quota
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
     // Save prompt session for history
@@ -361,7 +372,9 @@ Now, when you are given the user prompt, do the above.`
       JSON.stringify({ 
         enhancedPrompt: enhancedText.trim(),
         structuredData: structuredResponse,
-        usageCount: userProfile.usage_count + 1
+        usageCount: (incRow && typeof incRow.new_usage === 'number')
+          ? incRow.new_usage
+          : (userProfile.usage_count + 1)
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

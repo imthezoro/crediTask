@@ -115,16 +115,31 @@ serve(async (req) => {
     // Get the response from enhance-prompt
     const enhanceData = await enhanceResponse.json()
 
-    // If the enhance-prompt call was successful, increment usage count
+    // If the enhance-prompt call was successful, increment usage count atomically
     if (enhanceResponse.ok) {
-      // Update usage count for the user
-      const { error: updateError } = await supabaseClient
-        .from('user_profiles')
-        .update({ usage_count: userProfile.usage_count + 1 })
-        .eq('id', user.id)
+      // Atomically increment usage with limit enforcement
+      const { data: incData, error: rpcError } = await supabaseClient
+        .rpc('increment_usage_if_allowed', { p_user_id: user.id, p_increment: 1 })
 
-      if (updateError) {
-        console.error('Error updating usage count:', updateError)
+      if (rpcError) {
+        console.error('Error in increment_usage_if_allowed RPC:', rpcError)
+      }
+
+      const incRow = Array.isArray(incData) ? incData[0] : null
+      if (incRow && incRow.allowed === false) {
+        // Another concurrent tab likely consumed the last quota. Deny to enforce limit.
+        return new Response(
+          JSON.stringify({ 
+            error: 'Usage limit reached',
+            message: `You've reached the limit of ${incRow.quota} requests. Please sign up or upgrade to continue.`,
+            quota: incRow.quota,
+            usage: incRow.new_usage ?? userProfile.usage_count
+          }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
       }
 
       // Insert prompt session record
@@ -148,7 +163,9 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           ...enhanceData,
-          usage_count: userProfile.usage_count + 1,
+          usage_count: (incRow && typeof incRow.new_usage === 'number')
+            ? incRow.new_usage
+            : (userProfile.usage_count + 1),
           is_guest: userProfile.is_guest,
           quota: limit
         }),

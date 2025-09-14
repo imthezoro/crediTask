@@ -62,18 +62,18 @@ export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
  */
 export async function incrementUsage(userId: string): Promise<void> {
   const admin = createAdminClient();
-  const { data: profile, error } = await admin
-    .from('user_profiles')
-    .select('usage_count')
-    .eq('id', userId)
-    .single();
-
-  if (error || !profile) return; // fail open without throwing
-
-  await admin
-    .from('user_profiles')
-    .update({ usage_count: (profile.usage_count ?? 0) + 1, updated_at: new Date().toISOString() })
-    .eq('id', userId);
+  try {
+    const { error } = await admin
+      .rpc('increment_usage_if_allowed', { p_user_id: userId, p_increment: 1 });
+    if (error) {
+      // Log and fail silently to avoid breaking UX; enforcement happens before calling this ideally
+      // eslint-disable-next-line no-console
+      console.error('incrementUsage RPC error:', error);
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('incrementUsage exception:', e);
+  }
 }
 
 // =============================
