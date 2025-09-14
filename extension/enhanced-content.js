@@ -14,6 +14,7 @@ class AdvancedPromptEnhancer {
     this.processedInputs = new Set();
     this.floatingButtons = new Map(); // inputEl -> buttonEl
     this._repositionBound = null;
+    this._mutationObserver = null;
     
     // Debug mode - set to true for detailed logging
     this.debug = true;
@@ -398,7 +399,8 @@ class AdvancedPromptEnhancer {
 
   createEnhanceButton(input) {
     const button = document.createElement('button');
-    button.className = this.buttonClass;
+    // Include the generic class so stylesheet rules apply
+    button.className = `${this.buttonClass} promptok-enhance-button`;
     button.innerHTML = '✨';
     button.title = 'Enhance prompt with AI';
     button.setAttribute('aria-label', 'Enhance prompt with AI');
@@ -407,21 +409,15 @@ class AdvancedPromptEnhancer {
     button.setAttribute('data-input-id', inputId);
     // Inline styles with !important to win over page CSS
     const s = (prop, val) => button.style.setProperty(prop, val, 'important');
-    s('position', 'fixed');
-    s('width', '28px');
-    s('height', '28px');
+    s('position', 'absolute');
+    s('width', '32px');
+    s('height', '32px');
     s('z-index', '2147483647');
     s('display', 'flex');
     s('align-items', 'center');
     s('justify-content', 'center');
-    s('background', '#667eea');
-    s('color', '#fff');
-    s('border', '1px solid rgba(255,255,255,0.5)');
-    s('border-radius', '6px');
     s('cursor', 'pointer');
-    s('box-shadow', '0 2px 8px rgba(0,0,0,0.2)');
-    s('opacity', '0.95');
-    s('font-size', '14px');
+    // Allow stylesheet to control background, color, border, radius, shadows, and font-size
     s('line-height', '1');
     // Position will be set by updateFloatingButtonPosition()
     return button;
@@ -432,34 +428,134 @@ class AdvancedPromptEnhancer {
   }
 
   positionButton(input, button) {
-    // Use a floating button appended to body to avoid site CSS/layout conflicts
-    if (!document.body.contains(button)) {
-      document.body.appendChild(button);
+    // Anchor inside a stable container
+    // GPT-only: use closest NON-scrollable ancestor so inner scrolling doesn't move the icon
+    const host = (window.location && window.location.hostname) || '';
+    const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
+    const parent = isGPT ? (this.findClosestNonScrollableAncestor(input) || document.body) : (input.parentElement || document.body);
+    // Ensure parent can host absolute children
+    try {
+      const cs = window.getComputedStyle(parent);
+      if (cs && cs.position === 'static') {
+        // Avoid changing body positioning
+        if (parent !== document.body) {
+          parent.style.setProperty('position', 'relative', 'important');
+        }
+      }
+    } catch (_) { /* ignore */ }
+    if (button.parentElement !== parent) {
+      parent.appendChild(button);
     }
     this.updateFloatingButtonPosition(input, button);
     this.floatingButtons.set(input, button);
+    // Observe ONLY size changes of this input to keep anchor stable on growth
+    try {
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => this.updateFloatingButtonPosition(input, button));
+        ro.observe(input);
+        button._promptokResizeObserver = ro;
+      }
+    } catch (_) {
+      // best-effort
+    }
+    // Hide/show based on viewport visibility of the input (disabled for GPT to avoid disappearing on inner scroll)
+    try {
+      const host = (window.location && window.location.hostname) || '';
+      const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
+      if (!isGPT && window.IntersectionObserver) {
+        const io = new IntersectionObserver((entries) => {
+          const entry = entries && entries[0];
+          const visible = !!(entry && entry.isIntersecting);
+          button.style.setProperty('display', visible ? 'flex' : 'none', 'important');
+        }, { root: null, threshold: 0.2 });
+        io.observe(input);
+        button._promptokIntersectionObserver = io;
+      } else {
+        // Ensure visible on GPT
+        button.style.setProperty('display', 'flex', 'important');
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  // Find the closest ancestor that does NOT have scrollable overflow so the icon stays put when inner content scrolls
+  findClosestNonScrollableAncestor(el) {
+    try {
+      let node = el && el.parentElement;
+      while (node && node !== document.body) {
+        const cs = window.getComputedStyle(node);
+        const overflowY = cs.overflowY;
+        const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
+        if (!isScrollable) return node;
+        node = node.parentElement;
+      }
+    } catch (_) {
+      // ignore
+    }
+    return null;
   }
 
   updateFloatingButtonPosition(input, button) {
     try {
-      const rect = input.getBoundingClientRect();
-      const btnW = 28, btnH = 28;
-      const padding = 6; // gap from right edge
-      // Robust vertical centering using translateY(-50%) like the sample extension pattern
-      const left = Math.round(rect.right - btnW - padding);
-      const topCenter = Math.round(rect.top + rect.height / 2);
-      button.style.setProperty('left', left + 'px', 'important');
-      button.style.setProperty('top', topCenter + 'px', 'important');
-      button.style.setProperty('transform', 'translateY(calc(-50% - 5px))', 'important');
+      // Fixed offsets within the parent container
+      const host = (window.location && window.location.hostname) || '';
+      const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
+      // For GPT, push even further left (additional 44px) so we don't overlap send/voice icons
+      const rightOffset = isGPT ? 100 : 44;
+      const bottomOffset = isGPT ? 12 : 10;
+      button.style.setProperty('right', rightOffset + 'px', 'important');
+      button.style.setProperty('bottom', bottomOffset + 'px', 'important');
+      // Clear any conflicting props
+      button.style.setProperty('left', 'auto', 'important');
+      button.style.setProperty('top', 'auto', 'important');
+      button.style.setProperty('transform', 'none', 'important');
     } catch (e) {
       // ignore
     }
   }
 
+  repositionAllButtons() {
+    try {
+      // Clean out any removed/invalid inputs and reposition the rest
+      const toDelete = [];
+      for (const [input, button] of this.floatingButtons.entries()) {
+        if (!input || !document.contains(input) || !this.isValidInput(input)) {
+          if (button) {
+            if (button._promptokResizeObserver) {
+              try { button._promptokResizeObserver.disconnect(); } catch (_) {}
+              delete button._promptokResizeObserver;
+            }
+            if (button._promptokIntersectionObserver) {
+              try { button._promptokIntersectionObserver.disconnect(); } catch (_) {}
+              delete button._promptokIntersectionObserver;
+            }
+            if (button.parentNode) button.parentNode.removeChild(button);
+          }
+          toDelete.push(input);
+          continue;
+        }
+        this.updateFloatingButtonPosition(input, button);
+      }
+      toDelete.forEach((inp) => this.floatingButtons.delete(inp));
+    } catch (_) {
+      // best-effort
+    }
+  }
+
   attachGlobalPositionListeners() {
-    // No-op: keep the icon fixed after initial placement; do not listen to scroll/resize/mutations
-    if (this._repositionBound) return;
-    this._repositionBound = () => {};
+    // Remove any previously installed global listeners/observers to disable scrolling behavior completely
+    try {
+      if (this._repositionBound) {
+        window.removeEventListener('scroll', this._repositionBound, true);
+        window.removeEventListener('resize', this._repositionBound, true);
+      }
+      this._repositionBound = null;
+      if (this._mutationObserver) {
+        try { this._mutationObserver.disconnect(); } catch (_) {}
+        this._mutationObserver = null;
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   addInputPadding(input) {
