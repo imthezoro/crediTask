@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     // Check if user profile exists and is active
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, is_active, deleted_at, email, plan, usage_count')
+      .select('id, is_active, deleted_at, email, plan, usage_count, prompt_limit')
       .eq('id', user.id)
       .single();
 
@@ -73,10 +73,10 @@ export async function GET(request: NextRequest) {
     // Create JWT using the utility function
     const jwtResult: ExtensionJWTResult = await createExtensionJWT(user.id, ['enhance']);
 
-    // Calculate remaining credits - for free plan, assume 10 credits limit
+    // Calculate remaining credits based on prompt_limit (null => unlimited)
     const usageCount = profile.usage_count || 0;
-    const usageLimit = profile.plan === 'pro' ? 1000 : 10; // Default limits based on plan
-    const creditsRemaining = Math.max(0, usageLimit - usageCount);
+    const usageLimit: number | null = (profile as { prompt_limit?: number | null })?.prompt_limit ?? null;
+    const creditsRemaining = usageLimit == null ? null : Math.max(0, usageLimit - usageCount);
 
     // Extract name from user metadata or email
     const userName = user.user_metadata?.full_name || 

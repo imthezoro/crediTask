@@ -1,5 +1,10 @@
+// @ts-ignore - Deno remote imports are resolved at runtime
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+// @ts-ignore - Deno remote imports are resolved at runtime
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+// Declare Deno for IDE type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const Deno: any;
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -7,9 +12,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
-
-// Guest quota - single source of truth for guest limits
-const GUEST_QUOTA = 5 // Guest users get 5 prompts
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -66,7 +68,7 @@ serve(async (req) => {
     // Check user's profile and quota
     const { data: userProfile, error: profileError } = await supabaseClient
       .from('user_profiles')
-      .select('is_guest, usage_count')
+      .select('is_guest, usage_count, prompt_limit')
       .eq('id', user.id)
       .single()
 
@@ -81,22 +83,22 @@ serve(async (req) => {
       )
     }
 
-    // Check if user is a guest and enforce quota
-    if (userProfile.is_guest) {
-      if (userProfile.usage_count >= GUEST_QUOTA) {
-        return new Response(
-          JSON.stringify({ 
-            error: 'Guest quota exceeded', 
-            message: `You've reached the limit of ${GUEST_QUOTA} requests as a guest user. Please sign up for a full account to continue.`,
-            quota: GUEST_QUOTA,
-            usage: userProfile.usage_count
-          }),
-          {
-            status: 403,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
+    // Enforce quota using prompt_limit if set (null means unlimited)
+    const limit: number | null = (userProfile as { prompt_limit?: number | null })?.prompt_limit ?? null
+    const overLimit = typeof limit === 'number' && userProfile.usage_count >= limit
+    if (overLimit) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Usage limit reached',
+          message: `You've reached the limit of ${limit} requests. Please sign up or upgrade to continue.`,
+          quota: limit,
+          usage: userProfile.usage_count
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
     // Forward the request to the enhance-prompt function
@@ -148,7 +150,7 @@ serve(async (req) => {
           ...enhanceData,
           usage_count: userProfile.usage_count + 1,
           is_guest: userProfile.is_guest,
-          quota: userProfile.is_guest ? GUEST_QUOTA : null
+          quota: limit
         }),
         {
           status: 200,

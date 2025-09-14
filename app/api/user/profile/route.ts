@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // Fetch user profile from database
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, name, email, plan, usage_count, usage_limit, is_active, deleted_at')
+      .select('id, name, email, plan, usage_count, prompt_limit, is_active, deleted_at')
       .eq('id', payload.userId)
       .single();
 
@@ -62,10 +62,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Calculate remaining credits
-    const usageLimit = profile.usage_limit || 0;
+    // Calculate remaining credits based on prompt_limit (null => unlimited)
+    const usageLimit: number | null = (profile as { prompt_limit?: number | null })?.prompt_limit ?? null;
     const usageCount = profile.usage_count || 0;
-    const creditsRemaining = Math.max(0, usageLimit - usageCount);
+    const creditsRemaining = usageLimit == null ? null : Math.max(0, usageLimit - usageCount);
 
     const responseData = {
       id: profile.id,

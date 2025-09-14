@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
-import { FREE_PLAN_LIMIT, GUEST_QUOTA } from '@/lib/rateLimit'
+// Limits are now sourced from the database column user_profiles.prompt_limit
 import InterestSignup from '@/components/InterestSignup'
 import ApiAccessSignup from '@/components/ApiAccessSignup'
 
@@ -20,7 +20,7 @@ export default async function BillingPage() {
   // Get user profile with optimized query (select only needed fields)
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('plan, usage_count, plan_valid_until, is_active, is_guest')
+    .select('plan, usage_count, plan_valid_until, is_active, is_guest, prompt_limit')
     .eq('id', user.id)
     .single()
   
@@ -28,15 +28,15 @@ export default async function BillingPage() {
     redirect('/auth/signin?error=Account is not active')
   }
 
-  // Determine the effective limit for free/guest users based on centralized quotas
-  const freeLimit = (profile?.is_guest ? GUEST_QUOTA : FREE_PLAN_LIMIT)
+  // Effective limit displayed from profile.prompt_limit; null means unlimited (∞)
+  const effectiveLimit = (profile?.prompt_limit ?? null)
 
   const plans = [
     {
       name: 'Free',
       price: '$0',
       period: '/week',
-      features: [`${FREE_PLAN_LIMIT} enhancements/week`, 'Basic analytics', 'Community support'],
+      features: [`${profile?.prompt_limit ?? '∞'} enhancements/week`, 'Basic analytics', 'Community support'],
       current: profile?.plan === 'free' || !profile?.plan
     },
     // Commented out for now - will be needed later
@@ -75,11 +75,11 @@ export default async function BillingPage() {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-500">Usage this week</p>
+              <p className="text-sm text-gray-500">Usage</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {profile?.usage_count || 0} / {(profile?.plan === 'free' || !profile?.plan) ? freeLimit : '∞'}
+                {profile?.usage_count || 0} / {effectiveLimit ?? '∞'}
               </p>
-              <p className="text-xs text-gray-400">Weekly limit</p>
+              <p className="text-xs text-gray-400">{effectiveLimit === null ? 'Unlimited' : 'Limit'}</p>
             </div>
           </div>
         </div>

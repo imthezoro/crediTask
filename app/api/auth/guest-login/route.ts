@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
         is_active: true,
         plan: 'free',
         usage_count: 0,
+        prompt_limit: 5,
         created_at: new Date().toISOString()
       }, {
         onConflict: 'id',

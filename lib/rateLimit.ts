@@ -1,31 +1,26 @@
 import { NextRequest } from 'next/server';
 import { createAdminClient } from './supabase-server';
 
-// Centralized quota constants to keep behavior consistent across API routes and edge functions
-export const FREE_PLAN_LIMIT = 10; // Free signed users get 10 prompts (matches edge function's limit)
-export const GUEST_QUOTA = 5;      // Guest users get 5 prompts
-
 export type PlanQuotaResult = {
   allowed: boolean;
   isPaidPlan: boolean;
   isGuest: boolean;
   usage: number;
-  quota?: number; // present when denied
+  quota?: number; // present when denied (prompt_limit from DB)
   error?: string; // human-readable message when denied
 };
 
 /**
  * Check whether a user is allowed to proceed based on user_profiles plan/guest usage.
- * Behavior mirrors Supabase edge functions:
- * - Paid plan: allowed
- * - Free plan: usage_count < FREE_PLAN_LIMIT (currently 15)
- * - Guest users: usage_count < GUEST_QUOTA (currently 5)
+ * Behavior mirrors Supabase edge functions using DB column prompt_limit as source of truth:
+ * - If prompt_limit is NULL => unlimited
+ * - If prompt_limit is a number => allowed when usage_count < prompt_limit
  */
 export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
   const admin = createAdminClient();
   const { data: profile, error } = await admin
     .from('user_profiles')
-    .select('plan, is_guest, usage_count')
+    .select('plan, is_guest, usage_count, prompt_limit')
     .eq('id', userId)
     .single();
 
@@ -39,29 +34,21 @@ export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
   const isPaidPlan = profile.plan !== 'free';
   const isGuest = Boolean(profile.is_guest);
   const usage = profile.usage_count ?? 0;
+  const limit: number | null = (profile as { prompt_limit?: number | null })?.prompt_limit ?? null;
 
-  if (isPaidPlan) {
+  // If limit is not set, treat as unlimited
+  if (limit === null || limit === undefined) {
     return { allowed: true, isPaidPlan, isGuest, usage };
   }
 
-  // Free/guest limits
-  if (isGuest && usage >= GUEST_QUOTA) {
+  // Enforce numeric limit
+  if (usage >= limit) {
     return {
       allowed: false,
       isPaidPlan,
       isGuest,
       usage,
-      quota: GUEST_QUOTA,
-      error: 'Guest limit reached (5 prompts). Create an account with Email for extra prompts.',
-    };
-  }
-  if (!isGuest && usage >= FREE_PLAN_LIMIT) {
-    return {
-      allowed: false,
-      isPaidPlan,
-      isGuest,
-      usage,
-      quota: FREE_PLAN_LIMIT,
+      quota: limit,
       error: 'Usage limit reached. Please upgrade your plan.',
     };
   }

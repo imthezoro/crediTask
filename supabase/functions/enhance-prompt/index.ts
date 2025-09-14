@@ -1,6 +1,12 @@
+// @ts-ignore - Deno remote imports are resolved at runtime
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+// @ts-ignore - Deno remote imports are resolved at runtime
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// @ts-ignore - Deno remote imports are resolved at runtime
 import { jwtVerify } from 'https://esm.sh/jose@5.2.0'
+// Declare Deno for IDE type checking
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const Deno: any;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -137,7 +143,7 @@ serve(async (req) => {
     // Check user's plan and usage based on your schema
     const { data: userProfile, error: profileError } = await supabaseClient
       .from('user_profiles')
-      .select('plan, usage_count, plan_valid_until')
+      .select('plan, usage_count, plan_valid_until, prompt_limit')
       .eq('id', userId)
       .single()
 
@@ -163,17 +169,16 @@ serve(async (req) => {
       )
     }
 
-    // Plan validation - single source of truth for usage limits
-    const isPaidPlan = userProfile.plan !== 'free'
-    const FREE_PLAN_LIMIT = 10 // Free users get 10 prompts
-    const isFreeWithLowUsage = userProfile.plan === 'free' && userProfile.usage_count < FREE_PLAN_LIMIT
-    
-    if (!isPaidPlan && !isFreeWithLowUsage) {
+    // Plan validation - use prompt_limit column as source of truth
+    const limit: number | null = (userProfile as { prompt_limit?: number | null })?.prompt_limit ?? null
+    const overLimit = typeof limit === 'number' && userProfile.usage_count >= limit
+
+    if (overLimit) {
       return new Response(
         JSON.stringify({ 
           error: 'Usage limit reached. Please upgrade your plan.',
           usage: userProfile.usage_count,
-          limit: FREE_PLAN_LIMIT
+          limit: limit
         }),
         {
           status: 403,
