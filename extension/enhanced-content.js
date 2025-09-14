@@ -433,8 +433,14 @@ class AdvancedPromptEnhancer {
     const host = (window.location && window.location.hostname) || '';
     const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
     const isClaude = host.includes('claude.ai');
+    const isGemini = host.includes('gemini.google.com') || host.includes('bard.google.com');
     const useStableAncestor = isGPT || isClaude;
-    const parent = useStableAncestor ? (this.findClosestNonScrollableAncestor(input) || document.body) : (input.parentElement || document.body);
+    // For Gemini, try to skip known toolbar wrappers and anchor higher up
+    const parent = isGemini
+      ? (this.findGeminiAnchor(input) || this.findClosestNonScrollableAncestor(input) || document.body)
+      : (useStableAncestor
+          ? (this.findClosestNonScrollableAncestor(input) || document.body)
+          : (input.parentElement || document.body));
     // Ensure parent can host absolute children
     try {
       const cs = window.getComputedStyle(parent);
@@ -497,6 +503,39 @@ class AdvancedPromptEnhancer {
     return null;
   }
 
+  // Gemini-specific: find an ancestor above the leading actions/toolbox/uploader wrappers
+  // to avoid being occluded by their stacking contexts.
+  findGeminiAnchor(el) {
+    try {
+      const isToolbarish = (node) => {
+        if (!node || !node.classList) return false;
+        const cls = Array.from(node.classList).join(' ');
+        return (
+          cls.includes('leading-actions-wrapper') ||
+          cls.includes('toolbox-drawer') ||
+          cls.includes('uploader') ||
+          cls.includes('uploader-button-container')
+        );
+      };
+      let node = el && el.parentElement;
+      let lastNonScrollable = null;
+      while (node && node !== document.body) {
+        try {
+          const cs = window.getComputedStyle(node);
+          const overflowY = cs.overflowY;
+          const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
+          if (!isScrollable) lastNonScrollable = node;
+          if (isToolbarish(node)) {
+            // Anchor to the first parent above toolbarish wrapper, preferring non-scrollable
+            return lastNonScrollable || node.parentElement || document.body;
+          }
+        } catch (_) { /* ignore */ }
+        node = node.parentElement;
+      }
+    } catch (_) { /* ignore */ }
+    return null;
+  }
+
   updateFloatingButtonPosition(input, button) {
     try {
       // Fixed offsets within the parent container
@@ -504,9 +543,10 @@ class AdvancedPromptEnhancer {
       const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
       const isClaude = host.includes('claude.ai');
       const isPerplexity = host.includes('perplexity.ai');
+      const isGemini = host.includes('gemini.google.com') || host.includes('bard.google.com');
       // Site-specific offsets so we don't overlap native controls
-      const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 3 : 44));
-      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : (isPerplexity ? 0 : 10));
+      const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 3 : (isGemini ? 60 : 44)));
+      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : (isPerplexity ? 0 : (isGemini ? 10 : 10)));
       button.style.setProperty('right', rightOffset + 'px', 'important');
       button.style.setProperty('bottom', bottomOffset + 'px', 'important');
       // Clear any conflicting props
