@@ -401,14 +401,19 @@ class AdvancedPromptEnhancer {
     const button = document.createElement('button');
     // Include the generic class so stylesheet rules apply
     button.className = `${this.buttonClass} promptok-enhance-button`;
-    button.innerHTML = '✨';
+    button.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L15.09 8.26L22 9L17 14.74L18.18 22L12 18.27L5.82 22L7 14.74L2 9L8.91 8.26L12 2Z" fill="currentColor"/>
+        <path d="M12 7L14.09 12.26L19 13L15 16.74L16.18 21L12 17.77L7.82 21L9 16.74L5 13L9.91 12.26L12 7Z" fill="currentColor" opacity="0.6"/>
+      </svg>
+    `;
     // Remove default browser tooltip; keep aria-label for accessibility
     try { button.removeAttribute('title'); } catch (_) { /* ignore */ }
     button.setAttribute('aria-label', 'Enhance prompt with AI');
     // Link button to specific input
     const inputId = input.getAttribute('data-promptok-id');
     button.setAttribute('data-input-id', inputId);
-    // Inline styles with !important to win over page CSS
+    // Modern inline styles with glassmorphism - reverted to original 32px size
     const s = (prop, val) => button.style.setProperty(prop, val, 'important');
     s('position', 'absolute');
     s('width', '32px');
@@ -418,8 +423,17 @@ class AdvancedPromptEnhancer {
     s('align-items', 'center');
     s('justify-content', 'center');
     s('cursor', 'pointer');
-    // Allow stylesheet to control background, color, border, radius, shadows, and font-size
+    s('border-radius', '12px');
+    s('border', '1px solid rgba(255, 255, 255, 0.15)');
+    s('background', 'linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(20, 20, 30, 0.9) 100%)');
+    s('backdrop-filter', 'blur(20px)');
+    s('box-shadow', '0 8px 24px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 112, 243, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
+    s('color', '#00f0ff');
+    s('font-size', '16px');
+    s('font-weight', '600');
+    s('transition', 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)');
     s('line-height', '1');
+    s('text-shadow', '0 0 8px rgba(0, 112, 243, 0.6)');
     // Position will be set by updateFloatingButtonPosition()
     return button;
   }
@@ -581,21 +595,40 @@ class AdvancedPromptEnhancer {
 
   updateFloatingButtonPosition(input, button) {
     try {
-      // Fixed offsets within the parent container
+      // Modern offsets with better spacing - adjusted for 32px button
       const host = (window.location && window.location.hostname) || '';
       const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
       const isClaude = host.includes('claude.ai');
       const isPerplexity = host.includes('perplexity.ai');
       const isGemini = host.includes('gemini.google.com') || host.includes('bard.google.com');
-      // Site-specific offsets so we don't overlap native controls
-      const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 3 : (isGemini ? 60 : 44)));
-      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : (isPerplexity ? -10 : (isGemini ? 10 : 10)));
-      button.style.setProperty('right', rightOffset + 'px', 'important');
-      button.style.setProperty('bottom', bottomOffset + 'px', 'important');
-      // Clear any conflicting props
-      button.style.setProperty('left', 'auto', 'important');
-      button.style.setProperty('top', 'auto', 'important');
-      button.style.setProperty('transform', 'none', 'important');
+      // Modern site-specific offsets for better integration
+      const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 60 : (isGemini ? 80 : 60)));
+      const bottomOffset = isGPT ? 12 : (isClaude ? 12 : (isPerplexity ? 12 : (isGemini ? 12 : 12)));
+
+      const s = (prop, val) => button.style.setProperty(prop, val, 'important');
+      s('right', `${rightOffset}px`);
+      s('bottom', `${bottomOffset}px`);
+      s('left', 'auto');
+      s('top', 'auto');
+      s('transform', 'none');
+
+      // Add hover effects for the floating button
+      button.addEventListener('mouseenter', () => {
+        if (!button.classList.contains('loading')) {
+          s('transform', 'scale(1.1)');
+          s('box-shadow', '0 12px 32px rgba(0, 0, 0, 0.6), 0 6px 16px rgba(0, 112, 243, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)');
+          s('border-color', 'rgba(0, 112, 243, 0.8)');
+        }
+      });
+
+      button.addEventListener('mouseleave', () => {
+        if (!button.classList.contains('loading')) {
+          s('transform', 'scale(1)');
+          s('box-shadow', '0 8px 24px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 112, 243, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
+          s('border-color', 'rgba(255, 255, 255, 0.15)');
+        }
+      });
+
       // If a minimized icon is present, keep it positioned next to the enhance button
       try {
         const minimized = document.querySelector(`.${this.minimizedButtonClass}`);
@@ -1012,70 +1045,731 @@ class AdvancedPromptEnhancer {
     return isValid;
   }
 
-  showLoadingOverlay() {
-    this.removeExistingOverlay();
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'promptok-overlay';
-    overlay.innerHTML = `
-      <div class="promptok-card">
-        <div class="promptok-loading">
-          <div class="loading-spinner"></div>
-          <h4>Enhancing your prompt...</h4>
-          <p>AI is analyzing and improving your prompt</p>
-        </div>
-      </div>
-    `;
-    
-    this.addOverlayStyles(overlay);
-    document.body.appendChild(overlay);
+  isChatGPT() {
+    const host = window.location.hostname;
+    return host.includes('chatgpt.com') || host.includes('chat.openai.com');
   }
 
-  showEnhancementOptions(parsedData) {
+  showLoadingOverlayChatGPT() {
     this.removeExistingOverlay();
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'promptok-overlay';
-    
+
+    // Create a right-side panel instead of full-screen overlay
+    const panel = document.createElement('div');
+    panel.className = 'promptok-chatgpt-panel';
+    panel.innerHTML = `
+      <div class="promptok-chatgpt-header">
+        <h4>✨ Enhancing...</h4>
+        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+      </div>
+      <div class="promptok-chatgpt-content">
+        <div class="loading-spinner"></div>
+        <p>AI is analyzing and improving your prompt</p>
+      </div>
+    `;
+
+    this.addChatGPTStyles(panel);
+    document.body.appendChild(panel);
+
+    // Add close listener
+    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    closeBtn.addEventListener('click', () => this.closeOverlay());
+
+    // Close on Escape key
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        this.closeOverlay();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler, { once: true });
+  }
+
+  showEnhancementOptionsChatGPT(parsedData) {
+    this.removeExistingOverlay();
+
+    const panel = document.createElement('div');
+    panel.className = 'promptok-chatgpt-panel';
+    panel.setAttribute('data-enhancement-data', JSON.stringify(parsedData));
+
     // Build the options UI
     const optionsHTML = this.buildOptionsHTML(parsedData);
-    
-    overlay.innerHTML = `
-      <div class="promptok-card enhanced" id="promptok-enhanced-card">
-        <div class="promptok-header">
-          <h4>✨ Enhanced Prompt Ready</h4>
-          <div class="header-controls">
-            <button class="promptok-minimize" aria-label="Minimize" title="Minimize">−</button>
-            <button class="promptok-close" aria-label="Close">×</button>
-          </div>
+
+    panel.innerHTML = `
+      <div class="promptok-chatgpt-header">
+        <h4>✨ Enhanced Prompt Ready</h4>
+        <div class="header-controls">
+          <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
+          <button class="promptok-chatgpt-close" aria-label="Close">×</button>
         </div>
-        
+      </div>
+
+      <div class="promptok-chatgpt-content">
         <div class="enhanced-prompt-preview">
           <h5>Base Enhanced Prompt:</h5>
           <div class="prompt-text">${this.escapeHtml(parsedData.enhanced_prompt)}</div>
         </div>
-        
+
         <div class="options-section">
           <h5>Customize Your Prompt:</h5>
           <p class="options-description">Select options to further customize your enhanced prompt</p>
           ${optionsHTML}
         </div>
-        
-        <div class="promptok-actions">
-          <button id="promptok-apply" class="primary">Apply</button>
-          <button id="promptok-copy" class="copy-icon" title="Copy to clipboard">📋</button>
+
+        <div class="promptok-chatgpt-actions">
+          <button id="promptok-chatgpt-apply" class="primary">Apply</button>
+          <button id="promptok-chatgpt-copy" class="copy-icon" title="Copy to clipboard">📋</button>
         </div>
-        
-        <div class="promptok-status"></div>
+
+        <div class="promptok-chatgpt-status"></div>
       </div>
     `;
-    
-    this.addOverlayStyles(overlay);
-    this.addEnhancedStyles(overlay);
-    document.body.appendChild(overlay);
-    
+
+    this.addChatGPTStyles(panel);
+    document.body.appendChild(panel);
+
     // Add event listeners
-    this.setupEnhancedEventListeners(overlay, parsedData);
+    this.setupChatGPTEventListeners(panel, parsedData);
+  }
+
+  addChatGPTStyles(panel) {
+    const style = document.createElement('style');
+    style.textContent = `
+      .promptok-chatgpt-panel {
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        width: 420px !important;
+        height: 100vh !important;
+        background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%) !important;
+        border-left: 1px solid rgba(0, 112, 243, 0.3) !important;
+        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.8) !important;
+        z-index: 2147483647 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        backdrop-filter: blur(25px) !important;
+        -webkit-backdrop-filter: blur(25px) !important;
+        animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        overflow: hidden !important;
+      }
+
+      @keyframes slideInRight {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .promptok-chatgpt-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 16px 20px !important;
+        background: rgba(0, 112, 243, 0.05) !important;
+        border-bottom: 1px solid rgba(0, 112, 243, 0.15) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        flex-shrink: 0 !important;
+      }
+
+      .promptok-chatgpt-header h4 {
+        margin: 0 !important;
+        color: white !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.025em !important;
+        background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #667eea 100%) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
+        text-shadow: 0 0 15px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      .header-controls {
+        display: flex !important;
+        gap: 8px !important;
+        align-items: center !important;
+      }
+
+      .promptok-chatgpt-minimize,
+      .promptok-chatgpt-close {
+        color: rgba(255, 255, 255, 0.8) !important;
+        background: rgba(0, 112, 243, 0.1) !important;
+        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+      }
+
+      .promptok-chatgpt-minimize:hover,
+      .promptok-chatgpt-close:hover {
+        background: rgba(0, 112, 243, 0.2) !important;
+        color: white !important;
+        transform: translateY(-1px) scale(1.05) !important;
+        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      .promptok-chatgpt-content {
+        flex: 1 !important;
+        overflow-y: auto !important;
+        padding: 0 20px 20px !important;
+        scrollbar-width: thin !important;
+        scrollbar-color: rgba(0, 112, 243, 0.4) transparent !important;
+      }
+
+      .promptok-chatgpt-content::-webkit-scrollbar {
+        width: 6px !important;
+      }
+
+      .promptok-chatgpt-content::-webkit-scrollbar-track {
+        background: transparent !important;
+      }
+
+      .promptok-chatgpt-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 112, 243, 0.4) !important;
+        border-radius: 3px !important;
+      }
+
+      .promptok-chatgpt-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 112, 243, 0.6) !important;
+      }
+
+      .loading-spinner {
+        width: 32px !important;
+        height: 32px !important;
+        border: 2px solid rgba(0, 112, 243, 0.1) !important;
+        border-top: 2px solid #00f0ff !important;
+        border-right: 2px solid #667eea !important;
+        border-radius: 50% !important;
+        animation: spinNeon 1s linear infinite !important;
+        margin: 20px auto !important;
+        box-shadow: 0 0 15px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      @keyframes spinNeon {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      .enhanced-prompt-preview {
+        margin-bottom: 20px !important;
+      }
+
+      .enhanced-prompt-preview h5 {
+        margin: 0 0 12px 0 !important;
+        color: white !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.025em !important;
+        text-shadow: 0 0 8px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      .prompt-text {
+        background: rgba(0, 0, 0, 0.3) !important;
+        padding: 12px 16px !important;
+        border-radius: 8px !important;
+        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        color: #00f0ff !important;
+        max-height: 100px !important;
+        overflow-y: auto !important;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+        text-shadow: 0 0 6px rgba(0, 112, 243, 0.4) !important;
+      }
+
+      .options-section h5 {
+        margin: 0 0 8px 0 !important;
+        color: white !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        text-shadow: 0 0 10px rgba(0, 112, 243, 0.4) !important;
+        letter-spacing: -0.025em !important;
+      }
+
+      .options-description {
+        margin: 0 0 16px 0 !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 13px !important;
+        line-height: 1.4 !important;
+        text-shadow: 0 0 6px rgba(0, 112, 243, 0.2) !important;
+      }
+
+      .option-group {
+        margin-bottom: 16px !important;
+        padding: 14px !important;
+        background: rgba(255, 255, 255, 0.02) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(0, 112, 243, 0.1) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+      }
+
+      .option-group h6 {
+        margin: 0 0 8px 0 !important;
+        color: white !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        letter-spacing: -0.025em !important;
+        text-shadow: 0 0 6px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      .group-description {
+        margin: 0 0 12px 0 !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+        font-size: 12px !important;
+        line-height: 1.3 !important;
+      }
+
+      .options {
+        display: grid !important;
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+      }
+
+      .option-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 12px 16px !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 20px !important;
+        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        cursor: pointer !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2) !important;
+        position: relative !important;
+        overflow: hidden !important;
+      }
+
+      .option-item::before {
+        content: '' !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: -100% !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: linear-gradient(90deg, transparent, rgba(0, 112, 243, 0.1), transparent) !important;
+        transition: left 0.5s ease !important;
+      }
+
+      .option-item:hover::before {
+        left: 100% !important;
+      }
+
+      .option-item:hover {
+        border-color: rgba(0, 112, 243, 0.4) !important;
+        background: rgba(0, 112, 243, 0.1) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.2) !important;
+      }
+
+      .option-item input[type="checkbox"],
+      .option-item input[type="radio"] {
+        margin: 0 !important;
+        cursor: pointer !important;
+        width: 16px !important;
+        height: 16px !important;
+        accent-color: #00f0ff !important;
+        flex-shrink: 0 !important;
+      }
+
+      .option-content {
+        flex: 1 !important;
+        min-width: 0 !important;
+      }
+
+      .option-label {
+        display: block !important;
+        font-weight: 600 !important;
+        color: white !important;
+        margin-bottom: 2px !important;
+        font-size: 12px !important;
+        letter-spacing: -0.025em !important;
+        line-height: 1.2 !important;
+        text-shadow: 0 0 4px rgba(0, 112, 243, 0.2) !important;
+      }
+
+      .option-short {
+        display: block !important;
+        font-size: 11px !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+        line-height: 1.2 !important;
+        text-shadow: 0 0 3px rgba(0, 112, 243, 0.1) !important;
+      }
+
+      .option-item input[type="checkbox"]:checked ~ .option-content .option-label,
+      .option-item input[type="radio"]:checked ~ .option-content .option-label {
+        color: #00f0ff !important;
+        font-weight: 700 !important;
+        text-shadow: 0 0 8px rgba(0, 112, 243, 0.5) !important;
+      }
+
+      .option-item input[type="checkbox"]:checked ~ .option-content .option-short,
+      .option-item input[type="radio"]:checked ~ .option-content .option-short {
+        color: rgba(0, 112, 243, 0.8) !important;
+        text-shadow: 0 0 4px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      .promptok-chatgpt-actions {
+        display: flex !important;
+        gap: 10px !important;
+        margin-top: 20px !important;
+        align-items: center !important;
+        padding-top: 16px !important;
+        border-top: 1px solid rgba(0, 112, 243, 0.1) !important;
+      }
+
+      .promptok-chatgpt-actions button {
+        flex: 1 !important;
+        padding: 10px 16px !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        font-size: 13px !important;
+        letter-spacing: -0.025em !important;
+      }
+
+      .promptok-chatgpt-actions button.primary {
+        background: linear-gradient(135deg, #00f0ff 0%, #667eea 100%) !important;
+        color: #000 !important;
+        border: 1px solid rgba(0, 112, 243, 0.3) !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3) !important;
+      }
+
+      .promptok-chatgpt-actions button.primary:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 20px rgba(0, 112, 243, 0.4) !important;
+      }
+
+      .promptok-chatgpt-actions button.copy-icon {
+        width: 36px !important;
+        height: 36px !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        border-radius: 8px !important;
+        color: #00f0ff !important;
+        font-size: 12px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        cursor: pointer !important;
+        flex-shrink: 0 !important;
+        backdrop-filter: blur(10px) !important;
+      }
+
+      .promptok-chatgpt-actions button.copy-icon:hover {
+        background: rgba(0, 112, 243, 0.1) !important;
+        color: #00f0ff !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3) !important;
+        border-color: rgba(0, 112, 243, 0.4) !important;
+      }
+
+      .promptok-chatgpt-status {
+        margin-top: 12px !important;
+        padding: 8px !important;
+        border-radius: 6px !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        text-align: center !important;
+        backdrop-filter: blur(10px) !important;
+      }
+
+      .promptok-chatgpt-status.success {
+        background: rgba(34, 197, 94, 0.1) !important;
+        color: #22f055 !important;
+        border: 1px solid rgba(34, 197, 94, 0.2) !important;
+      }
+    `;
+    panel.appendChild(style);
+  }
+
+  setupChatGPTEventListeners(panel, parsedData) {
+    // Close button
+    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    closeBtn.addEventListener('click', () => this.closeOverlay());
+
+    // Minimize button
+    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
+    minimizeBtn.addEventListener('click', () => this.minimizeChatGPTOverlay(panel));
+
+    // Apply prompt (base + selected options)
+    const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
+    applyBtn.addEventListener('click', () => {
+      this.debugLog('Apply button clicked');
+      const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+      this.debugLog('Final prompt built:', finalPrompt);
+      this.applyPromptToInput(finalPrompt);
+    });
+
+    // Copy to clipboard
+    const copyBtn = panel.querySelector('#promptok-chatgpt-copy');
+    copyBtn.addEventListener('click', () => {
+      const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+      this.copyToClipboard(finalPrompt);
+    });
+
+    // Option selection handling (both checkboxes and radios)
+    const inputs = panel.querySelectorAll('input[type="checkbox"], input[type="radio"]');
+    inputs.forEach(input => {
+      // Restore previous selections
+      if (this.selectedOptions.has(input.value)) {
+        input.checked = true;
+      }
+
+      input.addEventListener('change', (e) => {
+        if (e.target.type === 'radio') {
+          // For radio buttons, remove other options from same group
+          const groupId = e.target.dataset.group;
+          const groupInputs = panel.querySelectorAll(`input[data-group="${groupId}"]`);
+          groupInputs.forEach(groupInput => {
+            this.selectedOptions.delete(groupInput.value);
+          });
+          this.selectedOptions.add(e.target.value);
+        } else {
+          if (e.target.checked) {
+            this.selectedOptions.add(e.target.value);
+          } else {
+            this.selectedOptions.delete(e.target.value);
+          }
+        }
+        this.updateChatGPTButtonText(panel);
+        this.updateMinimizedButtonCount();
+        // Persist session on selection changes
+        this.saveSessionState().catch(() => {});
+      });
+    });
+
+    // Update button text based on current selections
+    this.updateChatGPTButtonText(panel);
+
+    // Close on Escape key
+    const escHandler = (e) => {
+      try {
+        if (e.key === 'Escape') {
+          this.closeOverlay();
+        }
+      } catch (_) { /* ignore */ }
+    };
+    document.addEventListener('keydown', escHandler, { once: true });
+  }
+
+  updateChatGPTButtonText(panel) {
+    const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
+    const count = this.selectedOptions.size;
+
+    if (count > 0) {
+      applyBtn.textContent = `Apply + ${count} Option${count > 1 ? 's' : ''}`;
+    } else {
+      applyBtn.textContent = 'Apply';
+    }
+  }
+
+  minimizeChatGPTOverlay(panel) {
+    this.debugLog('Minimizing ChatGPT overlay, preserving data');
+    this.debugLog('Enhancement data before minimize:', !!this.currentEnhancementData);
+
+    this.isMinimized = true;
+    panel.style.opacity = '0';
+
+    setTimeout(() => {
+      panel.remove();
+      this.showMinimizedButton();
+      // Persist session after minimizing
+      this.saveSessionState().catch(() => {});
+      this.debugLog('ChatGPT overlay minimized, data preserved:', !!this.currentEnhancementData);
+    }, 400);
+  }
+
+  showSuccessChatGPT(message) {
+    const panel = document.querySelector('.promptok-chatgpt-panel');
+    if (!panel) return;
+
+    const statusEl = panel.querySelector('.promptok-chatgpt-status');
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.className = 'promptok-chatgpt-status success';
+    }
+  }
+
+  showErrorChatGPT(message) {
+    this.removeExistingOverlay();
+
+    const panel = document.createElement('div');
+    panel.className = 'promptok-chatgpt-panel';
+    panel.innerHTML = `
+      <div class="promptok-chatgpt-header">
+        <h4>⚠️ Enhancement Error</h4>
+        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+      </div>
+      <div class="promptok-chatgpt-content">
+        <div class="error-message">
+          <p>${message}</p>
+        </div>
+        <div class="promptok-chatgpt-actions">
+          <button id="promptok-chatgpt-close-error" class="primary">Close</button>
+        </div>
+      </div>
+    `;
+
+    this.addChatGPTStyles(panel);
+    document.body.appendChild(panel);
+
+    // Add close listeners
+    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const closeErrorBtn = panel.querySelector('#promptok-chatgpt-close-error');
+
+    const closeHandler = () => this.closeOverlay();
+    closeBtn.addEventListener('click', closeHandler);
+    closeErrorBtn.addEventListener('click', closeHandler);
+
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        this.closeOverlay();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler, { once: true });
+  }
+
+  showAuthErrorChatGPT() {
+    this.removeExistingOverlay();
+
+    const panel = document.createElement('div');
+    panel.className = 'promptok-chatgpt-panel';
+    panel.innerHTML = `
+      <div class="promptok-chatgpt-header">
+        <h4>🔒 Login Required</h4>
+        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+      </div>
+      <div class="promptok-chatgpt-content">
+        <div class="error-message">
+          <h3>Please log in to use the enhancement feature</h3>
+          <p>You need to be signed in to access AI-powered prompt enhancement.</p>
+        </div>
+        <div class="promptok-chatgpt-actions">
+          <button id="promptok-chatgpt-login" class="primary">Log In</button>
+          <button id="promptok-chatgpt-close-auth" class="secondary">Close</button>
+        </div>
+      </div>
+    `;
+
+    this.addChatGPTStyles(panel);
+    document.body.appendChild(panel);
+
+    // Add event listeners
+    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const loginBtn = panel.querySelector('#promptok-chatgpt-login');
+    const closeAuthBtn = panel.querySelector('#promptok-chatgpt-close-auth');
+
+    const closeHandler = () => this.closeOverlay();
+    closeBtn.addEventListener('click', closeHandler);
+    closeAuthBtn.addEventListener('click', closeHandler);
+
+    loginBtn.addEventListener('click', () => {
+      // Redirect to login page
+      window.open('https://promptok.app/auth/start', '_blank');
+      closeHandler();
+    });
+
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        this.closeOverlay();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler, { once: true });
+  }
+
+  showRateLimitErrorChatGPT() {
+    this.removeExistingOverlay();
+
+    const panel = document.createElement('div');
+    panel.className = 'promptok-chatgpt-panel';
+    panel.innerHTML = `
+      <div class="promptok-chatgpt-header">
+        <h4>⚡ Enhancement Limit Reached</h4>
+        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+      </div>
+      <div class="promptok-chatgpt-content">
+        <div class="error-message">
+          <h3>Enhancement limit reached</h3>
+          <p>You've reached your current plan's enhancement limit. Upgrade to continue using AI-powered enhancements.</p>
+        </div>
+        <div class="promptok-chatgpt-actions">
+          <button id="promptok-chatgpt-upgrade" class="primary">Upgrade Subscription</button>
+          <button id="promptok-chatgpt-close-limit" class="secondary">Close</button>
+        </div>
+      </div>
+    `;
+
+    this.addChatGPTStyles(panel);
+    document.body.appendChild(panel);
+
+    // Add event listeners
+    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const upgradeBtn = panel.querySelector('#promptok-chatgpt-upgrade');
+    const closeLimitBtn = panel.querySelector('#promptok-chatgpt-close-limit');
+
+    const closeHandler = () => this.closeOverlay();
+    closeBtn.addEventListener('click', closeHandler);
+    closeLimitBtn.addEventListener('click', closeHandler);
+
+    upgradeBtn.addEventListener('click', () => {
+      // Redirect to purchase page
+      window.open('https://promptok.app/dashboard', '_blank');
+      closeHandler();
+    });
+
+    const escHandler = (e) => {
+      if (e.key === 'Escape') {
+        this.closeOverlay();
+        document.removeEventListener('keydown', escHandler);
+      }
+    };
+    document.addEventListener('keydown', escHandler, { once: true });
+  }
+
+  closeChatGPTOverlay() {
+    this.debugLog('Closing ChatGPT overlay completely');
+    const existing = document.querySelector('.promptok-chatgpt-panel');
+    if (existing) {
+      existing.style.opacity = '0';
+      setTimeout(() => existing.remove(), 400);
+    }
+
+    this.removeMinimizedButton();
+    this.selectedOptions.clear();
+    this.currentEnhancementData = null;
+    this.isMinimized = false;
+    // Clear any persisted session
+    this.clearSessionState().catch(() => {});
+  }
+
+  removeExistingChatGPTOverlay() {
+    // Pure DOM cleanup: remove any existing ChatGPT overlay without touching state
+    try {
+      const existing = document.querySelector('.promptok-chatgpt-panel');
+      if (existing) existing.remove();
+    } catch (_) { /* noop */ }
   }
 
   buildOptionsHTML(parsedData) {
@@ -1123,11 +1817,11 @@ class AdvancedPromptEnhancer {
     // Close button
     const closeBtn = overlay.querySelector('.promptok-close');
     closeBtn.addEventListener('click', () => this.closeOverlay());
-    
+
     // Minimize button
     const minimizeBtn = overlay.querySelector('.promptok-minimize');
     minimizeBtn.addEventListener('click', () => this.minimizeOverlay());
-    
+
     // Apply prompt (base + selected options)
     const applyBtn = overlay.querySelector('#promptok-apply');
     applyBtn.addEventListener('click', () => {
@@ -1136,14 +1830,14 @@ class AdvancedPromptEnhancer {
       this.debugLog('Final prompt built:', finalPrompt);
       this.applyPromptToInput(finalPrompt);
     });
-    
+
     // Copy to clipboard
     const copyBtn = overlay.querySelector('#promptok-copy');
     copyBtn.addEventListener('click', () => {
       const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
       this.copyToClipboard(finalPrompt);
     });
-    
+
     // Option selection handling (both checkboxes and radios)
     const inputs = overlay.querySelectorAll('input[type="checkbox"], input[type="radio"]');
     inputs.forEach(input => {
@@ -1151,7 +1845,7 @@ class AdvancedPromptEnhancer {
       if (this.selectedOptions.has(input.value)) {
         input.checked = true;
       }
-      
+
       input.addEventListener('change', (e) => {
         if (e.target.type === 'radio') {
           // For radio buttons, remove other options from same group
@@ -1174,15 +1868,15 @@ class AdvancedPromptEnhancer {
         this.saveSessionState().catch(() => {});
       });
     });
-    
+
     // Update button text based on current selections
     this.updateButtonText(overlay);
-    
+
     // Set default larger size
     const card = overlay.querySelector('.promptok-card.enhanced');
     card.style.width = '1000px';
     card.style.height = '600px';
-    
+
     // Minimize when clicking outside (backdrop)
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
@@ -1215,7 +1909,7 @@ class AdvancedPromptEnhancer {
   updateButtonText(overlay) {
     const applyBtn = overlay.querySelector('#promptok-apply');
     const count = this.selectedOptions.size;
-    
+
     if (count > 0) {
       applyBtn.textContent = `Apply + ${count} Option${count > 1 ? 's' : ''}`;
     } else {
@@ -1598,164 +2292,130 @@ class AdvancedPromptEnhancer {
   }
 
   showSuccess(message) {
-    const overlay = document.querySelector('.promptok-overlay');
-    if (!overlay) return;
-    
-    const statusEl = overlay.querySelector('.promptok-status');
-    if (statusEl) {
-      statusEl.textContent = message;
-      statusEl.className = 'promptok-status success';
+    // Check if we're on ChatGPT and use appropriate success method
+    if (this.isChatGPT()) {
+      this.showSuccessChatGPT(message);
+    } else {
+      // Original success implementation for other sites
+      const overlay = document.querySelector('.promptok-overlay');
+      if (!overlay) return;
+
+      const statusEl = overlay.querySelector('.promptok-status');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.className = 'promptok-status success';
+      }
     }
   }
 
+  // New: Unified error helper used across flows
   showError(message) {
-    this.removeExistingOverlay();
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'promptok-overlay';
-    overlay.innerHTML = `
-      <div class="promptok-card">
-        <div class="promptok-header">
-          <h4>⚠️ Enhancement Error</h4>
-          <button class="promptok-close" aria-label="Close">×</button>
-        </div>
-        <div class="error-message">
-          <p>${message}</p>
-        </div>
-        <div class="promptok-actions">
-          <button id="promptok-close-error" class="primary">Close</button>
-        </div>
-      </div>
-    `;
-    
-    this.addOverlayStyles(overlay);
-    this.addErrorStyles(overlay);
-    document.body.appendChild(overlay);
-    
-    // Add close listeners
-    const closeBtn = overlay.querySelector('.promptok-close');
-    const closeErrorBtn = overlay.querySelector('#promptok-close-error');
-    
-    const closeHandler = () => this.closeOverlay();
-    closeBtn.addEventListener('click', closeHandler);
-    closeErrorBtn.addEventListener('click', closeHandler);
-    
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeHandler();
+    if (this.isChatGPT()) {
+      return this.showErrorChatGPT(message);
+    }
+    // For non-ChatGPT pages, render error in the existing overlay if present
+    const overlay = document.querySelector('.promptok-overlay');
+    if (overlay) {
+      let statusEl = overlay.querySelector('.promptok-status');
+      if (!statusEl) {
+        const card = overlay.querySelector('.promptok-card');
+        statusEl = document.createElement('div');
+        statusEl.className = 'promptok-status';
+        if (card) card.appendChild(statusEl);
+        else overlay.appendChild(statusEl);
+      }
+      statusEl.textContent = `⚠️ ${message}`;
+      statusEl.className = 'promptok-status error';
+      return;
+    }
+    // Minimal toast fallback
+    const toast = document.createElement('div');
+    toast.textContent = `⚠️ ${message}`;
+    Object.assign(toast.style, {
+      position: 'fixed',
+      bottom: '16px',
+      right: '16px',
+      padding: '10px 14px',
+      borderRadius: '10px',
+      background: 'rgba(255, 71, 87, 0.15)',
+      color: '#ff6b6b',
+      border: '1px solid rgba(255, 71, 87, 0.3)',
+      backdropFilter: 'blur(10px)',
+      zIndex: '2147483647',
+      fontSize: '13px',
+      boxShadow: '0 6px 20px rgba(255, 71, 87, 0.2)'
     });
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
   }
 
-  showAuthError() {
-    this.removeExistingOverlay();
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'promptok-overlay';
-    overlay.innerHTML = `
-      <div class="promptok-card error-card">
-        <div class="promptok-header">
-          <h4>🔒 Login Required</h4>
-          <button class="promptok-close" aria-label="Close">×</button>
-        </div>
-        <div class="error-message auth-error">
-          <div class="error-icon">🔐</div>
-          <h3>Please log in to use the enhancement feature</h3>
-          <p>You need to be signed in to access AI-powered prompt enhancement.</p>
-        </div>
-        <div class="promptok-actions">
-          <button id="promptok-login" class="primary action-button">Log In</button>
-          <button id="promptok-close-auth" class="secondary">Close</button>
-        </div>
-      </div>
-    `;
-    
-    this.addOverlayStyles(overlay);
-    this.addErrorStyles(overlay);
-    document.body.appendChild(overlay);
-    
-    // Add event listeners
-    const closeBtn = overlay.querySelector('.promptok-close');
-    const loginBtn = overlay.querySelector('#promptok-login');
-    const closeAuthBtn = overlay.querySelector('#promptok-close-auth');
-    
-    const closeHandler = () => this.closeOverlay();
-    closeBtn.addEventListener('click', closeHandler);
-    closeAuthBtn.addEventListener('click', closeHandler);
-    
-    loginBtn.addEventListener('click', () => {
-      // Redirect to login page
-      window.open('https://promptok.app/auth/start', '_blank');
-      closeHandler();
-    });
-    
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeHandler();
-    });
+  // New: Unified enhancement options router
+  showEnhancementOptions(parsedData) {
+    if (this.isChatGPT()) {
+      return this.showEnhancementOptionsChatGPT(parsedData);
+    }
+    return this.showEnhancementOptionsRegular(parsedData);
   }
 
-  showRateLimitError() {
-    this.removeExistingOverlay();
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'promptok-overlay';
-    overlay.innerHTML = `
-      <div class="promptok-card error-card">
-        <div class="promptok-header">
-          <h4>⚡ Enhancement Limit Reached</h4>
-          <button class="promptok-close" aria-label="Close">×</button>
+  // New: Non-ChatGPT enhancement overlay
+  showEnhancementOptionsRegular(parsedData) {
+    try {
+      // Remove any existing overlay
+      this.removeExistingOverlay();
+
+      const overlay = document.createElement('div');
+      overlay.className = 'promptok-overlay';
+
+      const optionsHTML = this.buildOptionsHTML(parsedData);
+      overlay.innerHTML = `
+        <div class="promptok-card enhanced" id="promptok-enhanced-card">
+          <div class="promptok-header">
+            <h4>✨ Enhanced Prompt Ready</h4>
+            <div class="header-controls">
+              <button class="promptok-minimize" aria-label="Minimize" title="Minimize">−</button>
+              <button class="promptok-close" aria-label="Close">×</button>
+            </div>
+          </div>
+
+          <div class="enhanced-prompt-preview">
+            <h5>Base Enhanced Prompt:</h5>
+            <div class="prompt-text">${this.escapeHtml(parsedData.enhanced_prompt)}</div>
+          </div>
+
+          <div class="options-section">
+            <h5>Customize Your Prompt:</h5>
+            <p class="options-description">Select options to further customize your enhanced prompt</p>
+            ${optionsHTML}
+          </div>
+
+          <div class="promptok-actions">
+            <button id="promptok-apply" class="primary">Apply</button>
+            <button id="promptok-copy" class="copy-icon" title="Copy to clipboard">📋</button>
+          </div>
+
+          <div class="promptok-status"></div>
         </div>
-        <div class="error-message rate-limit-error">
-          <div class="error-icon">📊</div>
-          <h3>Enhancement limit reached</h3>
-          <p>You've reached your current plan's enhancement limit. Upgrade to continue using AI-powered enhancements.</p>
-        </div>
-        <div class="promptok-actions">
-          <button id="promptok-upgrade" class="primary action-button">Upgrade Subscription</button>
-          <button id="promptok-close-limit" class="secondary">Close</button>
-        </div>
-      </div>
-    `;
-    
-    this.addOverlayStyles(overlay);
-    this.addErrorStyles(overlay);
-    document.body.appendChild(overlay);
-    
-    // Add event listeners
-    const closeBtn = overlay.querySelector('.promptok-close');
-    const upgradeBtn = overlay.querySelector('#promptok-upgrade');
-    const closeLimitBtn = overlay.querySelector('#promptok-close-limit');
-    
-    const closeHandler = () => this.closeOverlay();
-    closeBtn.addEventListener('click', closeHandler);
-    closeLimitBtn.addEventListener('click', closeHandler);
-    
-    upgradeBtn.addEventListener('click', () => {
-      // Redirect to purchase page
-      window.open('https://promptok.app/dashboard', '_blank');
-      closeHandler();
-    });
-    
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeHandler();
-    });
+      `;
+
+      this.addOverlayStyles(overlay);
+      this.addEnhancedStyles(overlay);
+      document.body.appendChild(overlay);
+
+      // Wire up listeners
+      this.setupEnhancedEventListeners(overlay, parsedData);
+    } catch (e) {
+      console.error('[PromptOK] Failed to render enhancement overlay:', e);
+      this.showError('Failed to render enhancement panel.');
+    }
   }
 
-  minimizeOverlay() {
-    const overlay = document.querySelector(`.${this.overlayClass}`);
-    if (!overlay) return;
-    
-    this.debugLog('Minimizing overlay, preserving data');
-    this.debugLog('Enhancement data before minimize:', !!this.currentEnhancementData);
-    
-    this.isMinimized = true;
-    overlay.style.opacity = '0';
-    
-    setTimeout(() => {
-      overlay.remove();
-      this.showMinimizedButton();
-      // Persist session after minimizing
-      this.saveSessionState().catch(() => {});
-      this.debugLog('Overlay minimized, data preserved:', !!this.currentEnhancementData);
-    }, 400);
+  applySimpleEnhancement(enhancedText) {
+    const input = this.detect();
+    if (!input) return;
+
+    this.setInputValue(input, enhancedText);
+    this.showSuccess('Prompt enhanced!');
+    setTimeout(() => this.removeExistingOverlay(), 1500);
   }
 
   showMinimizedButton() {
@@ -1865,25 +2525,24 @@ class AdvancedPromptEnhancer {
           existing._promptokResizeObserver.disconnect();
           delete existing._promptokResizeObserver;
         }
+        existing.remove();
       } catch (_) { /* ignore */ }
-      existing.remove();
     }
   }
 
   closeOverlay() {
     this.debugLog('Closing overlay completely');
-    const existing = document.querySelector(`.${this.overlayClass}`);
-    if (existing) {
-      existing.style.opacity = '0';
-      setTimeout(() => existing.remove(), 400);
+
+    // Handle both ChatGPT and regular overlays
+    const chatgptPanel = document.querySelector('.promptok-chatgpt-panel');
+    const regularOverlay = document.querySelector(`.${this.overlayClass}`);
+
+    if (chatgptPanel) {
+      this.removeExistingChatGPTOverlay();
+    } else if (regularOverlay) {
+      regularOverlay.style.opacity = '0';
+      setTimeout(() => regularOverlay.remove(), 400);
     }
-    
-    this.removeMinimizedButton();
-    this.selectedOptions.clear();
-    this.currentEnhancementData = null;
-    this.isMinimized = false;
-    // Clear any persisted session
-    this.clearSessionState().catch(() => {});
   }
 
   removeExistingOverlay() {
@@ -1904,182 +2563,206 @@ class AdvancedPromptEnhancer {
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 10000;
-        animation: fadeIn 0.4s ease-out;
+        animation: fadeInDark 0.4s cubic-bezier(0.16, 1, 0.3, 1);
       }
-      
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+
+      @keyframes fadeInDark {
+        from { opacity: 0; backdrop-filter: blur(0px); }
+        to { opacity: 1; backdrop-filter: blur(25px); }
       }
-      
+
       .promptok-card {
-        background: white;
-        border-radius: 12px;
-        padding: 24px;
+        background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border-radius: 20px;
+        padding: 28px;
         max-width: 600px;
         max-height: 80vh;
         overflow-y: auto;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        animation: slideIn 0.4s ease-out;
+        box-shadow:
+          0 25px 50px rgba(0, 0, 0, 0.6),
+          0 12px 24px rgba(0, 112, 243, 0.15),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05),
+          inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(0, 112, 243, 0.2);
+        animation: slideInDark 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        position: relative;
       }
-      
-      @keyframes slideIn {
-        from { transform: translateY(20px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
+
+      @keyframes slideInDark {
+        from {
+          transform: translateY(30px) scale(0.96);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
       }
-      
+
       .promptok-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 20px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid rgba(0, 112, 243, 0.1);
       }
-      
+
       .promptok-header h4 {
         margin: 0;
-        color: #1f2937;
+        color: #ffffff;
         font-size: 18px;
         font-weight: 600;
+        background: linear-gradient(135deg, #00f0ff 0%, #667eea 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.025em;
+        text-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
       }
-      
+
       .promptok-close {
-        background: none;
-        border: none;
-        font-size: 24px;
+        background: rgba(255, 59, 48, 0.1);
+        border: 1px solid rgba(255, 59, 48, 0.2);
+        border-radius: 10px;
+        font-size: 16px;
         cursor: pointer;
-        color: #6b7280;
+        color: #ff6b6b;
         padding: 0;
-        width: 30px;
-        height: 30px;
+        width: 32px;
+        height: 32px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 6px;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        font-weight: 600;
       }
-      
+
       .promptok-close:hover {
-        background: #f3f4f6;
-        color: #374151;
+        background: rgba(255, 59, 48, 0.2);
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px rgba(255, 59, 48, 0.3);
       }
-      
+
       .promptok-loading {
         text-align: center;
         padding: 40px 20px;
       }
-      
+
       .loading-spinner {
         width: 40px;
         height: 40px;
-        border: 3px solid #e5e7eb;
-        border-top: 3px solid #3b82f6;
+        border: 2px solid rgba(0, 112, 243, 0.1);
+        border-top: 2px solid #00f0ff;
+        border-right: 2px solid #667eea;
         border-radius: 50%;
-        animation: spin 1s linear infinite;
+        animation: spinNeon 1s linear infinite;
         margin: 0 auto 20px;
+        box-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
       }
-      
-      @keyframes spin {
+
+      @keyframes spinNeon {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
       }
-      
-      .promptok-actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 24px;
-      }
-      
-      .promptok-actions button {
-        flex: 1;
-        padding: 12px 20px;
-        border-radius: 8px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.4s;
-      }
-      
+
       .promptok-actions {
         display: flex;
         gap: 12px;
         margin-top: 24px;
         align-items: center;
       }
-      
-      .promptok-actions button.primary {
+
+      .promptok-actions button {
         flex: 1;
-        background: rgba(255,255,255,0.9);
-        color: #667eea;
-        border: none;
-        font-weight: 600;
         padding: 12px 20px;
-        border-radius: 8px;
-        transition: all 0.4s;
+        border-radius: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        font-size: 14px;
+        letter-spacing: -0.025em;
       }
-      
+
+      .promptok-actions button.primary {
+        background: linear-gradient(135deg, #00f0ff 0%, #667eea 100%);
+        color: #000;
+        border: 1px solid rgba(0, 112, 243, 0.3);
+        font-weight: 600;
+        box-shadow: 0 6px 20px rgba(0, 112, 243, 0.3);
+      }
+
       .promptok-actions button.primary:hover {
-        background: white;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 112, 243, 0.4);
       }
-      
+
       .promptok-actions button.copy-icon {
         width: 40px;
         height: 40px;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.3);
-        border-radius: 6px;
-        color: rgba(255,255,255,0.9);
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(0, 112, 243, 0.2);
+        border-radius: 10px;
+        color: #00f0ff;
         font-size: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.4s;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         cursor: pointer;
         flex-shrink: 0;
+        backdrop-filter: blur(10px);
       }
-      
+
       .promptok-actions button.copy-icon:hover {
-        background: rgba(255,255,255,0.2);
-        color: white;
+        background: rgba(0, 112, 243, 0.1);
+        color: #00f0ff;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 112, 243, 0.3);
+        border-color: rgba(0, 112, 243, 0.4);
+      }
+
+      .promptok-actions button.secondary {
+        background: rgba(255, 255, 255, 0.05);
+        color: #e0e0e0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+      }
+
+      .promptok-actions button.secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
         transform: translateY(-1px);
       }
-      
-      .promptok-actions button.primary:hover {
-        background: #2563eb;
-      }
-      
-      .promptok-actions button.secondary {
-        background: #f3f4f6;
-        color: #374151;
-        border: 1px solid #d1d5db;
-      }
-      
-      .promptok-actions button.secondary:hover {
-        background: #e5e7eb;
-      }
-      
+
       .promptok-status {
         margin-top: 16px;
         padding: 12px;
-        border-radius: 6px;
-        font-size: 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
         text-align: center;
+        backdrop-filter: blur(10px);
       }
-      
+
       .promptok-status.success {
-        background: #dcfce7;
-        color: #166534;
-        border: 1px solid #bbf7d0;
+        background: rgba(34, 197, 94, 0.1);
+        color: #22f055;
+        border: 1px solid rgba(34, 197, 94, 0.2);
       }
-      
+
       .error-message {
         padding: 20px 0;
         text-align: center;
-        color: #dc2626;
+        color: #ff6b6b;
       }
     `;
     overlay.appendChild(style);
@@ -2091,19 +2774,22 @@ class AdvancedPromptEnhancer {
       const siblingBtn = opts.siblingButton || document.querySelector(`.${this.buttonClass}[data-input-id="${inputId}"]`);
       const parent = (siblingBtn && siblingBtn.parentElement) || document.body;
       if (button.parentElement !== parent) parent.appendChild(button);
+
       // Ensure parent can host absolute children (avoid changing body)
       const cs = window.getComputedStyle(parent);
       if (cs.position === 'static' && parent !== document.body) {
         parent.style.setProperty('position', 'relative', 'important');
       }
-      // Default next-to positioning: place minimized orb just to the left of the enhance button
-      let rightPx = 44; let bottomPx = 10;
+
+      // Modern positioning: place minimized button to the left of the enhance button with better spacing
+      let rightPx = 130; let bottomPx = 26;
       if (siblingBtn) {
-        const r = parseFloat(siblingBtn.style.right) || 44;
-        const b = parseFloat(siblingBtn.style.bottom) || 10;
-        rightPx = r + 40; // 40px to the left of the enhance icon (increase right)
-        bottomPx = b;     // align vertically
+        const r = parseFloat(siblingBtn.style.right) || 80;
+        const b = parseFloat(siblingBtn.style.bottom) || 26;
+        rightPx = r + 60; // 60px to the left of the enhance button (increase right)
+        bottomPx = b + 6; // slightly lower for better visual balance
       }
+
       const s = (prop, val) => button.style.setProperty(prop, val, 'important');
       s('position', 'absolute');
       s('right', `${rightPx}px`);
@@ -2111,6 +2797,10 @@ class AdvancedPromptEnhancer {
       s('left', 'auto');
       s('top', 'auto');
       s('z-index', '2147483647');
+
+      // Add staggered animation delay for smooth appearance
+      button.style.setProperty('animation-delay', '0.3s', 'important');
+
     } catch (_) { /* ignore */ }
   }
 
@@ -2120,32 +2810,70 @@ class AdvancedPromptEnhancer {
       .${this.minimizedButtonClass} {
         position: absolute !important;
         transform: none !important;
-        background: rgba(102, 126, 234, 0.95) !important;
-        border-radius: 50% !important;
-        width: 28px !important;
-        height: 28px !important;
+        background: linear-gradient(135deg, rgba(0, 112, 243, 0.9) 0%, rgba(0, 240, 255, 0.8) 100%) !important;
+        border-radius: 16px !important;
+        width: 32px !important;
+        height: 32px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         cursor: pointer !important;
         z-index: 2147483647 !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
-        border: 1px solid rgba(255,255,255,0.35) !important;
-        backdrop-filter: blur(8px) !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        border: 1px solid rgba(0, 240, 255, 0.4) !important;
+        backdrop-filter: blur(15px) !important;
+        -webkit-backdrop-filter: blur(15px) !important;
         font-size: 14px !important;
-        color: white !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
-        pointer-events: auto !important;
+        color: #000 !important;
+        box-shadow: 0 6px 20px rgba(0, 112, 243, 0.4), 0 3px 10px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        font-weight: 700 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+        position: relative !important;
+        overflow: hidden !important;
       }
-      
+
+      .${this.minimizedButtonClass}::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transition: left 0.5s ease;
+      }
+
+      .${this.minimizedButtonClass}:hover::before {
+        left: 100%;
+      }
+
       .${this.minimizedButtonClass}:hover {
-        transform: scale(1.05) !important;
-        background: rgba(102, 126, 234, 1) !important;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.45) !important;
+        transform: translateY(-2px) scale(1.1) !important;
+        background: linear-gradient(135deg, rgba(0, 112, 243, 1) 0%, rgba(0, 240, 255, 0.9) 100%) !important;
+        box-shadow: 0 8px 25px rgba(0, 112, 243, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
       }
-      
+
       .${this.minimizedButtonClass}:active {
-        transform: scale(0.93) !important;
+        transform: translateY(0) scale(0.95) !important;
+      }
+
+      .minimized-count {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
+        color: white;
+        font-size: 10px;
+        font-weight: 700;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #000;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        z-index: 1;
       }
     `;
     button.appendChild(style);
@@ -2159,19 +2887,35 @@ class AdvancedPromptEnhancer {
         min-width: min(800px, 85vw);
         max-width: 95vw;
         max-height: 85vh;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        border-radius: 16px;
-        box-shadow: 0 25px 50px -12px rgba(102, 126, 234, 0.25);
+        background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+        border: 1px solid rgba(0, 112, 243, 0.3);
+        border-radius: 24px;
+        box-shadow:
+          0 32px 64px rgba(0, 0, 0, 0.8),
+          0 16px 32px rgba(0, 112, 243, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
         color: white;
-        overflow: auto;
+        overflow: hidden;
         position: relative;
-        animation: bubblePop 0.4s ease-out;
+        animation: cardNeon 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
       }
-      
-      @keyframes bubblePop {
-        from { transform: scale(0.98); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+
+      @keyframes cardNeon {
+        from {
+          transform: translateY(50px) scale(0.95);
+          opacity: 0;
+          box-shadow: 0 0 0 rgba(0, 112, 243, 0);
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+          box-shadow:
+            0 32px 64px rgba(0, 0, 0, 0.8),
+            0 16px 32px rgba(0, 112, 243, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
       }
 
       @media (max-width: 1200px) {
@@ -2180,318 +2924,491 @@ class AdvancedPromptEnhancer {
           min-width: min(700px, 80vw);
         }
       }
-      
+
       @media (max-width: 900px) {
         .promptok-card.enhanced {
           width: min(800px, 85vw);
           min-width: min(600px, 75vw);
         }
       }
-      
+
       @media (max-width: 600px) {
         .promptok-card.enhanced {
           width: 95vw;
-          min-width: 300px;
+          min-width: 320px;
           max-height: 80vh;
+          border-radius: 20px;
         }
       }
-      
+
       .promptok-card.enhanced .promptok-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-      }
-      
-      .promptok-card.enhanced .promptok-header h4 {
-        color: white;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        background: rgba(0, 112, 243, 0.05);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-bottom: 1px solid rgba(0, 112, 243, 0.15);
+        padding: 20px 24px 16px;
         margin: 0;
       }
-      
+
+      .promptok-card.enhanced .promptok-header h4 {
+        color: white;
+        text-shadow: 0 0 20px rgba(0, 112, 243, 0.4);
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #667eea 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
       .header-controls {
         display: flex;
-        gap: 8px;
+        gap: 10px;
         align-items: center;
       }
-      
+
       .promptok-card.enhanced .promptok-minimize,
       .promptok-card.enhanced .promptok-close {
-        color: rgba(255,255,255,0.8);
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
-        width: 30px;
-        height: 30px;
-        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.8);
+        background: rgba(0, 112, 243, 0.1);
+        border: 1px solid rgba(0, 112, 243, 0.2);
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: all 0.4s;
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        font-size: 18px;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
-      
+
       .promptok-card.enhanced .promptok-minimize:hover,
       .promptok-card.enhanced .promptok-close:hover {
-        background: rgba(255,255,255,0.2);
+        background: rgba(0, 112, 243, 0.2);
         color: white;
+        transform: translateY(-2px) scale(1.05);
+        box-shadow: 0 8px 24px rgba(0, 112, 243, 0.3);
       }
-      
+
       .enhanced-prompt-preview {
-        margin-bottom: 24px;
-        padding: 16px;
-        background: rgba(255,255,255,0.1);
-        border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.2);
-        backdrop-filter: blur(10px);
-        animation: bubbleIn 0.4s ease-out;
+        margin: 20px 24px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 16px;
+        border: 1px solid rgba(0, 112, 243, 0.1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        animation: previewGlow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        animation-delay: 0.1s;
+        animation-fill-mode: both;
       }
-      
-      @keyframes bubbleIn {
-        from { transform: scale(0.96); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+
+      @keyframes previewGlow {
+        from {
+          transform: translateY(20px) scale(0.98);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
       }
-      
+
       .enhanced-prompt-preview h5 {
-        margin: 0 0 12px 0;
-        color: rgba(255,255,255,0.9);
-        font-size: 14px;
+        margin: 0 0 14px 0;
+        color: white;
+        font-size: 15px;
         font-weight: 600;
+        letter-spacing: -0.025em;
+        text-shadow: 0 0 10px rgba(0, 112, 243, 0.3);
       }
-      
+
       .prompt-text {
-        background: rgba(255,255,255,0.95);
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid rgba(255,255,255,0.3);
-        font-family: monospace;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 14px 18px;
+        border-radius: 10px;
+        border: 1px solid rgba(0, 112, 243, 0.2);
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
         font-size: 13px;
         line-height: 1.5;
-        color: #1f2937;
+        color: #00f0ff;
         max-height: 120px;
         overflow-y: auto;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 112, 243, 0.4) transparent;
+        text-shadow: 0 0 8px rgba(0, 112, 243, 0.4);
       }
-      
+
+      .prompt-text::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .prompt-text::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .prompt-text::-webkit-scrollbar-thumb {
+        background: rgba(0, 112, 243, 0.4);
+        border-radius: 3px;
+      }
+
+      .prompt-text::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 112, 243, 0.6);
+      }
+
       .options-section h5 {
-        margin: 0 0 8px 0;
-        color: rgba(255,255,255,0.95);
+        margin: 0 0 10px 0;
+        color: white;
         font-size: 16px;
         font-weight: 600;
+        text-shadow: 0 0 15px rgba(0, 112, 243, 0.4);
+        letter-spacing: -0.025em;
       }
-      
+
       .options-description {
         margin: 0 0 20px 0;
-        color: rgba(255,255,255,0.8);
+        color: rgba(255, 255, 255, 0.7);
         font-size: 14px;
+        line-height: 1.5;
+        text-shadow: 0 0 8px rgba(0, 112, 243, 0.2);
       }
-      
+
       .option-group {
         margin-bottom: 20px;
-        padding: 16px;
-        background: rgba(255,255,255,0.1);
-        border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.2);
-        backdrop-filter: blur(10px);
-        animation: bubbleIn 0.4s ease-out;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 16px;
+        border: 1px solid rgba(0, 112, 243, 0.1);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        animation: groupGlow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        animation-delay: 0.2s;
+        animation-fill-mode: both;
       }
-      
+
+      @keyframes groupGlow {
+        from {
+          transform: translateY(20px) scale(0.98);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
+      }
+
       .option-group h6 {
-        margin: 0 0 8px 0;
-        color: rgba(255,255,255,0.95);
+        margin: 0 0 10px 0;
+        color: white;
         font-size: 14px;
         font-weight: 600;
+        letter-spacing: -0.025em;
+        text-shadow: 0 0 8px rgba(0, 112, 243, 0.3);
       }
-      
+
       .group-description {
-        margin: 0 0 12px 0;
-        color: rgba(255,255,255,0.8);
+        margin: 0 0 14px 0;
+        color: rgba(255, 255, 255, 0.6);
         font-size: 13px;
+        line-height: 1.4;
       }
-      
+
       .options {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
       }
-      
+
       .option-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 14px 18px;
-        background: rgba(255,255,255,0.95);
-        border-radius: 9999px; /* pill */
-        border: 1px solid rgba(255,255,255,0.3);
+        gap: 14px;
+        padding: 16px 20px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 50px;
+        border: 1px solid rgba(0, 112, 243, 0.2);
         cursor: pointer;
-        transition: all 0.4s ease;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
         transform: scale(0.98);
         opacity: 0;
-        animation: bubbleRise 0.4s ease-out forwards;
+        animation: optionNeon 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        position: relative;
+        overflow: hidden;
       }
 
-      @keyframes bubbleRise {
-        from { transform: scale(0.9); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
+      .option-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(0, 112, 243, 0.1), transparent);
+        transition: left 0.6s ease;
       }
 
-      /* subtle stagger using nth-child for visual pop */
-      .options .option-item:nth-child(1) { animation-delay: 0ms; }
-      .options .option-item:nth-child(2) { animation-delay: 80ms; }
-      .options .option-item:nth-child(3) { animation-delay: 160ms; }
-      .options .option-item:nth-child(4) { animation-delay: 240ms; }
-      
+      .option-item:hover::before {
+        left: 100%;
+      }
+
+      @keyframes optionNeon {
+        from {
+          transform: translateY(20px) scale(0.95);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+        }
+      }
+
+      .options .option-item:nth-child(1) { animation-delay: 0.3s; }
+      .options .option-item:nth-child(2) { animation-delay: 0.4s; }
+      .options .option-item:nth-child(3) { animation-delay: 0.5s; }
+      .options .option-item:nth-child(4) { animation-delay: 0.6s; }
+      .options .option-item:nth-child(5) { animation-delay: 0.7s; }
+      .options .option-item:nth-child(6) { animation-delay: 0.8s; }
+
       .option-item:hover {
-        border-color: rgba(255,255,255,0.5);
-        background: white;
-        transform: scale(1.02);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-color: rgba(0, 112, 243, 0.4);
+        background: rgba(0, 112, 243, 0.1);
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: 0 8px 24px rgba(0, 112, 243, 0.2);
       }
-      
-      .option-item input[type="checkbox"] {
+
+      .option-item input[type="checkbox"],
+      .option-item input[type="radio"] {
         margin: 0;
         cursor: pointer;
+        width: 18px;
+        height: 18px;
+        accent-color: #00f0ff;
+        flex-shrink: 0;
       }
-      
+
       .option-content {
         flex: 1;
+        min-width: 0;
       }
-      
+
       .option-label {
         display: block;
         font-weight: 600;
-        color: #1f2937;
-        margin-bottom: 2px;
-      }
-      
-      .option-short {
-        display: block;
+        color: white;
+        margin-bottom: 3px;
         font-size: 13px;
-        color: #6b7280;
-      }
-      
-      .option-item input[type="checkbox"]:checked + .option-content .option-label {
-        color: #667eea;
-        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1.3;
+        text-shadow: 0 0 6px rgba(0, 112, 243, 0.2);
       }
 
-      /* radio support mirrors checkbox styling */
-      .option-item input[type="radio"]:checked + .option-content .option-label {
-        color: #667eea;
-        font-weight: 600;
+      .option-short {
+        display: block;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        line-height: 1.3;
+        text-shadow: 0 0 4px rgba(0, 112, 243, 0.1);
+      }
+
+      .option-item input[type="checkbox"]:checked ~ .option-content .option-label,
+      .option-item input[type="radio"]:checked ~ .option-content .option-label {
+        color: #00f0ff;
+        font-weight: 700;
+        text-shadow: 0 0 10px rgba(0, 112, 243, 0.5);
+      }
+
+      .option-item input[type="checkbox"]:checked ~ .option-content .option-short,
+      .option-item input[type="radio"]:checked ~ .option-content .option-short {
+        color: rgba(0, 112, 243, 0.8);
+        text-shadow: 0 0 6px rgba(0, 112, 243, 0.3);
       }
     `;
     overlay.appendChild(style);
-  }
-
-  async getStorageItem(key) {
-    try {
-      if (chrome?.storage?.local) {
-        const result = await chrome.storage.local.get(key);
-        return result[key];
-      } else if (window.localStorage) {
-        const item = localStorage.getItem(key);
-        return item ? JSON.parse(item) : null;
-      }
-    } catch (error) {
-      console.warn(`Failed to get storage item '${key}':`, error);
-    }
-    return null;
   }
 
   addErrorStyles(overlay) {
     const style = document.createElement('style');
     style.textContent = `
       .promptok-card.error-card {
-        max-width: 500px;
-        background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-        border: 2px solid #d1d5db;
-        color: #374151;
-        box-shadow: 0 20px 25px -5px rgba(102, 126, 234, 0.15), 0 10px 10px -5px rgba(102, 126, 234, 0.08);
+        max-width: 480px;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+        border: 1px solid rgba(255, 71, 87, 0.3);
+        border-radius: 20px;
+        color: white;
+        box-shadow:
+          0 25px 50px rgba(0, 0, 0, 0.8),
+          0 12px 24px rgba(255, 71, 87, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        animation: cardError 0.5s cubic-bezier(0.16, 1, 0.3, 1);
       }
-      
+
+      @keyframes cardError {
+        from {
+          transform: translateY(40px) scale(0.95);
+          opacity: 0;
+          box-shadow: 0 0 0 rgba(255, 71, 87, 0);
+        }
+        to {
+          transform: translateY(0) scale(1);
+          opacity: 1;
+          box-shadow:
+            0 25px 50px rgba(0, 0, 0, 0.8),
+            0 12px 24px rgba(255, 71, 87, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+      }
+
       .promptok-card.error-card .promptok-header h4 {
-        color: #667eea;
-        font-weight: 600;
+        color: white;
+        font-weight: 700;
+        text-shadow: 0 0 15px rgba(255, 71, 87, 0.4);
+        font-size: 20px;
+        letter-spacing: -0.025em;
+        background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
-      
+
       .promptok-card.error-card .promptok-close {
-        color: #667eea;
-        background: rgba(102, 126, 234, 0.1);
-        border: 1px solid rgba(102, 126, 234, 0.2);
+        color: rgba(255, 255, 255, 0.8);
+        background: rgba(255, 71, 87, 0.1);
+        border: 1px solid rgba(255, 71, 87, 0.2);
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
-      
+
       .promptok-card.error-card .promptok-close:hover {
-        background: rgba(102, 126, 234, 0.2);
-        color: #5a67d8;
+        background: rgba(255, 71, 87, 0.2);
+        color: white;
+        transform: translateY(-1px) scale(1.05);
+        box-shadow: 0 6px 20px rgba(255, 71, 87, 0.3);
       }
-      
+
       .error-message.auth-error,
       .error-message.rate-limit-error {
-        padding: 30px 20px;
+        padding: 28px 20px;
         text-align: center;
-        color: #374151;
+        color: white;
+        background: rgba(255, 71, 87, 0.05);
+        border-radius: 14px;
+        border: 1px solid rgba(255, 71, 87, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        margin: 20px 0;
       }
-      
+
       .error-message .error-icon {
         font-size: 48px;
         margin-bottom: 16px;
-        opacity: 0.8;
-        filter: hue-rotate(240deg);
+        opacity: 0.9;
+        filter: drop-shadow(0 4px 8px rgba(255, 71, 87, 0.3));
+        animation: iconPulse 2s ease-in-out infinite;
       }
-      
+
+      @keyframes iconPulse {
+        0%, 100% { transform: translateY(0px) scale(1); }
+        50% { transform: translateY(-4px) scale(1.05); }
+      }
+
       .error-message h3 {
-        margin: 0 0 12px 0;
+        margin: 0 0 14px 0;
         font-size: 20px;
-        font-weight: 600;
-        color: #667eea;
+        font-weight: 700;
+        color: white;
+        text-shadow: 0 0 10px rgba(255, 71, 87, 0.4);
+        letter-spacing: -0.025em;
+        background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
-      
+
       .error-message p {
         margin: 0;
         font-size: 14px;
         line-height: 1.5;
-        color: #6b7280;
-        opacity: 0.9;
+        color: rgba(255, 255, 255, 0.8);
+        text-shadow: 0 0 6px rgba(255, 71, 87, 0.2);
+        opacity: 0.95;
       }
-      
+
       .promptok-card.error-card .promptok-actions {
-        border-top: 1px solid rgba(102, 126, 234, 0.1);
+        border-top: 1px solid rgba(255, 71, 87, 0.1);
         padding-top: 20px;
         margin-top: 20px;
+        background: rgba(255, 71, 87, 0.03);
+        border-radius: 0 0 18px 18px;
+        margin: 20px -24px -24px;
+        padding: 20px 24px 24px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
-      
+
       .promptok-card.error-card .action-button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, rgba(255, 107, 107, 0.2) 0%, rgba(255, 71, 87, 0.15) 100%);
         color: white;
-        border: none;
+        border: 1px solid rgba(255, 107, 107, 0.3);
         font-weight: 600;
         padding: 12px 24px;
-        border-radius: 8px;
+        border-radius: 12px;
         cursor: pointer;
-        transition: all 0.4s ease;
-        box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.3);
+        transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 0 6px 20px rgba(255, 107, 107, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        font-size: 14px;
+        letter-spacing: -0.025em;
       }
-      
+
       .promptok-card.error-card .action-button:hover {
-        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
-        transform: translateY(-1px);
-        box-shadow: 0 6px 12px -1px rgba(102, 126, 234, 0.4);
+        background: linear-gradient(135deg, rgba(255, 107, 107, 0.3) 0%, rgba(255, 71, 87, 0.25) 100%);
+        border-color: rgba(255, 107, 107, 0.5);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(255, 107, 107, 0.2);
       }
-      
+
       .promptok-card.error-card .action-button:active {
         transform: translateY(0);
       }
-      
+
       .promptok-card.error-card .secondary {
         background: transparent;
-        color: #667eea;
-        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         font-weight: 500;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
-      
+
       .promptok-card.error-card .secondary:hover {
-        background: rgba(102, 126, 234, 0.1);
-        border-color: rgba(102, 126, 234, 0.5);
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+        color: white;
       }
     `;
     overlay.appendChild(style);
