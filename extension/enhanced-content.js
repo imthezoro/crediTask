@@ -589,7 +589,7 @@ class AdvancedPromptEnhancer {
       const isGemini = host.includes('gemini.google.com') || host.includes('bard.google.com');
       // Site-specific offsets so we don't overlap native controls
       const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 3 : (isGemini ? 60 : 44)));
-      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : (isPerplexity ? 0 : (isGemini ? 10 : 10)));
+      const bottomOffset = isGPT ? 12 : (isClaude ? -45 : (isPerplexity ? -10 : (isGemini ? 10 : 10)));
       button.style.setProperty('right', rightOffset + 'px', 'important');
       button.style.setProperty('bottom', bottomOffset + 'px', 'important');
       // Clear any conflicting props
