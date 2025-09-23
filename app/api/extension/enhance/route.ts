@@ -120,10 +120,21 @@ export async function POST(request: NextRequest) {
       console.error('[extension/enhance] Edge function failed:', {
         status: edgeResponse.status,
         statusText: edgeResponse.statusText,
-        error: errorData
+        error: errorData,
+        provider: (errorData as any).provider,
+        provider_status: (errorData as any).provider_status,
+        provider_status_text: (errorData as any).provider_status_text,
+        provider_response: (errorData as any).provider_response,
       });
       return createCorsResponse(
-        { error: 'ENHANCEMENT_FAILED', message: errorData.error || 'Enhancement service unavailable' },
+        {
+          error: 'ENHANCEMENT_FAILED',
+          message: (errorData as any).message || (errorData as any).error || 'Enhancement service unavailable',
+          provider: (errorData as any).provider,
+          provider_status: (errorData as any).provider_status,
+          provider_status_text: (errorData as any).provider_status_text,
+          provider_response: (errorData as any).provider_response,
+        },
         edgeResponse.status,
         request
       );

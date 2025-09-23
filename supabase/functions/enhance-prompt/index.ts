@@ -276,7 +276,7 @@ Now, when you are given the user prompt, do the above.`
         'X-Title': 'PromptOK'
       },
       body: JSON.stringify({
-        model: 'deepseek/deepseek-r1:free',
+        model: 'nvidia/nemotron-nano-9b-v2:free',
         messages: [
           {
             role: 'system',
@@ -296,9 +296,16 @@ Now, when you are given the user prompt, do the above.`
       const errorData = await openrouterResponse.json().catch(() => ({}))
       console.error('OpenRouter API error:', errorData)
       return new Response(
-        JSON.stringify({ error: 'Failed to enhance prompt' }),
+        JSON.stringify({
+          error: 'OPENROUTER_ERROR',
+          message: 'Failed to enhance prompt via OpenRouter',
+          provider: 'openrouter',
+          provider_status: openrouterResponse.status,
+          provider_status_text: openrouterResponse.statusText,
+          provider_response: errorData
+        }),
         {
-          status: 500,
+          status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       )
