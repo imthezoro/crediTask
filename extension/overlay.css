@@ -28,38 +28,74 @@
   box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
 }
 
-/* Loading state: scale to 1.1x and show a spinning outline ring */
-.promptok-enhance-button.loading {
-  /* maintain vertical centering while scaling */
-  transform: translateY(-50%) scale(1.1) !important;
-  position: absolute !important;
-}
-
-/* Create a ring using a pseudo-element so layout doesn't shift */
-.promptok-enhance-button.loading::after {
+/* Base pseudo-elements (hidden) so we can fade/scale them smoothly when loading */
+.promptok-enhance-button::before,
+.promptok-enhance-button::after {
   content: '';
   position: absolute;
-  inset: -3px; /* halo just around edges */
-  border-radius: 10px; /* slightly more rounded to match scale */
-  /* Create a sweeping light using a conic-gradient */
-  background: conic-gradient(
-    from 0deg,
-    rgba(102, 126, 234, 0) 0deg,
-    rgba(102, 126, 234, 0.15) 40deg,
-    rgba(102, 126, 234, 0.85) 90deg,
-    rgba(102, 126, 234, 0.15) 140deg,
-    rgba(102, 126, 234, 0) 360deg
-  );
-  /* Mask to show only a thin ring (2px) */
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
-          mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
-  animation: promptok-spin 1s linear infinite; /* 1s per revolution */
-  z-index: 1; /* above the emoji for visibility */
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  opacity: 0; /* hidden by default */
+  transform: translate(-50%, -50%) scale(0.85);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
 }
 
-@keyframes promptok-spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+/* Predefine sizes and visuals to avoid layout jumps */
+.promptok-enhance-button::before {
+  width: 32px; /* slightly larger than button for glow */
+  height: 32px;
+  background-color: #9b59b6;
+  background-image: linear-gradient(#9b59b6, #84cdfa, #5ad1cd);
+  filter: blur(5px);
+}
+
+.promptok-enhance-button::after {
+  width: 24px;
+  height: 24px;
+  background-color: #fff;
+  border: solid 5px #ffffff;
+  box-shadow:
+    0 0 10px rgba(155, 89, 182, 0.6),
+    0 0 20px rgba(132, 205, 250, 0.5),
+    0 0 30px rgba(90, 209, 205, 0.4);
+}
+
+/* Loading state: show a gradient rotating orb with inner white core (Uiverse style) */
+.promptok-enhance-button.loading {
+  /* maintain vertical centering */
+  transform: translateY(-50%) !important;
+  /* hide the emoji while loading */
+  color: transparent !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* Outer glowing gradient orb */
+.promptok-enhance-button.loading::before {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  animation: rotate_3922 1.2s linear infinite;
+  z-index: 1;
+}
+
+/* Inner white core with ring border */
+.promptok-enhance-button.loading::after {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-radius: 50%;
+  z-index: 2;
+}
+
+/* Rotation keyframes from Uiverse snippet */
+@keyframes rotate_3922 {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
 /* Tooltip shown during loading on hover */
