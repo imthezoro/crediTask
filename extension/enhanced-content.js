@@ -596,6 +596,13 @@ class AdvancedPromptEnhancer {
       button.style.setProperty('left', 'auto', 'important');
       button.style.setProperty('top', 'auto', 'important');
       button.style.setProperty('transform', 'none', 'important');
+      // If a minimized icon is present, keep it positioned next to the enhance button
+      try {
+        const minimized = document.querySelector(`.${this.minimizedButtonClass}`);
+        if (minimized) {
+          this.positionMinimizedButton(input, minimized, { siblingButton: button });
+        }
+      } catch (_) { /* ignore */ }
     } catch (e) {
       // ignore
     }
@@ -705,6 +712,11 @@ class AdvancedPromptEnhancer {
   }
 
   async startEnhancement(button) {
+    // If minimized, clear minimized state and icon before starting a fresh enhancement
+    if (this.isMinimized) {
+      try { this.removeMinimizedButton(); } catch (_) { /* ignore */ }
+      this.isMinimized = false;
+    }
     // Re-check authentication status on each button click
     const isAuthenticated = await this.checkAuthenticationStatus();
     if (!isAuthenticated) {
@@ -1751,19 +1763,37 @@ class AdvancedPromptEnhancer {
     this.removeMinimizedButton();
     
     // Find the input field to position near it
-    const input = this.detect();
-    if (!input) return;
-    
+    const input = this.currentInput || null;
+    // If we don't have a currentInput (edge cases), fall back to detection
+    const ensureInput = async () => input || await this.detect();
+    // Create element first; we'll position after we ensure the input and sibling button
     const minimizedBtn = document.createElement('div');
     minimizedBtn.className = this.minimizedButtonClass;
     minimizedBtn.innerHTML = `✨`;
     minimizedBtn.title = `PromptOK enhancer (${this.selectedOptions.size} options selected)`;
-    
-    // Position near the input field
-    this.positionMinimizedButton(input, minimizedBtn);
-    
+    minimizedBtn.setAttribute('role', 'button');
+    minimizedBtn.setAttribute('aria-label', 'Open PromptOK enhancement panel');
+    // Insert into document body early so styles apply while we compute position
+    document.body.appendChild(minimizedBtn);
     // Add styles
     this.addMinimizedButtonStyles(minimizedBtn);
+    
+    ensureInput().then((resolvedInput) => {
+      if (!resolvedInput) return;
+      // Position near the input field's enhance button if available
+      this.positionMinimizedButton(resolvedInput, minimizedBtn);
+      
+      // Observe the floating button to keep the minimized icon in sync on size/position changes
+      try {
+        const inputId = resolvedInput.getAttribute('data-promptok-id');
+        const siblingBtn = document.querySelector(`.${this.buttonClass}[data-input-id="${inputId}"]`);
+        if (window.ResizeObserver && siblingBtn) {
+          const ro = new ResizeObserver(() => this.positionMinimizedButton(resolvedInput, minimizedBtn, { siblingButton: siblingBtn }));
+          ro.observe(siblingBtn);
+          minimizedBtn._promptokResizeObserver = ro;
+        }
+      } catch (_) { /* ignore */ }
+    });
     
     // Add click handler to restore
     minimizedBtn.addEventListener('click', (e) => {
@@ -1774,9 +1804,6 @@ class AdvancedPromptEnhancer {
       this.debugLog('Is minimized state:', this.isMinimized);
       this.restoreOverlay();
     });
-    
-    // Insert into document body for better positioning control
-    document.body.appendChild(minimizedBtn);
     
     this.debugLog('Minimized button created and added to DOM');
   }
@@ -1833,6 +1860,12 @@ class AdvancedPromptEnhancer {
   removeMinimizedButton() {
     const existing = document.querySelector(`.${this.minimizedButtonClass}`);
     if (existing) {
+      try {
+        if (existing._promptokResizeObserver) {
+          existing._promptokResizeObserver.disconnect();
+          delete existing._promptokResizeObserver;
+        }
+      } catch (_) { /* ignore */ }
       existing.remove();
     }
   }
@@ -2052,47 +2085,67 @@ class AdvancedPromptEnhancer {
     overlay.appendChild(style);
   }
 
-  positionMinimizedButton(input, button) {
-    // Ensure input has relative positioning
-    if (getComputedStyle(input).position === 'static') {
-      input.style.position = 'relative';
-    }
+  positionMinimizedButton(input, button, opts = {}) {
+    try {
+      const inputId = input.getAttribute('data-promptok-id');
+      const siblingBtn = opts.siblingButton || document.querySelector(`.${this.buttonClass}[data-input-id="${inputId}"]`);
+      const parent = (siblingBtn && siblingBtn.parentElement) || document.body;
+      if (button.parentElement !== parent) parent.appendChild(button);
+      // Ensure parent can host absolute children (avoid changing body)
+      const cs = window.getComputedStyle(parent);
+      if (cs.position === 'static' && parent !== document.body) {
+        parent.style.setProperty('position', 'relative', 'important');
+      }
+      // Default next-to positioning: place minimized orb just to the left of the enhance button
+      let rightPx = 44; let bottomPx = 10;
+      if (siblingBtn) {
+        const r = parseFloat(siblingBtn.style.right) || 44;
+        const b = parseFloat(siblingBtn.style.bottom) || 10;
+        rightPx = r + 40; // 40px to the left of the enhance icon (increase right)
+        bottomPx = b;     // align vertically
+      }
+      const s = (prop, val) => button.style.setProperty(prop, val, 'important');
+      s('position', 'absolute');
+      s('right', `${rightPx}px`);
+      s('bottom', `${bottomPx}px`);
+      s('left', 'auto');
+      s('top', 'auto');
+      s('z-index', '2147483647');
+    } catch (_) { /* ignore */ }
   }
 
   addMinimizedButtonStyles(button) {
     const style = document.createElement('style');
     style.textContent = `
       .${this.minimizedButtonClass} {
-        position: fixed !important;
-        right: 20px !important;
-        top: 20px !important;
+        position: absolute !important;
         transform: none !important;
-        background: rgba(102, 126, 234, 0.9) !important;
+        background: rgba(102, 126, 234, 0.95) !important;
         border-radius: 50% !important;
-        width: 40px !important;
-        height: 40px !important;
+        width: 28px !important;
+        height: 28px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         cursor: pointer !important;
-        z-index: 999999 !important;
-        transition: all 0.4s ease !important;
-        border: 2px solid rgba(255,255,255,0.3) !important;
-        backdrop-filter: blur(10px) !important;
-        font-size: 18px !important;
+        z-index: 2147483647 !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+        border: 1px solid rgba(255,255,255,0.35) !important;
+        backdrop-filter: blur(8px) !important;
+        font-size: 14px !important;
         color: white !important;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
         pointer-events: auto !important;
       }
       
       .${this.minimizedButtonClass}:hover {
-        transform: scale(1.1) !important;
+        transform: scale(1.05) !important;
         background: rgba(102, 126, 234, 1) !important;
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6) !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.45) !important;
       }
       
       .${this.minimizedButtonClass}:active {
-        transform: scale(0.95) !important;
+        transform: scale(0.93) !important;
       }
     `;
     button.appendChild(style);
