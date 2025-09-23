@@ -1183,10 +1183,10 @@ class AdvancedPromptEnhancer {
     card.style.width = '1000px';
     card.style.height = '600px';
     
-    // Close when clicking outside
+    // Minimize when clicking outside (backdrop)
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        this.closeOverlay();
+        this.minimizeOverlay();
       }
     });
 
