@@ -1177,6 +1177,16 @@ class AdvancedPromptEnhancer {
         this.closeOverlay();
       }
     });
+
+    // Close on Escape key
+    const escHandler = (e) => {
+      try {
+        if (e.key === 'Escape') {
+          this.closeOverlay();
+        }
+      } catch (_) { /* ignore */ }
+    };
+    document.addEventListener('keydown', escHandler, { once: true });
   }
 
   updateMinimizedButtonCount() {
@@ -1733,7 +1743,7 @@ class AdvancedPromptEnhancer {
       // Persist session after minimizing
       this.saveSessionState().catch(() => {});
       this.debugLog('Overlay minimized, data preserved:', !!this.currentEnhancementData);
-    }, 200);
+    }, 400);
   }
 
   showMinimizedButton() {
@@ -1832,7 +1842,7 @@ class AdvancedPromptEnhancer {
     const existing = document.querySelector(`.${this.overlayClass}`);
     if (existing) {
       existing.style.opacity = '0';
-      setTimeout(() => existing.remove(), 200);
+      setTimeout(() => existing.remove(), 400);
     }
     
     this.removeMinimizedButton();
@@ -1848,7 +1858,7 @@ class AdvancedPromptEnhancer {
     const existing = document.querySelector(`.${this.overlayClass}`);
     if (existing) {
       existing.style.opacity = '0';
-      setTimeout(() => existing.remove(), 200);
+      setTimeout(() => existing.remove(), 400);
     }
   }
 
@@ -1866,7 +1876,7 @@ class AdvancedPromptEnhancer {
         justify-content: center;
         align-items: center;
         z-index: 10000;
-        animation: fadeIn 0.2s ease-out;
+        animation: fadeIn 0.4s ease-out;
       }
       
       @keyframes fadeIn {
@@ -1882,7 +1892,7 @@ class AdvancedPromptEnhancer {
         max-height: 80vh;
         overflow-y: auto;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        animation: slideIn 0.3s ease-out;
+        animation: slideIn 0.4s ease-out;
       }
       
       @keyframes slideIn {
@@ -1956,7 +1966,7 @@ class AdvancedPromptEnhancer {
         border-radius: 8px;
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.4s;
       }
       
       .promptok-actions {
@@ -1974,7 +1984,7 @@ class AdvancedPromptEnhancer {
         font-weight: 600;
         padding: 12px 20px;
         border-radius: 8px;
-        transition: all 0.2s;
+        transition: all 0.4s;
       }
       
       .promptok-actions button.primary:hover {
@@ -1994,7 +2004,7 @@ class AdvancedPromptEnhancer {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.2s;
+        transition: all 0.4s;
         cursor: pointer;
         flex-shrink: 0;
       }
@@ -2066,7 +2076,7 @@ class AdvancedPromptEnhancer {
         justify-content: center !important;
         cursor: pointer !important;
         z-index: 999999 !important;
-        transition: all 0.2s ease !important;
+        transition: all 0.4s ease !important;
         border: 2px solid rgba(255,255,255,0.3) !important;
         backdrop-filter: blur(10px) !important;
         font-size: 18px !important;
@@ -2103,8 +2113,14 @@ class AdvancedPromptEnhancer {
         color: white;
         overflow: auto;
         position: relative;
+        animation: bubblePop 0.4s ease-out;
       }
       
+      @keyframes bubblePop {
+        from { transform: scale(0.98); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+
       @media (max-width: 1200px) {
         .promptok-card.enhanced {
           width: min(900px, 88vw);
@@ -2157,7 +2173,7 @@ class AdvancedPromptEnhancer {
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.4s;
       }
       
       .promptok-card.enhanced .promptok-minimize:hover,
@@ -2173,6 +2189,12 @@ class AdvancedPromptEnhancer {
         border-radius: 12px;
         border: 1px solid rgba(255,255,255,0.2);
         backdrop-filter: blur(10px);
+        animation: bubbleIn 0.4s ease-out;
+      }
+      
+      @keyframes bubbleIn {
+        from { transform: scale(0.96); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
       }
       
       .enhanced-prompt-preview h5 {
@@ -2216,6 +2238,7 @@ class AdvancedPromptEnhancer {
         border-radius: 12px;
         border: 1px solid rgba(255,255,255,0.2);
         backdrop-filter: blur(10px);
+        animation: bubbleIn 0.4s ease-out;
       }
       
       .option-group h6 {
@@ -2232,29 +2255,43 @@ class AdvancedPromptEnhancer {
       }
       
       .options {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
       }
       
       .option-item {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 12px;
-        padding: 12px;
+        padding: 14px 18px;
         background: rgba(255,255,255,0.95);
-        border-radius: 8px;
+        border-radius: 9999px; /* pill */
         border: 1px solid rgba(255,255,255,0.3);
         cursor: pointer;
-        transition: all 0.2s;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.4s ease;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transform: scale(0.98);
+        opacity: 0;
+        animation: bubbleRise 0.4s ease-out forwards;
       }
+
+      @keyframes bubbleRise {
+        from { transform: scale(0.9); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+
+      /* subtle stagger using nth-child for visual pop */
+      .options .option-item:nth-child(1) { animation-delay: 0ms; }
+      .options .option-item:nth-child(2) { animation-delay: 80ms; }
+      .options .option-item:nth-child(3) { animation-delay: 160ms; }
+      .options .option-item:nth-child(4) { animation-delay: 240ms; }
       
       .option-item:hover {
         border-color: rgba(255,255,255,0.5);
         background: white;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
       
       .option-item input[type="checkbox"] {
@@ -2268,9 +2305,9 @@ class AdvancedPromptEnhancer {
       
       .option-label {
         display: block;
-        font-weight: 500;
+        font-weight: 600;
         color: #1f2937;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
       }
       
       .option-short {
@@ -2280,6 +2317,12 @@ class AdvancedPromptEnhancer {
       }
       
       .option-item input[type="checkbox"]:checked + .option-content .option-label {
+        color: #667eea;
+        font-weight: 600;
+      }
+
+      /* radio support mirrors checkbox styling */
+      .option-item input[type="radio"]:checked + .option-content .option-label {
         color: #667eea;
         font-weight: 600;
       }
@@ -2372,7 +2415,7 @@ class AdvancedPromptEnhancer {
         padding: 12px 24px;
         border-radius: 8px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.4s ease;
         box-shadow: 0 4px 6px -1px rgba(102, 126, 234, 0.3);
       }
       
