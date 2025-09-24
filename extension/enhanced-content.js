@@ -1141,7 +1141,7 @@ class AdvancedPromptEnhancer {
         width: 420px !important;
         height: 100vh !important;
         background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%) !important;
-        border-left: 1px solid rgba(0, 112, 243, 0.3) !important;
+        border-left: 1px solid rgba(196, 132, 252, 0.3) !important;
         box-shadow: -8px 0 32px rgba(0, 0, 0, 0.8) !important;
         z-index: 2147483647 !important;
         display: flex !important;
@@ -1168,8 +1168,8 @@ class AdvancedPromptEnhancer {
         justify-content: space-between !important;
         align-items: center !important;
         padding: 16px 20px !important;
-        background: rgba(0, 112, 243, 0.05) !important;
-        border-bottom: 1px solid rgba(0, 112, 243, 0.15) !important;
+        background: rgba(196, 132, 252, 0.05) !important;
+        border-bottom: 1px solid rgba(196, 132, 252, 0.15) !important;
         backdrop-filter: blur(20px) !important;
         -webkit-backdrop-filter: blur(20px) !important;
         flex-shrink: 0 !important;
@@ -1181,11 +1181,11 @@ class AdvancedPromptEnhancer {
         font-size: 16px !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
-        background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #667eea 100%) !important;
+        background: linear-gradient(135deg, #c084fc 0%, #e9d5ff 50%, #d8b4fe 100%) !important;
         -webkit-background-clip: text !important;
         -webkit-text-fill-color: transparent !important;
         background-clip: text !important;
-        text-shadow: 0 0 15px rgba(0, 112, 243, 0.3) !important;
+        text-shadow: 0 0 15px rgba(147, 51, 234, 0.3) !important;
       }
 
       .header-controls {
@@ -1197,8 +1197,8 @@ class AdvancedPromptEnhancer {
       .promptok-chatgpt-minimize,
       .promptok-chatgpt-close {
         color: rgba(255, 255, 255, 0.8) !important;
-        background: rgba(0, 112, 243, 0.1) !important;
-        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        background: rgba(196, 132, 252, 0.1) !important;
+        border: 1px solid rgba(196, 132, 252, 0.2) !important;
         width: 28px !important;
         height: 28px !important;
         border-radius: 8px !important;
@@ -1215,10 +1215,10 @@ class AdvancedPromptEnhancer {
 
       .promptok-chatgpt-minimize:hover,
       .promptok-chatgpt-close:hover {
-        background: rgba(0, 112, 243, 0.2) !important;
+        background: rgba(196, 132, 252, 0.2) !important;
         color: white !important;
         transform: translateY(-1px) scale(1.05) !important;
-        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3) !important;
+        box-shadow: 0 4px 16px rgba(196, 132, 252, 0.3) !important;
       }
 
       .promptok-chatgpt-content {
@@ -1226,7 +1226,7 @@ class AdvancedPromptEnhancer {
         overflow-y: auto !important;
         padding: 0 20px 20px !important;
         scrollbar-width: thin !important;
-        scrollbar-color: rgba(0, 112, 243, 0.4) transparent !important;
+        scrollbar-color: rgba(196, 132, 252, 0.4) transparent !important;
       }
 
       .promptok-chatgpt-content::-webkit-scrollbar {
@@ -1238,24 +1238,24 @@ class AdvancedPromptEnhancer {
       }
 
       .promptok-chatgpt-content::-webkit-scrollbar-thumb {
-        background: rgba(0, 112, 243, 0.4) !important;
+        background: rgba(196, 132, 252, 0.4) !important;
         border-radius: 3px !important;
       }
 
       .promptok-chatgpt-content::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 112, 243, 0.6) !important;
+        background: rgba(196, 132, 252, 0.6) !important;
       }
 
       .loading-spinner {
         width: 32px !important;
         height: 32px !important;
-        border: 2px solid rgba(0, 112, 243, 0.1) !important;
-        border-top: 2px solid #00f0ff !important;
-        border-right: 2px solid #667eea !important;
+        border: 2px solid rgba(147, 51, 234, 0.1) !important;
+        border-top: 2px solid #c084fc !important;
+        border-right: 2px solid #d8b4fe !important;
         border-radius: 50% !important;
         animation: spinNeon 1s linear infinite !important;
         margin: 20px auto !important;
-        box-shadow: 0 0 15px rgba(0, 112, 243, 0.3) !important;
+        box-shadow: 0 0 15px rgba(147, 51, 234, 0.3) !important;
       }
 
       @keyframes spinNeon {
@@ -1273,22 +1273,22 @@ class AdvancedPromptEnhancer {
         font-size: 14px !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
-        text-shadow: 0 0 8px rgba(0, 112, 243, 0.3) !important;
+        text-shadow: 0 0 8px rgba(147, 51, 234, 0.3) !important;
       }
 
       .prompt-text {
         background: rgba(0, 0, 0, 0.3) !important;
         padding: 12px 16px !important;
         border-radius: 8px !important;
-        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        border: 1px solid rgba(196, 132, 252, 0.2) !important;
         font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
         font-size: 12px !important;
         line-height: 1.4 !important;
-        color: #00f0ff !important;
+        color: #c084fc !important;
         max-height: 100px !important;
         overflow-y: auto !important;
         box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-        text-shadow: 0 0 6px rgba(0, 112, 243, 0.4) !important;
+        text-shadow: 0 0 6px rgba(147, 51, 234, 0.4) !important;
       }
 
       .options-section h5 {
@@ -1296,7 +1296,7 @@ class AdvancedPromptEnhancer {
         color: white !important;
         font-size: 15px !important;
         font-weight: 600 !important;
-        text-shadow: 0 0 10px rgba(0, 112, 243, 0.4) !important;
+        text-shadow: 0 0 10px rgba(147, 51, 234, 0.4) !important;
         letter-spacing: -0.025em !important;
       }
 
@@ -1305,7 +1305,7 @@ class AdvancedPromptEnhancer {
         color: rgba(255, 255, 255, 0.7) !important;
         font-size: 13px !important;
         line-height: 1.4 !important;
-        text-shadow: 0 0 6px rgba(0, 112, 243, 0.2) !important;
+        text-shadow: 0 0 6px rgba(147, 51, 234, 0.2) !important;
       }
 
       .option-group {
@@ -1315,7 +1315,7 @@ class AdvancedPromptEnhancer {
         backdrop-filter: blur(20px) !important;
         -webkit-backdrop-filter: blur(20px) !important;
         border-radius: 12px !important;
-        border: 1px solid rgba(0, 112, 243, 0.1) !important;
+        border: 1px solid rgba(147, 51, 234, 0.1) !important;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
       }
 
@@ -1325,7 +1325,7 @@ class AdvancedPromptEnhancer {
         font-size: 13px !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
-        text-shadow: 0 0 6px rgba(0, 112, 243, 0.3) !important;
+        text-shadow: 0 0 6px rgba(147, 51, 234, 0.3) !important;
       }
 
       .group-description {
@@ -1348,7 +1348,7 @@ class AdvancedPromptEnhancer {
         padding: 12px 16px !important;
         background: rgba(255, 255, 255, 0.05) !important;
         border-radius: 20px !important;
-        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        border: 1px solid rgba(196, 132, 252, 0.2) !important;
         cursor: pointer !important;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2) !important;
@@ -1363,7 +1363,7 @@ class AdvancedPromptEnhancer {
         left: -100% !important;
         width: 100% !important;
         height: 100% !important;
-        background: linear-gradient(90deg, transparent, rgba(0, 112, 243, 0.1), transparent) !important;
+        background: linear-gradient(90deg, transparent, rgba(147, 51, 234, 0.1), transparent) !important;
         transition: left 0.5s ease !important;
       }
 
@@ -1372,10 +1372,10 @@ class AdvancedPromptEnhancer {
       }
 
       .option-item:hover {
-        border-color: rgba(0, 112, 243, 0.4) !important;
-        background: rgba(0, 112, 243, 0.1) !important;
+        border-color: rgba(147, 51, 234, 0.4) !important;
+        background: rgba(147, 51, 234, 0.1) !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.2) !important;
+        box-shadow: 0 4px 16px rgba(147, 51, 234, 0.2) !important;
       }
 
       .option-item input[type="checkbox"],
@@ -1384,7 +1384,7 @@ class AdvancedPromptEnhancer {
         cursor: pointer !important;
         width: 16px !important;
         height: 16px !important;
-        accent-color: #00f0ff !important;
+        accent-color: #c084fc !important;
         flex-shrink: 0 !important;
       }
 
@@ -1401,7 +1401,7 @@ class AdvancedPromptEnhancer {
         font-size: 12px !important;
         letter-spacing: -0.025em !important;
         line-height: 1.2 !important;
-        text-shadow: 0 0 4px rgba(0, 112, 243, 0.2) !important;
+        text-shadow: 0 0 6px rgba(147, 51, 234, 0.2) !important;
       }
 
       .option-short {
@@ -1409,20 +1409,20 @@ class AdvancedPromptEnhancer {
         font-size: 11px !important;
         color: rgba(255, 255, 255, 0.6) !important;
         line-height: 1.2 !important;
-        text-shadow: 0 0 3px rgba(0, 112, 243, 0.1) !important;
+        text-shadow: 0 0 3px rgba(147, 51, 234, 0.1) !important;
       }
 
       .option-item input[type="checkbox"]:checked ~ .option-content .option-label,
       .option-item input[type="radio"]:checked ~ .option-content .option-label {
-        color: #00f0ff !important;
+        color: #c084fc !important;
         font-weight: 700 !important;
-        text-shadow: 0 0 8px rgba(0, 112, 243, 0.5) !important;
+        text-shadow: 0 0 8px rgba(147, 51, 234, 0.5) !important;
       }
 
       .option-item input[type="checkbox"]:checked ~ .option-content .option-short,
       .option-item input[type="radio"]:checked ~ .option-content .option-short {
-        color: rgba(0, 112, 243, 0.8) !important;
-        text-shadow: 0 0 4px rgba(0, 112, 243, 0.3) !important;
+        color: rgba(147, 51, 234, 0.8) !important;
+        text-shadow: 0 0 4px rgba(147, 51, 234, 0.3) !important;
       }
 
       .promptok-chatgpt-actions {
@@ -1431,7 +1431,7 @@ class AdvancedPromptEnhancer {
         margin-top: 20px !important;
         align-items: center !important;
         padding-top: 16px !important;
-        border-top: 1px solid rgba(0, 112, 243, 0.1) !important;
+        border-top: 1px solid rgba(147, 51, 234, 0.1) !important;
       }
 
       .promptok-chatgpt-actions button {
@@ -1446,25 +1446,25 @@ class AdvancedPromptEnhancer {
       }
 
       .promptok-chatgpt-actions button.primary {
-        background: linear-gradient(135deg, #00f0ff 0%, #667eea 100%) !important;
+        background: linear-gradient(135deg, #c084fc 0%, #e9d5ff 100%) !important;
         color: #000 !important;
-        border: 1px solid rgba(0, 112, 243, 0.3) !important;
+        border: 1px solid rgba(147, 51, 234, 0.3) !important;
         font-weight: 700 !important;
-        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3) !important;
+        box-shadow: 0 4px 16px rgba(147, 51, 234, 0.3) !important;
       }
 
       .promptok-chatgpt-actions button.primary:hover {
         transform: translateY(-1px) !important;
-        box-shadow: 0 6px 20px rgba(0, 112, 243, 0.4) !important;
+        box-shadow: 0 6px 20px rgba(147, 51, 234, 0.4) !important;
       }
 
       .promptok-chatgpt-actions button.copy-icon {
         width: 36px !important;
         height: 36px !important;
         background: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        border: 1px solid rgba(196, 132, 252, 0.2) !important;
         border-radius: 8px !important;
-        color: #00f0ff !important;
+        color: #c084fc !important;
         font-size: 12px !important;
         display: flex !important;
         align-items: center !important;
@@ -1476,11 +1476,11 @@ class AdvancedPromptEnhancer {
       }
 
       .promptok-chatgpt-actions button.copy-icon:hover {
-        background: rgba(0, 112, 243, 0.1) !important;
-        color: #00f0ff !important;
+        background: rgba(147, 51, 234, 0.1) !important;
+        color: #c084fc !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 4px 16px rgba(0, 112, 243, 0.3) !important;
-        border-color: rgba(0, 112, 243, 0.4) !important;
+        box-shadow: 0 4px 16px rgba(147, 51, 234, 0.3) !important;
+        border-color: rgba(147, 51, 234, 0.4) !important;
       }
 
       .promptok-chatgpt-status {
@@ -2945,10 +2945,10 @@ class AdvancedPromptEnhancer {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        background: rgba(0, 112, 243, 0.05);
+        background: rgba(147, 51, 234, 0.05);
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        border-bottom: 1px solid rgba(0, 112, 243, 0.15);
+        border-bottom: 1px solid rgba(147, 51, 234, 0.15);
         padding: 20px 24px 16px;
         margin: 0;
       }
@@ -2960,7 +2960,7 @@ class AdvancedPromptEnhancer {
         font-size: 22px;
         font-weight: 700;
         letter-spacing: -0.03em;
-        background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #667eea 100%);
+        background: linear-gradient(135deg, #a855f7 0%, #ffffff 50%, #c084fc 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
