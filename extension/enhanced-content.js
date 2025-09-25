@@ -8,6 +8,9 @@ class AdvancedPromptEnhancer {
     this.isMinimized = false;
     this.minimizedButtonClass = 'promptok-minimized-button';
     this.sessionStorageKey = 'promptok.session';
+    // Font scaling persistence
+    this.fontScaleKey = 'promptok.fontScale';
+    this.fontScale = 1.1;
     this.userProfile = null;
     this.isAuthenticated = false;
     this.currentInput = null;
@@ -21,6 +24,8 @@ class AdvancedPromptEnhancer {
     
     // Initialize authentication check
     this.initializeAuth();
+    // Load user-preferred font scale
+    this.loadFontScale().catch(() => {});
     
     // Clean up orphaned buttons on initialization
     this.cleanupOrphanedButtons();
@@ -40,6 +45,63 @@ class AdvancedPromptEnhancer {
     } catch (error) {
       console.warn(`Failed to set storage item '${key}':`, error);
     }
+  }
+
+  async getStorageItem(key) {
+    try {
+      if (chrome?.storage?.local) {
+        const out = await chrome.storage.local.get([key]);
+        return out?.[key];
+      } else if (window.localStorage) {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      }
+    } catch (error) {
+      console.warn(`Failed to get storage item '${key}':`, error);
+    }
+    return null;
+  }
+
+  async loadFontScale() {
+    const saved = await this.getStorageItem(this.fontScaleKey);
+    if (typeof saved === 'number' && isFinite(saved)) {
+      this.fontScale = this.clampFontScale(saved);
+      this.applyFontScaleToExisting();
+    }
+  }
+
+  clampFontScale(val) {
+    const v = Number(val);
+    if (!isFinite(v)) return 1;
+    return Math.min(1.8, Math.max(0.8, Math.round(v * 10) / 10));
+  }
+
+  async setFontScale(val) {
+    this.fontScale = this.clampFontScale(val);
+    await this.setStorageItem(this.fontScaleKey, this.fontScale);
+    this.applyFontScaleToExisting();
+  }
+
+  adjustFontScale(delta) {
+    const next = this.fontScale + delta;
+    return this.setFontScale(next);
+  }
+
+  applyFontScaleToExisting() {
+    try {
+      const chatPanel = document.querySelector('.promptok-chatgpt-panel');
+      if (chatPanel) {
+        chatPanel.style.setProperty('--promptok-font-scale', String(this.fontScale));
+        const disp = chatPanel.querySelector('.font-scale-display');
+        if (disp) disp.textContent = `${Math.round(this.fontScale * 100)}%`;
+      }
+      const enhancedCard = document.querySelector('.promptok-card.enhanced');
+      if (enhancedCard) {
+        enhancedCard.style.setProperty('--promptok-font-scale', String(this.fontScale));
+        const disp2 = enhancedCard.querySelector('.font-scale-display');
+        if (disp2) disp2.textContent = `${Math.round(this.fontScale * 100)}%`;
+      }
+    } catch (_) { /* ignore */ }
   }
 
   async saveSessionState() {
@@ -1068,6 +1130,7 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
     document.body.appendChild(panel);
 
     // Add close listener
@@ -1098,6 +1161,27 @@ class AdvancedPromptEnhancer {
       <div class="promptok-chatgpt-header">
         <h4>✨ Enhanced Prompt Ready</h4>
         <div class="header-controls">
+          <div class="font-scale-controls" title="Text size">
+            <button class="font-trigger" aria-label="Adjust text size">
+              <svg class="font-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2"/>
+                <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <div class="font-popover">
+              <button class="font-decrease" aria-label="Decrease text size">
+                <svg class="font-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <span class="font-scale-display">100%</span>
+              <button class="font-increase" aria-label="Increase text size">
+                <svg class="font-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
           <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
           <button class="promptok-chatgpt-close" aria-label="Close">×</button>
         </div>
@@ -1125,6 +1209,8 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    // Apply saved/user-selected font scale to container so all children inherit
+    panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
     document.body.appendChild(panel);
 
     // Add event listeners
@@ -1136,20 +1222,23 @@ class AdvancedPromptEnhancer {
     style.textContent = `
       .promptok-chatgpt-panel {
         position: fixed !important;
-        top: 0 !important;
-        right: 0 !important;
+        top: 20px !important;
+        right: 20px !important;
         width: 420px !important;
-        height: 100vh !important;
+        max-height: 80vh !important;
+        z-index: 2147483647 !important;
+        /* Base font scaling so all descendants inherit, ensures reload reflects saved zoom */
+        font-size: calc(14px * var(--promptok-font-scale, 1)) !important;
         background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%) !important;
         border-left: 1px solid rgba(196, 132, 252, 0.3) !important;
         box-shadow: -8px 0 32px rgba(0, 0, 0, 0.8) !important;
-        z-index: 2147483647 !important;
         display: flex !important;
         flex-direction: column !important;
         backdrop-filter: blur(25px) !important;
         -webkit-backdrop-filter: blur(25px) !important;
         animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
         overflow: hidden !important;
+        --promptok-font-scale: 1;
       }
 
       @keyframes slideInRight {
@@ -1178,7 +1267,7 @@ class AdvancedPromptEnhancer {
       .promptok-chatgpt-header h4 {
         margin: 0 !important;
         color: white !important;
-        font-size: 16px !important;
+        font-size: calc(16px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
         background: linear-gradient(135deg, #c084fc 0%, #e9d5ff 50%, #d8b4fe 100%) !important;
@@ -1193,6 +1282,44 @@ class AdvancedPromptEnhancer {
         gap: 8px !important;
         align-items: center !important;
       }
+
+      .font-scale-controls { position: relative !important; display: inline-flex !important; overflow: visible !important; }
+      .font-scale-controls .font-trigger {
+        color: rgba(255,255,255,0.9) !important;
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 999px !important;
+        background: rgba(255,255,255,0.06) !important;
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        display: flex !important; align-items: center !important; justify-content: center !important;
+        cursor: pointer !important; transition: all 0.2s ease !important;
+        backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important;
+      }
+      .font-scale-controls .font-trigger:hover { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.2) !important; }
+      .font-scale-controls .font-icon { display: block !important; opacity: 0.9 !important; }
+      .font-scale-controls .font-popover {
+        position: absolute !important;
+        top: 28px !important;
+        right: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 6px 10px !important;
+        background: linear-gradient(135deg, rgba(196,132,252,0.12), rgba(147,51,234,0.1)) !important;
+        border: 1px solid rgba(196,132,252,0.25) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
+        opacity: 0 !important; pointer-events: none !important; transform: translateY(-2px) !important;
+        transition: opacity .15s ease, transform .15s ease !important;
+        z-index: 2 !important;
+      }
+      .font-scale-controls:hover .font-popover,
+      .font-scale-controls.open .font-popover { opacity: 1 !important; pointer-events: auto !important; transform: translateY(0) !important; }
+      .font-scale-controls .font-scale-display { color: rgba(255,255,255,0.85) !important; font-size: calc(12px * var(--promptok-font-scale)) !important; min-width: 48px !important; text-align: center !important; }
+      .font-scale-controls .font-decrease,
+      .font-scale-controls .font-increase { color: rgba(255, 255, 255, 0.9) !important; background: rgba(255,255,255,0.06) !important; border: 1px solid rgba(255,255,255,0.12) !important; width: 28px !important; height: 28px !important; border-radius: 999px !important; display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important; transition: all 0.2s ease !important; }
+      .font-scale-controls .font-decrease:hover,
+      .font-scale-controls .font-increase:hover { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.2) !important; }
 
       .promptok-chatgpt-minimize,
       .promptok-chatgpt-close {
@@ -1270,7 +1397,7 @@ class AdvancedPromptEnhancer {
       .enhanced-prompt-preview h5 {
         margin: 0 0 12px 0 !important;
         color: white !important;
-        font-size: 14px !important;
+        font-size: calc(14px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
         text-shadow: 0 0 8px rgba(147, 51, 234, 0.3) !important;
@@ -1282,7 +1409,7 @@ class AdvancedPromptEnhancer {
         border-radius: 8px !important;
         border: 1px solid rgba(196, 132, 252, 0.2) !important;
         font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
-        font-size: 12px !important;
+        font-size: calc(12px * var(--promptok-font-scale)) !important;
         line-height: 1.4 !important;
         color: #c084fc !important;
         max-height: 100px !important;
@@ -1294,7 +1421,7 @@ class AdvancedPromptEnhancer {
       .options-section h5 {
         margin: 0 0 8px 0 !important;
         color: white !important;
-        font-size: 15px !important;
+        font-size: calc(15px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
         text-shadow: 0 0 10px rgba(147, 51, 234, 0.4) !important;
         letter-spacing: -0.025em !important;
@@ -1303,7 +1430,7 @@ class AdvancedPromptEnhancer {
       .options-description {
         margin: 0 0 16px 0 !important;
         color: rgba(255, 255, 255, 0.7) !important;
-        font-size: 13px !important;
+        font-size: calc(13px * var(--promptok-font-scale)) !important;
         line-height: 1.4 !important;
         text-shadow: 0 0 6px rgba(147, 51, 234, 0.2) !important;
       }
@@ -1322,7 +1449,7 @@ class AdvancedPromptEnhancer {
       .option-group h6 {
         margin: 0 0 8px 0 !important;
         color: white !important;
-        font-size: 13px !important;
+        font-size: calc(13px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
         text-shadow: 0 0 6px rgba(147, 51, 234, 0.3) !important;
@@ -1331,7 +1458,7 @@ class AdvancedPromptEnhancer {
       .group-description {
         margin: 0 0 12px 0 !important;
         color: rgba(255, 255, 255, 0.6) !important;
-        font-size: 12px !important;
+        font-size: calc(12px * var(--promptok-font-scale)) !important;
         line-height: 1.3 !important;
       }
 
@@ -1398,7 +1525,7 @@ class AdvancedPromptEnhancer {
         font-weight: 600 !important;
         color: white !important;
         margin-bottom: 2px !important;
-        font-size: 12px !important;
+        font-size: calc(12px * var(--promptok-font-scale)) !important;
         letter-spacing: -0.025em !important;
         line-height: 1.2 !important;
         text-shadow: 0 0 6px rgba(147, 51, 234, 0.2) !important;
@@ -1406,7 +1533,7 @@ class AdvancedPromptEnhancer {
 
       .option-short {
         display: block !important;
-        font-size: 11px !important;
+        font-size: calc(11px * var(--promptok-font-scale)) !important;
         color: rgba(255, 255, 255, 0.6) !important;
         line-height: 1.2 !important;
         text-shadow: 0 0 3px rgba(147, 51, 234, 0.1) !important;
@@ -1441,7 +1568,7 @@ class AdvancedPromptEnhancer {
         font-weight: 600 !important;
         cursor: pointer !important;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        font-size: 13px !important;
+        font-size: calc(13px * var(--promptok-font-scale)) !important;
         letter-spacing: -0.025em !important;
       }
 
@@ -1465,7 +1592,7 @@ class AdvancedPromptEnhancer {
         border: 1px solid rgba(196, 132, 252, 0.2) !important;
         border-radius: 8px !important;
         color: #c084fc !important;
-        font-size: 12px !important;
+        font-size: calc(12px * var(--promptok-font-scale)) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -1510,6 +1637,42 @@ class AdvancedPromptEnhancer {
     // Minimize button
     const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
     minimizeBtn.addEventListener('click', () => this.minimizeChatGPTOverlay(panel));
+
+    // Font scale controls
+    const controlsWrap = panel.querySelector('.font-scale-controls');
+    const triggerBtn = panel.querySelector('.font-trigger');
+    const decBtn = panel.querySelector('.font-decrease');
+    const incBtn = panel.querySelector('.font-increase');
+    const disp = panel.querySelector('.font-scale-display');
+    if (disp) disp.textContent = `${Math.round(this.fontScale * 100)}%`;
+    if (triggerBtn && controlsWrap) {
+      triggerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        controlsWrap.classList.toggle('open');
+      });
+      // Close when clicking outside the panel
+      document.addEventListener('click', (e) => {
+        try {
+          if (!panel.contains(e.target)) controlsWrap.classList.remove('open');
+        } catch (_) {}
+      }, { once: true });
+      // Smooth hover: open immediately on enter, hide after a short delay on leave
+      controlsWrap.addEventListener('mouseenter', () => {
+        try { if (controlsWrap._hideTimer) { clearTimeout(controlsWrap._hideTimer); controlsWrap._hideTimer = null; } } catch (_) {}
+        controlsWrap.classList.add('open');
+      });
+      controlsWrap.addEventListener('mouseleave', () => {
+        try { if (controlsWrap._hideTimer) clearTimeout(controlsWrap._hideTimer); } catch (_) {}
+        controlsWrap._hideTimer = setTimeout(() => controlsWrap.classList.remove('open'), 150);
+      });
+      controlsWrap.addEventListener('focusout', () => {
+        try {
+          if (!controlsWrap.contains(document.activeElement)) controlsWrap.classList.remove('open');
+        } catch (_) {}
+      });
+    }
+    if (decBtn) decBtn.addEventListener('click', () => this.adjustFontScale(-0.1));
+    if (incBtn) incBtn.addEventListener('click', () => this.adjustFontScale(0.1));
 
     // Apply prompt (base + selected options)
     const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
@@ -1563,11 +1726,10 @@ class AdvancedPromptEnhancer {
 
     // Close on Escape key
     const escHandler = (e) => {
-      try {
-        if (e.key === 'Escape') {
-          this.closeOverlay();
-        }
-      } catch (_) { /* ignore */ }
+      if (e.key === 'Escape') {
+        this.closeOverlay();
+        document.removeEventListener('keydown', escHandler);
+      }
     };
     document.addEventListener('keydown', escHandler, { once: true });
   }
@@ -1821,6 +1983,36 @@ class AdvancedPromptEnhancer {
     // Minimize button
     const minimizeBtn = overlay.querySelector('.promptok-minimize');
     minimizeBtn.addEventListener('click', () => this.minimizeOverlay());
+
+    // Font scale controls
+    const controlsWrap = overlay.querySelector('.font-scale-controls');
+    const triggerBtn = overlay.querySelector('.font-trigger');
+    const decBtn = overlay.querySelector('.font-decrease');
+    const incBtn = overlay.querySelector('.font-increase');
+    const disp = overlay.querySelector('.font-scale-display');
+    if (disp) disp.textContent = `${Math.round(this.fontScale * 100)}%`;
+    if (triggerBtn && controlsWrap) {
+      triggerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        controlsWrap.classList.toggle('open');
+      });
+      document.addEventListener('click', (e) => {
+        try {
+          if (!overlay.contains(e.target)) controlsWrap.classList.remove('open');
+        } catch (_) {}
+      }, { once: true });
+      // Smooth hover behavior
+      controlsWrap.addEventListener('mouseenter', () => {
+        try { if (controlsWrap._hideTimer) { clearTimeout(controlsWrap._hideTimer); controlsWrap._hideTimer = null; } } catch (_) {}
+        controlsWrap.classList.add('open');
+      });
+      controlsWrap.addEventListener('mouseleave', () => {
+        try { if (controlsWrap._hideTimer) clearTimeout(controlsWrap._hideTimer); } catch (_) {}
+        controlsWrap._hideTimer = setTimeout(() => controlsWrap.classList.remove('open'), 150);
+      });
+    }
+    if (decBtn) decBtn.addEventListener('click', () => this.adjustFontScale(-0.1));
+    if (incBtn) incBtn.addEventListener('click', () => this.adjustFontScale(0.1));
 
     // Apply prompt (base + selected options)
     const applyBtn = overlay.querySelector('#promptok-apply');
@@ -2372,6 +2564,27 @@ class AdvancedPromptEnhancer {
           <div class="promptok-header">
             <h4>✨ Enhanced Prompt Ready</h4>
             <div class="header-controls">
+              <div class="font-scale-controls" title="Text size">
+                <button class="font-trigger" aria-label="Adjust text size">
+                  <svg class="font-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2"/>
+                    <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <div class="font-popover">
+                  <button class="font-decrease" aria-label="Decrease text size">
+                    <svg class="font-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                  <span class="font-scale-display">100%</span>
+                  <button class="font-increase" aria-label="Increase text size">
+                    <svg class="font-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
               <button class="promptok-minimize" aria-label="Minimize" title="Minimize">−</button>
               <button class="promptok-close" aria-label="Close">×</button>
             </div>
@@ -2399,6 +2612,8 @@ class AdvancedPromptEnhancer {
 
       this.addOverlayStyles(overlay);
       this.addEnhancedStyles(overlay);
+      const card = overlay.querySelector('.promptok-card.enhanced');
+      if (card) card.style.setProperty('--promptok-font-scale', String(this.fontScale));
       document.body.appendChild(overlay);
 
       // Wire up listeners
@@ -2620,7 +2835,7 @@ class AdvancedPromptEnhancer {
       .promptok-header h4 {
         margin: 0;
         color: #ffffff;
-        font-size: 18px;
+        font-size: calc(18px * var(--promptok-font-scale, 1));
         font-weight: 600;
         background: linear-gradient(135deg, #00f0ff 0%, #667eea 100%);
         -webkit-background-clip: text;
@@ -2689,7 +2904,7 @@ class AdvancedPromptEnhancer {
         font-weight: 500;
         cursor: pointer;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        font-size: 14px;
+        font-size: calc(14px * var(--promptok-font-scale, 1));
         letter-spacing: -0.025em;
       }
 
@@ -2713,7 +2928,7 @@ class AdvancedPromptEnhancer {
         border: 1px solid rgba(0, 112, 243, 0.2);
         border-radius: 10px;
         color: #00f0ff;
-        font-size: 14px;
+        font-size: calc(14px * var(--promptok-font-scale, 1));
         display: flex;
         align-items: center;
         justify-content: center;
@@ -2768,179 +2983,19 @@ class AdvancedPromptEnhancer {
     overlay.appendChild(style);
   }
 
-  positionMinimizedButton(input, button, opts = {}) {
-    try {
-      const inputId = input.getAttribute('data-promptok-id');
-      const siblingBtn = opts.siblingButton || document.querySelector(`.${this.buttonClass}[data-input-id="${inputId}"]`);
-      const parent = (siblingBtn && siblingBtn.parentElement) || document.body;
-      if (button.parentElement !== parent) parent.appendChild(button);
-
-      // Ensure parent can host absolute children (avoid changing body)
-      const cs = window.getComputedStyle(parent);
-      if (cs.position === 'static' && parent !== document.body) {
-        parent.style.setProperty('position', 'relative', 'important');
-      }
-
-      // Modern positioning: place minimized button to the left of the enhance button with better spacing
-      let rightPx = 130; let bottomPx = 26;
-      if (siblingBtn) {
-        const r = parseFloat(siblingBtn.style.right) || 80;
-        const b = parseFloat(siblingBtn.style.bottom) || 26;
-        rightPx = r + 60; // 60px to the left of the enhance button (increase right)
-        bottomPx = b + 6; // slightly lower for better visual balance
-      }
-
-      const s = (prop, val) => button.style.setProperty(prop, val, 'important');
-      s('position', 'absolute');
-      s('right', `${rightPx}px`);
-      s('bottom', `${bottomPx}px`);
-      s('left', 'auto');
-      s('top', 'auto');
-      s('z-index', '2147483647');
-
-      // Add staggered animation delay for smooth appearance
-      button.style.setProperty('animation-delay', '0.3s', 'important');
-
-    } catch (_) { /* ignore */ }
-  }
-
-  addMinimizedButtonStyles(button) {
-    const style = document.createElement('style');
-    style.textContent = `
-      .${this.minimizedButtonClass} {
-        position: absolute !important;
-        transform: none !important;
-        background: linear-gradient(135deg, rgba(0, 112, 243, 0.9) 0%, rgba(0, 240, 255, 0.8) 100%) !important;
-        border-radius: 16px !important;
-        width: 32px !important;
-        height: 32px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        cursor: pointer !important;
-        z-index: 2147483647 !important;
-        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        border: 1px solid rgba(0, 240, 255, 0.4) !important;
-        backdrop-filter: blur(15px) !important;
-        -webkit-backdrop-filter: blur(15px) !important;
-        font-size: 14px !important;
-        color: #000 !important;
-        box-shadow: 0 6px 20px rgba(0, 112, 243, 0.4), 0 3px 10px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-        font-weight: 700 !important;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
-        position: relative !important;
-        overflow: hidden !important;
-      }
-
-      .${this.minimizedButtonClass}::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-        transition: left 0.5s ease;
-      }
-
-      .${this.minimizedButtonClass}:hover::before {
-        left: 100%;
-      }
-
-      .${this.minimizedButtonClass}:hover {
-        transform: translateY(-2px) scale(1.1) !important;
-        background: linear-gradient(135deg, rgba(0, 112, 243, 1) 0%, rgba(0, 240, 255, 0.9) 100%) !important;
-        box-shadow: 0 8px 25px rgba(0, 112, 243, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-      }
-
-      .${this.minimizedButtonClass}:active {
-        transform: translateY(0) scale(0.95) !important;
-      }
-
-      .minimized-count {
-        position: absolute;
-        top: -6px;
-        right: -6px;
-        background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
-        color: white;
-        font-size: 10px;
-        font-weight: 700;
-        min-width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid #000;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        z-index: 1;
-      }
-    `;
-    button.appendChild(style);
-  }
-
   addEnhancedStyles(overlay) {
     const style = document.createElement('style');
     style.textContent = `
       .promptok-card.enhanced {
-        width: min(1000px, 90vw);
-        min-width: min(800px, 85vw);
-        max-width: 95vw;
-        max-height: 85vh;
-        background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
-        border: 1px solid rgba(0, 112, 243, 0.3);
-        border-radius: 24px;
-        box-shadow:
-          0 32px 64px rgba(0, 0, 0, 0.8),
-          0 16px 32px rgba(0, 112, 243, 0.2),
-          inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        color: white;
-        overflow: hidden;
-        position: relative;
-        animation: cardNeon 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        backdrop-filter: blur(25px);
-        -webkit-backdrop-filter: blur(25px);
+        background: linear-gradient(180deg, rgba(0, 112, 243, 0.12), rgba(0, 112, 243, 0.06));
+        border: 1px solid rgba(0, 112, 243, 0.25);
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+        padding: 18px;
+        color: #ffffff;
+        /* Base font scaling so all descendants inherit, ensures reload reflects saved zoom */
+        font-size: calc(14px * var(--promptok-font-scale, 1));
       }
-
-      @keyframes cardNeon {
-        from {
-          transform: translateY(50px) scale(0.95);
-          opacity: 0;
-          box-shadow: 0 0 0 rgba(0, 112, 243, 0);
-        }
-        to {
-          transform: translateY(0) scale(1);
-          opacity: 1;
-          box-shadow:
-            0 32px 64px rgba(0, 0, 0, 0.8),
-            0 16px 32px rgba(0, 112, 243, 0.2),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
-        }
-      }
-
-      @media (max-width: 1200px) {
-        .promptok-card.enhanced {
-          width: min(900px, 88vw);
-          min-width: min(700px, 80vw);
-        }
-      }
-
-      @media (max-width: 900px) {
-        .promptok-card.enhanced {
-          width: min(800px, 85vw);
-          min-width: min(600px, 75vw);
-        }
-      }
-
-      @media (max-width: 600px) {
-        .promptok-card.enhanced {
-          width: 95vw;
-          min-width: 320px;
-          max-height: 80vh;
-          border-radius: 20px;
-        }
-      }
-
       .promptok-card.enhanced .promptok-header {
         display: flex;
         justify-content: space-between;
@@ -2957,7 +3012,7 @@ class AdvancedPromptEnhancer {
         color: white;
         text-shadow: 0 0 20px rgba(0, 112, 243, 0.4);
         margin: 0;
-        font-size: 22px;
+        font-size: calc(22px * var(--promptok-font-scale, 1));
         font-weight: 700;
         letter-spacing: -0.03em;
         background: linear-gradient(135deg, #a855f7 0%, #ffffff 50%, #c084fc 100%);
@@ -2971,6 +3026,44 @@ class AdvancedPromptEnhancer {
         gap: 10px;
         align-items: center;
       }
+
+      /* Font scale controls (compact trigger + hover popover) */
+      .font-scale-controls { position: relative; display: inline-flex; overflow: visible; }
+      .font-scale-controls .font-trigger {
+        color: rgba(255,255,255,0.9);
+        width: 36px; height: 36px; border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; transition: all 0.2s ease;
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      }
+      .font-scale-controls .font-trigger:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+      .font-scale-controls .font-icon { display: block; opacity: 0.9; }
+      .font-scale-controls .font-popover {
+        position: absolute; top: 36px; right: 0;
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 10px;
+        background: linear-gradient(135deg, rgba(196,132,252,0.12), rgba(147,51,234,0.1));
+        border: 1px solid rgba(196,132,252,0.25);
+        border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        opacity: 0; pointer-events: none; transform: translateY(-2px);
+        transition: opacity .15s ease, transform .15s ease; z-index: 2;
+      }
+      .font-scale-controls:hover .font-popover,
+      .font-scale-controls.open .font-popover { opacity: 1; pointer-events: auto; transform: translateY(0); }
+      .font-scale-controls .font-scale-display { color: rgba(255,255,255,0.85); font-size: calc(12px * var(--promptok-font-scale, 1)); min-width: 48px; text-align: center; }
+      .font-scale-controls .font-decrease,
+      .font-scale-controls .font-increase {
+        color: rgba(255, 255, 255, 0.9);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        width: 28px; height: 28px; border-radius: 999px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; transition: all 0.2s ease;
+      }
+      .font-scale-controls .font-decrease:hover,
+      .font-scale-controls .font-increase:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
 
       .promptok-card.enhanced .promptok-minimize,
       .promptok-card.enhanced .promptok-close {
@@ -3027,7 +3120,7 @@ class AdvancedPromptEnhancer {
       .enhanced-prompt-preview h5 {
         margin: 0 0 14px 0;
         color: white;
-        font-size: 15px;
+        font-size: calc(15px * var(--promptok-font-scale, 1));
         font-weight: 600;
         letter-spacing: -0.025em;
         text-shadow: 0 0 10px rgba(0, 112, 243, 0.3);
@@ -3039,7 +3132,7 @@ class AdvancedPromptEnhancer {
         border-radius: 10px;
         border: 1px solid rgba(0, 112, 243, 0.2);
         font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-        font-size: 13px;
+        font-size: calc(13px * var(--promptok-font-scale, 1));
         line-height: 1.5;
         color: #00f0ff;
         max-height: 120px;
@@ -3070,7 +3163,7 @@ class AdvancedPromptEnhancer {
       .options-section h5 {
         margin: 0 0 10px 0;
         color: white;
-        font-size: 16px;
+        font-size: calc(16px * var(--promptok-font-scale, 1));
         font-weight: 600;
         text-shadow: 0 0 15px rgba(0, 112, 243, 0.4);
         letter-spacing: -0.025em;
@@ -3079,7 +3172,7 @@ class AdvancedPromptEnhancer {
       .options-description {
         margin: 0 0 20px 0;
         color: rgba(255, 255, 255, 0.7);
-        font-size: 14px;
+        font-size: calc(14px * var(--promptok-font-scale, 1));
         line-height: 1.5;
         text-shadow: 0 0 8px rgba(0, 112, 243, 0.2);
       }
@@ -3112,7 +3205,7 @@ class AdvancedPromptEnhancer {
       .option-group h6 {
         margin: 0 0 10px 0;
         color: white;
-        font-size: 14px;
+        font-size: calc(14px * var(--promptok-font-scale, 1));
         font-weight: 600;
         letter-spacing: -0.025em;
         text-shadow: 0 0 8px rgba(0, 112, 243, 0.3);
@@ -3121,7 +3214,7 @@ class AdvancedPromptEnhancer {
       .group-description {
         margin: 0 0 14px 0;
         color: rgba(255, 255, 255, 0.6);
-        font-size: 13px;
+        font-size: calc(13px * var(--promptok-font-scale, 1));
         line-height: 1.4;
       }
 
@@ -3209,7 +3302,7 @@ class AdvancedPromptEnhancer {
         font-weight: 600;
         color: white;
         margin-bottom: 3px;
-        font-size: 13px;
+        font-size: calc(13px * var(--promptok-font-scale, 1));
         letter-spacing: -0.025em;
         line-height: 1.3;
         text-shadow: 0 0 6px rgba(0, 112, 243, 0.2);
