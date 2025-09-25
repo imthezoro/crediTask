@@ -1127,11 +1127,24 @@ class AdvancedPromptEnhancer {
         <div class="loading-spinner"></div>
         <p>AI is analyzing and improving your prompt</p>
       </div>
+      
+      <!-- Resize handles -->
+      <div class="promptok-resize-handle promptok-resize-n" data-direction="n"></div>
+      <div class="promptok-resize-handle promptok-resize-s" data-direction="s"></div>
+      <div class="promptok-resize-handle promptok-resize-e" data-direction="e"></div>
+      <div class="promptok-resize-handle promptok-resize-w" data-direction="w"></div>
+      <div class="promptok-resize-handle promptok-resize-ne" data-direction="ne"></div>
+      <div class="promptok-resize-handle promptok-resize-nw" data-direction="nw"></div>
+      <div class="promptok-resize-handle promptok-resize-se" data-direction="se"></div>
+      <div class="promptok-resize-handle promptok-resize-sw" data-direction="sw"></div>
     `;
 
     this.addChatGPTStyles(panel);
     panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
     document.body.appendChild(panel);
+
+    // Add resize functionality
+    this.makeResizable(panel);
 
     // Add minimize listener
     const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
@@ -1217,12 +1230,25 @@ class AdvancedPromptEnhancer {
 
         <div class="promptok-chatgpt-status"></div>
       </div>
+      
+      <!-- Resize handles -->
+      <div class="promptok-resize-handle promptok-resize-n" data-direction="n"></div>
+      <div class="promptok-resize-handle promptok-resize-s" data-direction="s"></div>
+      <div class="promptok-resize-handle promptok-resize-e" data-direction="e"></div>
+      <div class="promptok-resize-handle promptok-resize-w" data-direction="w"></div>
+      <div class="promptok-resize-handle promptok-resize-ne" data-direction="ne"></div>
+      <div class="promptok-resize-handle promptok-resize-nw" data-direction="nw"></div>
+      <div class="promptok-resize-handle promptok-resize-se" data-direction="se"></div>
+      <div class="promptok-resize-handle promptok-resize-sw" data-direction="sw"></div>
     `;
 
     this.addChatGPTStyles(panel);
     // Apply saved/user-selected font scale to container so all children inherit
     panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
     document.body.appendChild(panel);
+
+    // Add resize functionality
+    this.makeResizable(panel);
 
     // Add event listeners
     this.setupChatGPTEventListeners(panel, parsedData);
@@ -1634,8 +1660,264 @@ class AdvancedPromptEnhancer {
         color: #22f055 !important;
         border: 1px solid rgba(34, 197, 94, 0.2) !important;
       }
+
+      /* Resize handles */
+      .promptok-resize-handle {
+        position: absolute !important;
+        background: transparent !important;
+        z-index: 10 !important;
+      }
+
+      .promptok-resize-n {
+        top: 0 !important;
+        left: 10px !important;
+        right: 10px !important;
+        height: 4px !important;
+        cursor: n-resize !important;
+      }
+
+      .promptok-resize-s {
+        bottom: 0 !important;
+        left: 10px !important;
+        right: 10px !important;
+        height: 4px !important;
+        cursor: s-resize !important;
+      }
+
+      .promptok-resize-e {
+        top: 10px !important;
+        bottom: 10px !important;
+        right: 0 !important;
+        width: 4px !important;
+        cursor: e-resize !important;
+      }
+
+      .promptok-resize-w {
+        top: 10px !important;
+        bottom: 10px !important;
+        left: 0 !important;
+        width: 4px !important;
+        cursor: w-resize !important;
+      }
+
+      .promptok-resize-ne {
+        top: 0 !important;
+        right: 0 !important;
+        width: 10px !important;
+        height: 10px !important;
+        cursor: ne-resize !important;
+      }
+
+      .promptok-resize-nw {
+        top: 0 !important;
+        left: 0 !important;
+        width: 10px !important;
+        height: 10px !important;
+        cursor: nw-resize !important;
+      }
+
+      .promptok-resize-se {
+        bottom: 0 !important;
+        right: 0 !important;
+        width: 10px !important;
+        height: 10px !important;
+        cursor: se-resize !important;
+      }
+
+      .promptok-resize-sw {
+        bottom: 0 !important;
+        left: 0 !important;
+        width: 10px !important;
+        height: 10px !important;
+        cursor: sw-resize !important;
+      }
+
+      /* Visual feedback for resize handles on hover */
+      .promptok-resize-handle:hover {
+        background: rgba(196, 132, 252, 0.3) !important;
+      }
+
+      /* Corner handles get a slightly larger hover area */
+      .promptok-resize-ne:hover,
+      .promptok-resize-nw:hover,
+      .promptok-resize-se:hover,
+      .promptok-resize-sw:hover {
+        background: rgba(196, 132, 252, 0.4) !important;
+        border-radius: 2px !important;
+      }
     `;
     panel.appendChild(style);
+  }
+
+  makeResizable(panel) {
+    const resizeHandles = panel.querySelectorAll('.promptok-resize-handle');
+    let isResizing = false;
+    let currentHandle = null;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+    let startTop = 0;
+    let startLeft = 0;
+
+    // Minimum and maximum constraints
+    const minWidth = 320;
+    const minHeight = 400;
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.9;
+
+    resizeHandles.forEach(handle => {
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        isResizing = true;
+        currentHandle = handle;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        const rect = panel.getBoundingClientRect();
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startTop = rect.top;
+        startLeft = rect.left;
+        
+        // Add visual feedback
+        panel.style.setProperty('user-select', 'none', 'important');
+        document.body.style.setProperty('user-select', 'none', 'important');
+        document.body.style.setProperty('cursor', handle.style.cursor, 'important');
+        
+        // Prevent text selection during resize
+        document.addEventListener('selectstart', preventDefault);
+      });
+    });
+
+    const preventDefault = (e) => e.preventDefault();
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing || !currentHandle) return;
+      
+      e.preventDefault();
+      
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      const direction = currentHandle.dataset.direction;
+      
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      let newTop = startTop;
+      let newLeft = startLeft;
+      
+      // Handle different resize directions
+      switch (direction) {
+        case 'n':
+          newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight - deltaY));
+          newTop = startTop + (startHeight - newHeight);
+          break;
+        case 's':
+          newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + deltaY));
+          break;
+        case 'e':
+          newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
+          break;
+        case 'w':
+          newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth - deltaX));
+          newLeft = startLeft + (startWidth - newWidth);
+          break;
+        case 'ne':
+          newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
+          newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight - deltaY));
+          newTop = startTop + (startHeight - newHeight);
+          break;
+        case 'nw':
+          newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth - deltaX));
+          newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight - deltaY));
+          newTop = startTop + (startHeight - newHeight);
+          newLeft = startLeft + (startWidth - newWidth);
+          break;
+        case 'se':
+          newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + deltaX));
+          newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + deltaY));
+          break;
+        case 'sw':
+          newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth - deltaX));
+          newHeight = Math.max(minHeight, Math.min(maxHeight, startHeight + deltaY));
+          newLeft = startLeft + (startWidth - newWidth);
+          break;
+      }
+      
+      // Apply the new dimensions and position
+      panel.style.setProperty('width', `${newWidth}px`, 'important');
+      panel.style.setProperty('height', `${newHeight}px`, 'important');
+      panel.style.setProperty('top', `${newTop}px`, 'important');
+      panel.style.setProperty('left', `${newLeft}px`, 'important');
+      panel.style.setProperty('right', 'auto', 'important');
+      panel.style.setProperty('max-height', 'none', 'important');
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        currentHandle = null;
+        
+        // Remove visual feedback
+        panel.style.removeProperty('user-select');
+        document.body.style.removeProperty('user-select');
+        document.body.style.removeProperty('cursor');
+        
+        // Re-enable text selection
+        document.removeEventListener('selectstart', preventDefault);
+      }
+    });
+
+    // Handle window resize to keep panel within bounds
+    window.addEventListener('resize', () => {
+      const rect = panel.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      let needsUpdate = false;
+      let newLeft = rect.left;
+      let newTop = rect.top;
+      let newWidth = rect.width;
+      let newHeight = rect.height;
+      
+      // Keep panel within viewport bounds
+      if (rect.right > viewportWidth) {
+        newLeft = Math.max(0, viewportWidth - rect.width);
+        needsUpdate = true;
+      }
+      if (rect.bottom > viewportHeight) {
+        newTop = Math.max(0, viewportHeight - rect.height);
+        needsUpdate = true;
+      }
+      if (rect.left < 0) {
+        newLeft = 0;
+        needsUpdate = true;
+      }
+      if (rect.top < 0) {
+        newTop = 0;
+        needsUpdate = true;
+      }
+      
+      // Ensure panel doesn't exceed viewport size
+      if (rect.width > viewportWidth * 0.9) {
+        newWidth = viewportWidth * 0.9;
+        needsUpdate = true;
+      }
+      if (rect.height > viewportHeight * 0.9) {
+        newHeight = viewportHeight * 0.9;
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
+        panel.style.setProperty('left', `${newLeft}px`, 'important');
+        panel.style.setProperty('top', `${newTop}px`, 'important');
+        panel.style.setProperty('width', `${newWidth}px`, 'important');
+        panel.style.setProperty('height', `${newHeight}px`, 'important');
+        panel.style.setProperty('right', 'auto', 'important');
+      }
+    });
   }
 
   setupChatGPTEventListeners(panel, parsedData) {
@@ -1807,10 +2089,23 @@ class AdvancedPromptEnhancer {
           <button id="promptok-chatgpt-minimize-error" class="primary">Minimize</button>
         </div>
       </div>
+      
+      <!-- Resize handles -->
+      <div class="promptok-resize-handle promptok-resize-n" data-direction="n"></div>
+      <div class="promptok-resize-handle promptok-resize-s" data-direction="s"></div>
+      <div class="promptok-resize-handle promptok-resize-e" data-direction="e"></div>
+      <div class="promptok-resize-handle promptok-resize-w" data-direction="w"></div>
+      <div class="promptok-resize-handle promptok-resize-ne" data-direction="ne"></div>
+      <div class="promptok-resize-handle promptok-resize-nw" data-direction="nw"></div>
+      <div class="promptok-resize-handle promptok-resize-se" data-direction="se"></div>
+      <div class="promptok-resize-handle promptok-resize-sw" data-direction="sw"></div>
     `;
 
     this.addChatGPTStyles(panel);
     document.body.appendChild(panel);
+
+    // Add resize functionality
+    this.makeResizable(panel);
 
     // Add minimize listeners
     const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
@@ -1860,10 +2155,23 @@ class AdvancedPromptEnhancer {
           <button id="promptok-chatgpt-minimize-auth" class="secondary">Minimize</button>
         </div>
       </div>
+      
+      <!-- Resize handles -->
+      <div class="promptok-resize-handle promptok-resize-n" data-direction="n"></div>
+      <div class="promptok-resize-handle promptok-resize-s" data-direction="s"></div>
+      <div class="promptok-resize-handle promptok-resize-e" data-direction="e"></div>
+      <div class="promptok-resize-handle promptok-resize-w" data-direction="w"></div>
+      <div class="promptok-resize-handle promptok-resize-ne" data-direction="ne"></div>
+      <div class="promptok-resize-handle promptok-resize-nw" data-direction="nw"></div>
+      <div class="promptok-resize-handle promptok-resize-se" data-direction="se"></div>
+      <div class="promptok-resize-handle promptok-resize-sw" data-direction="sw"></div>
     `;
 
     this.addChatGPTStyles(panel);
     document.body.appendChild(panel);
+
+    // Add resize functionality
+    this.makeResizable(panel);
 
     // Add event listeners
     const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
@@ -1920,10 +2228,23 @@ class AdvancedPromptEnhancer {
           <button id="promptok-chatgpt-minimize-limit" class="secondary">Minimize</button>
         </div>
       </div>
+      
+      <!-- Resize handles -->
+      <div class="promptok-resize-handle promptok-resize-n" data-direction="n"></div>
+      <div class="promptok-resize-handle promptok-resize-s" data-direction="s"></div>
+      <div class="promptok-resize-handle promptok-resize-e" data-direction="e"></div>
+      <div class="promptok-resize-handle promptok-resize-w" data-direction="w"></div>
+      <div class="promptok-resize-handle promptok-resize-ne" data-direction="ne"></div>
+      <div class="promptok-resize-handle promptok-resize-nw" data-direction="nw"></div>
+      <div class="promptok-resize-handle promptok-resize-se" data-direction="se"></div>
+      <div class="promptok-resize-handle promptok-resize-sw" data-direction="sw"></div>
     `;
 
     this.addChatGPTStyles(panel);
     document.body.appendChild(panel);
+
+    // Add resize functionality
+    this.makeResizable(panel);
 
     // Add event listeners
     const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
