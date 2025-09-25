@@ -1121,7 +1121,7 @@ class AdvancedPromptEnhancer {
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>✨ Enhancing...</h4>
-        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+        <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
       </div>
       <div class="promptok-chatgpt-content">
         <div class="loading-spinner"></div>
@@ -1133,14 +1133,26 @@ class AdvancedPromptEnhancer {
     panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
     document.body.appendChild(panel);
 
-    // Add close listener
-    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
-    closeBtn.addEventListener('click', () => this.closeOverlay());
+    // Add minimize listener
+    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
+    minimizeBtn.addEventListener('click', () => this.minimizeChatGPTOverlay(panel));
 
-    // Close on Escape key
+    // Auto-minimize when clicking outside the panel
+    const outsideClickHandler = (e) => {
+      if (!panel.contains(e.target)) {
+        this.minimizeChatGPTOverlay(panel);
+        document.removeEventListener('click', outsideClickHandler);
+      }
+    };
+    // Add slight delay to prevent immediate triggering
+    setTimeout(() => {
+      document.addEventListener('click', outsideClickHandler);
+    }, 100);
+
+    // Minimize on Escape key
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.closeOverlay();
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
@@ -1183,7 +1195,6 @@ class AdvancedPromptEnhancer {
             </div>
           </div>
           <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
-          <button class="promptok-chatgpt-close" aria-label="Close">×</button>
         </div>
       </div>
 
@@ -1321,8 +1332,7 @@ class AdvancedPromptEnhancer {
       .font-scale-controls .font-decrease:hover,
       .font-scale-controls .font-increase:hover { background: rgba(255,255,255,0.12) !important; border-color: rgba(255,255,255,0.2) !important; }
 
-      .promptok-chatgpt-minimize,
-      .promptok-chatgpt-close {
+      .promptok-chatgpt-minimize {
         color: rgba(255, 255, 255, 0.8) !important;
         background: rgba(196, 132, 252, 0.1) !important;
         border: 1px solid rgba(196, 132, 252, 0.2) !important;
@@ -1340,8 +1350,7 @@ class AdvancedPromptEnhancer {
         -webkit-backdrop-filter: blur(10px) !important;
       }
 
-      .promptok-chatgpt-minimize:hover,
-      .promptok-chatgpt-close:hover {
+      .promptok-chatgpt-minimize:hover {
         background: rgba(196, 132, 252, 0.2) !important;
         color: white !important;
         transform: translateY(-1px) scale(1.05) !important;
@@ -1630,13 +1639,21 @@ class AdvancedPromptEnhancer {
   }
 
   setupChatGPTEventListeners(panel, parsedData) {
-    // Close button
-    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
-    closeBtn.addEventListener('click', () => this.closeOverlay());
-
     // Minimize button
     const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
     minimizeBtn.addEventListener('click', () => this.minimizeChatGPTOverlay(panel));
+
+    // Auto-minimize when clicking outside the panel
+    const outsideClickHandler = (e) => {
+      if (!panel.contains(e.target)) {
+        this.minimizeChatGPTOverlay(panel);
+        document.removeEventListener('click', outsideClickHandler);
+      }
+    };
+    // Add slight delay to prevent immediate triggering
+    setTimeout(() => {
+      document.addEventListener('click', outsideClickHandler);
+    }, 100);
 
     // Font scale controls
     const controlsWrap = panel.querySelector('.font-scale-controls');
@@ -1724,10 +1741,10 @@ class AdvancedPromptEnhancer {
     // Update button text based on current selections
     this.updateChatGPTButtonText(panel);
 
-    // Close on Escape key
+    // Minimize on Escape key
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.closeOverlay();
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
@@ -1780,14 +1797,14 @@ class AdvancedPromptEnhancer {
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚠️ Enhancement Error</h4>
-        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+        <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
       </div>
       <div class="promptok-chatgpt-content">
         <div class="error-message">
           <p>${message}</p>
         </div>
         <div class="promptok-chatgpt-actions">
-          <button id="promptok-chatgpt-close-error" class="primary">Close</button>
+          <button id="promptok-chatgpt-minimize-error" class="primary">Minimize</button>
         </div>
       </div>
     `;
@@ -1795,17 +1812,28 @@ class AdvancedPromptEnhancer {
     this.addChatGPTStyles(panel);
     document.body.appendChild(panel);
 
-    // Add close listeners
-    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
-    const closeErrorBtn = panel.querySelector('#promptok-chatgpt-close-error');
+    // Add minimize listeners
+    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
+    const minimizeErrorBtn = panel.querySelector('#promptok-chatgpt-minimize-error');
 
-    const closeHandler = () => this.closeOverlay();
-    closeBtn.addEventListener('click', closeHandler);
-    closeErrorBtn.addEventListener('click', closeHandler);
+    const minimizeHandler = () => this.minimizeChatGPTOverlay(panel);
+    minimizeBtn.addEventListener('click', minimizeHandler);
+    minimizeErrorBtn.addEventListener('click', minimizeHandler);
+
+    // Auto-minimize when clicking outside the panel
+    const outsideClickHandler = (e) => {
+      if (!panel.contains(e.target)) {
+        this.minimizeChatGPTOverlay(panel);
+        document.removeEventListener('click', outsideClickHandler);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', outsideClickHandler);
+    }, 100);
 
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.closeOverlay();
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
@@ -1820,7 +1848,7 @@ class AdvancedPromptEnhancer {
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>🔒 Login Required</h4>
-        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+        <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
       </div>
       <div class="promptok-chatgpt-content">
         <div class="error-message">
@@ -1829,7 +1857,7 @@ class AdvancedPromptEnhancer {
         </div>
         <div class="promptok-chatgpt-actions">
           <button id="promptok-chatgpt-login" class="primary">Log In</button>
-          <button id="promptok-chatgpt-close-auth" class="secondary">Close</button>
+          <button id="promptok-chatgpt-minimize-auth" class="secondary">Minimize</button>
         </div>
       </div>
     `;
@@ -1838,13 +1866,24 @@ class AdvancedPromptEnhancer {
     document.body.appendChild(panel);
 
     // Add event listeners
-    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
     const loginBtn = panel.querySelector('#promptok-chatgpt-login');
-    const closeAuthBtn = panel.querySelector('#promptok-chatgpt-close-auth');
+    const minimizeAuthBtn = panel.querySelector('#promptok-chatgpt-minimize-auth');
 
-    const closeHandler = () => this.closeOverlay();
-    closeBtn.addEventListener('click', closeHandler);
-    closeAuthBtn.addEventListener('click', closeHandler);
+    const minimizeHandler = () => this.minimizeChatGPTOverlay(panel);
+    minimizeBtn.addEventListener('click', minimizeHandler);
+    minimizeAuthBtn.addEventListener('click', minimizeHandler);
+
+    // Auto-minimize when clicking outside the panel
+    const outsideClickHandler = (e) => {
+      if (!panel.contains(e.target)) {
+        this.minimizeChatGPTOverlay(panel);
+        document.removeEventListener('click', outsideClickHandler);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', outsideClickHandler);
+    }, 100);
 
     loginBtn.addEventListener('click', () => {
       // Redirect to login page
@@ -1854,7 +1893,7 @@ class AdvancedPromptEnhancer {
 
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.closeOverlay();
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
@@ -1869,7 +1908,7 @@ class AdvancedPromptEnhancer {
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚡ Enhancement Limit Reached</h4>
-        <button class="promptok-chatgpt-close" aria-label="Close">×</button>
+        <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
       </div>
       <div class="promptok-chatgpt-content">
         <div class="error-message">
@@ -1878,7 +1917,7 @@ class AdvancedPromptEnhancer {
         </div>
         <div class="promptok-chatgpt-actions">
           <button id="promptok-chatgpt-upgrade" class="primary">Upgrade Subscription</button>
-          <button id="promptok-chatgpt-close-limit" class="secondary">Close</button>
+          <button id="promptok-chatgpt-minimize-limit" class="secondary">Minimize</button>
         </div>
       </div>
     `;
@@ -1887,13 +1926,24 @@ class AdvancedPromptEnhancer {
     document.body.appendChild(panel);
 
     // Add event listeners
-    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
     const upgradeBtn = panel.querySelector('#promptok-chatgpt-upgrade');
-    const closeLimitBtn = panel.querySelector('#promptok-chatgpt-close-limit');
+    const minimizeLimitBtn = panel.querySelector('#promptok-chatgpt-minimize-limit');
 
-    const closeHandler = () => this.closeOverlay();
-    closeBtn.addEventListener('click', closeHandler);
-    closeLimitBtn.addEventListener('click', closeHandler);
+    const minimizeHandler = () => this.minimizeChatGPTOverlay(panel);
+    minimizeBtn.addEventListener('click', minimizeHandler);
+    minimizeLimitBtn.addEventListener('click', minimizeHandler);
+
+    // Auto-minimize when clicking outside the panel
+    const outsideClickHandler = (e) => {
+      if (!panel.contains(e.target)) {
+        this.minimizeChatGPTOverlay(panel);
+        document.removeEventListener('click', outsideClickHandler);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', outsideClickHandler);
+    }, 100);
 
     upgradeBtn.addEventListener('click', () => {
       // Redirect to purchase page
@@ -1903,7 +1953,7 @@ class AdvancedPromptEnhancer {
 
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.closeOverlay();
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
@@ -2080,7 +2130,7 @@ class AdvancedPromptEnhancer {
     const escHandler = (e) => {
       try {
         if (e.key === 'Escape') {
-          this.closeOverlay();
+          this.minimizeChatGPTOverlay(panel);
         }
       } catch (_) { /* ignore */ }
     };
@@ -2644,7 +2694,7 @@ class AdvancedPromptEnhancer {
     // Create element first; we'll position after we ensure the input and sibling button
     const minimizedBtn = document.createElement('div');
     minimizedBtn.className = this.minimizedButtonClass;
-    minimizedBtn.innerHTML = `✨`;
+    minimizedBtn.innerHTML = `✨<span class="minimized-count"></span>`;
     minimizedBtn.title = `PromptOK enhancer (${this.selectedOptions.size} options selected)`;
     minimizedBtn.setAttribute('role', 'button');
     minimizedBtn.setAttribute('aria-label', 'Open PromptOK enhancement panel');
@@ -2652,6 +2702,8 @@ class AdvancedPromptEnhancer {
     document.body.appendChild(minimizedBtn);
     // Add styles
     this.addMinimizedButtonStyles(minimizedBtn);
+    // Initialize badge count visibility/value
+    this.updateMinimizedButtonCount();
     
     ensureInput().then((resolvedInput) => {
       if (!resolvedInput) return;
@@ -2681,6 +2733,108 @@ class AdvancedPromptEnhancer {
     });
     
     this.debugLog('Minimized button created and added to DOM');
+  }
+
+  addMinimizedButtonStyles(minimizedBtn) {
+    try {
+      // Base button styles
+      minimizedBtn.style.width = '36px';
+      minimizedBtn.style.height = '36px';
+      minimizedBtn.style.borderRadius = '999px';
+      minimizedBtn.style.background = 'rgba(147, 51, 234, 0.15)';
+      minimizedBtn.style.border = '1px solid rgba(196, 132, 252, 0.35)';
+      minimizedBtn.style.backdropFilter = 'blur(10px)';
+      minimizedBtn.style.webkitBackdropFilter = 'blur(10px)';
+      minimizedBtn.style.display = 'flex';
+      minimizedBtn.style.alignItems = 'center';
+      minimizedBtn.style.justifyContent = 'center';
+      minimizedBtn.style.color = '#e9d5ff';
+      minimizedBtn.style.fontSize = '18px';
+      minimizedBtn.style.boxShadow = '0 8px 24px rgba(147, 51, 234, 0.3)';
+      minimizedBtn.style.cursor = 'pointer';
+      minimizedBtn.style.userSelect = 'none';
+      minimizedBtn.style.transition = 'transform .15s ease, box-shadow .15s ease, background .15s ease';
+      minimizedBtn.addEventListener('mouseenter', () => {
+        minimizedBtn.style.transform = 'translateY(-1px) scale(1.03)';
+        minimizedBtn.style.boxShadow = '0 10px 28px rgba(147, 51, 234, 0.4)';
+        minimizedBtn.style.background = 'rgba(147, 51, 234, 0.22)';
+      });
+      minimizedBtn.addEventListener('mouseleave', () => {
+        minimizedBtn.style.transform = 'none';
+        minimizedBtn.style.boxShadow = '0 8px 24px rgba(147, 51, 234, 0.3)';
+        minimizedBtn.style.background = 'rgba(147, 51, 234, 0.15)';
+      });
+
+      // Badge styles via CSS once
+      const styleId = 'promptok-minimized-button-styles';
+      if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+          .${this.minimizedButtonClass} {
+            z-index: 9999;
+          }
+          .${this.minimizedButtonClass} .minimized-count {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #8b5cf6;
+            color: white;
+            display: none;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
+      // Ensure the count element exists
+      if (!minimizedBtn.querySelector('.minimized-count')) {
+        const count = document.createElement('span');
+        count.className = 'minimized-count';
+        minimizedBtn.appendChild(count);
+      }
+    } catch (err) {
+      this.debugLog('Failed to apply minimized button styles:', err);
+    }
+  }
+
+  positionMinimizedButton(input, minimizedBtn, options = {}) {
+    if (!input || !minimizedBtn) return;
+    
+    try {
+      const { siblingButton } = options;
+      const inputRect = input.getBoundingClientRect();
+      
+      // Find the enhance button for this input
+      const inputId = input.getAttribute('data-promptok-id');
+      const enhanceBtn = siblingButton || document.querySelector(`.${this.buttonClass}[data-input-id="${inputId}"]`);
+      
+      if (enhanceBtn) {
+        // Position next to the enhance button
+        const btnRect = enhanceBtn.getBoundingClientRect();
+        minimizedBtn.style.position = 'fixed';
+        minimizedBtn.style.left = `${btnRect.right + 8}px`;
+        minimizedBtn.style.top = `${btnRect.top}px`;
+        minimizedBtn.style.zIndex = '9999';
+      } else {
+        // Fallback: position near the input field
+        minimizedBtn.style.position = 'fixed';
+        minimizedBtn.style.left = `${inputRect.right - 40}px`;
+        minimizedBtn.style.top = `${inputRect.top - 40}px`;
+        minimizedBtn.style.zIndex = '9999';
+      }
+    } catch (error) {
+      this.debugLog('Error positioning minimized button:', error);
+    }
   }
 
   restoreOverlay() {
