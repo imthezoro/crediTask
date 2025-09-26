@@ -8,6 +8,16 @@ import { z } from 'zod';
 import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
 
+// Define a safe type for errors returned by the edge function
+type EdgeFunctionError = {
+  message?: string;
+  error?: string;
+  provider?: string;
+  provider_status?: number | string;
+  provider_status_text?: string;
+  provider_response?: unknown;
+};
+
 // Handle preflight OPTIONS requests
 export async function OPTIONS(request: NextRequest) {
   return corsEmpty(200, request);
@@ -160,15 +170,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (!edgeResponse.ok) {
-      const errorData = await edgeResponse.json().catch(() => ({ error: 'Edge function error' }));
+      const rawError = (await edgeResponse.json().catch(() => ({ error: 'Edge function error' }))) as unknown;
+      const errorData: EdgeFunctionError = typeof rawError === 'object' && rawError !== null
+        ? (rawError as EdgeFunctionError)
+        : { error: 'Edge function error' };
       console.error('[extension/enhance] Edge function failed:', {
         status: edgeResponse.status,
         statusText: edgeResponse.statusText,
         error: errorData,
-        provider: (errorData as any).provider,
-        provider_status: (errorData as any).provider_status,
-        provider_status_text: (errorData as any).provider_status_text,
-        provider_response: (errorData as any).provider_response,
+        provider: errorData.provider,
+        provider_status: errorData.provider_status,
+        provider_status_text: errorData.provider_status_text,
+        provider_response: errorData.provider_response,
       });
 
       // //Remove the if case in prod to remove the hardcoded resposne
@@ -231,11 +244,11 @@ export async function POST(request: NextRequest) {
       return createCorsResponse(
         {
           error: 'ENHANCEMENT_FAILED',
-          message: (errorData as any).message || (errorData as any).error || 'Enhancement service unavailable',
-          provider: (errorData as any).provider,
-          provider_status: (errorData as any).provider_status,
-          provider_status_text: (errorData as any).provider_status_text,
-          provider_response: (errorData as any).provider_response,
+          message: errorData.message || errorData.error || 'Enhancement service unavailable',
+          provider: errorData.provider,
+          provider_status: errorData.provider_status,
+          provider_status_text: errorData.provider_status_text,
+          provider_response: errorData.provider_response,
         },
         edgeResponse.status,
         request
