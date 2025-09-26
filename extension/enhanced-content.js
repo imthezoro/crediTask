@@ -2148,15 +2148,31 @@ class AdvancedPromptEnhancer {
   }
 
   closeErrorOverlay(panel) {
-    this.debugLog('Closing error overlay');
-    
-    // Simply remove the panel without preserving any state
-    panel.style.opacity = '0';
-    
-    setTimeout(() => {
+    if (panel && panel.parentNode) {
       panel.remove();
-      this.debugLog('Error overlay closed');
-    }, 400);
+    }
+  }
+
+  autoFadeErrorOverlay(panel) {
+    if (!panel || !panel.parentNode) return;
+    
+    // Gradually increase transparency over time - faster fade
+    let opacity = 1.0;
+    const fadeStep = 0.1; // Decrease opacity by 10% each step (faster)
+    const fadeInterval = 50; // Every 50ms (more frequent)
+    
+    const fadeTimer = setInterval(() => {
+      opacity -= fadeStep;
+      
+      if (opacity <= 0) {
+        // Fully transparent, just remove without slide animation
+        this.closeErrorOverlay(panel);
+        clearInterval(fadeTimer);
+      } else {
+        // Gradually fade out
+        panel.style.setProperty('opacity', opacity.toString(), 'important');
+      }
+    }, fadeInterval);
   }
 
   showSuccessChatGPT(message) {
@@ -2236,6 +2252,11 @@ class AdvancedPromptEnhancer {
       }
     };
     document.addEventListener('keydown', escHandler, { once: true });
+
+    // Auto-fade and close after 0.8 seconds
+    setTimeout(() => {
+      this.autoFadeErrorOverlay(panel);
+    }, 800);
   }
 
   showAuthErrorChatGPT() {
