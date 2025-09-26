@@ -126,6 +126,64 @@ export async function POST(request: NextRequest) {
         provider_status_text: (errorData as any).provider_status_text,
         provider_response: (errorData as any).provider_response,
       });
+
+      //Remove the if case in prod to remove the hardcoded resposne
+      // If usage limit (403) is returned by the edge function, provide a simple mock response for testing.
+      if (edgeResponse.status === 403) {
+        // Original error return preserved below for later re-enable if needed:
+        // return createCorsResponse(
+        //   {
+        //     error: 'ENHANCEMENT_FAILED',
+        //     message: (errorData as any).message || (errorData as any).error || 'Enhancement service unavailable',
+        //     provider: (errorData as any).provider,
+        //     provider_status: (errorData as any).provider_status,
+        //     provider_status_text: (errorData as any).provider_status_text,
+        //     provider_response: (errorData as any).provider_response,
+        //   },
+        //   edgeResponse.status,
+        //   request
+        // );
+
+        const mockEnhancedText = `Refined Prompt\n\nPlease improve the following prompt to be clear, specific, and ready to run. Keep the original intent.\n\nOriginal:\n"""\n${sanitizedPrompt}\n"""\n\nReturn the final improved prompt only.`;
+
+        const mockStructured = {
+          enhanced_prompt: `Improve the prompt for clarity and specificity.\n\nOriginal:\n"""\n${sanitizedPrompt}\n"""\n\nReturn a single finalized prompt line.`,
+          display_excerpt: 'Mock: simple refinement with minimal options.',
+          assumption_groups: [
+            {
+              group_id: 'S1',
+              title: 'Tone',
+              description: 'Select a tone',
+              input_type: 'radio',
+              options: [
+                { option_id: 'S1_O1', label: 'Professional', short: 'Neutral, business-like', append_snippet: 'Use a professional, neutral tone.' },
+                { option_id: 'S1_O2', label: 'Friendly', short: 'Approachable', append_snippet: 'Use a friendly, approachable tone.' }
+              ]
+            },
+            {
+              group_id: 'S2',
+              title: 'Format',
+              description: 'Choose output style',
+              input_type: 'radio',
+              options: [
+                { option_id: 'S2_O1', label: 'Bullets', short: 'Headings + bullets', append_snippet: 'Structure with brief headings and bullet points.' },
+                { option_id: 'S2_O2', label: 'Single paragraph', short: 'Compact text', append_snippet: 'Provide a single concise paragraph.' }
+              ]
+            }
+          ],
+          combination_snippets: []
+        };
+
+        return createCorsResponse({
+          success: true,
+          enhancedPrompt: mockEnhancedText.trim(),
+          structuredData: mockStructured,
+          // usageCount unknown from edge in this path; omit or set to undefined
+          mock: true,
+          note: 'Mock response returned due to edge 403 (testing mode)'
+        }, 200, request);
+      }
+
       return createCorsResponse(
         {
           error: 'ENHANCEMENT_FAILED',
