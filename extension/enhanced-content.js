@@ -1383,6 +1383,42 @@ class AdvancedPromptEnhancer {
         box-shadow: 0 4px 16px rgba(196, 132, 252, 0.3) !important;
       }
 
+      /* Close button: reduced by 15% from 34px */
+      .promptok-chatgpt-close {
+        color: rgba(255, 255, 255, 0.9) !important;
+        background: rgba(196, 132, 252, 0.12) !important;
+        border: 1px solid rgba(196, 132, 252, 0.24) !important;
+        width: 29px !important;  /* 34px * 0.85 ≈ 28.9px */
+        height: 29px !important; /* 34px * 0.85 ≈ 28.9px */
+        border-radius: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 !important;
+        cursor: pointer !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        line-height: 0 !important; /* avoid baseline offset */
+        font-size: 0 !important; /* remove inline text metrics */
+        text-align: center !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        box-sizing: border-box !important;
+        aspect-ratio: 1 / 1 !important; /* enforce square */
+        flex: 0 0 29px !important; /* prevent stretching */
+        min-width: 29px !important; min-height: 29px !important;
+        max-width: 29px !important; max-height: 29px !important;
+        align-self: center !important;
+      }
+
+      .promptok-chatgpt-close svg { display: block !important; width: 15px !important; height: 15px !important; pointer-events: none !important; margin: 0 !important; }
+
+      .promptok-chatgpt-close:hover {
+        background: rgba(196, 132, 252, 0.22) !important;
+        color: white !important;
+        transform: translateY(-1px) scale(1.05) !important;
+        box-shadow: 0 4px 18px rgba(196, 132, 252, 0.35) !important;
+      }
+
       .promptok-chatgpt-content {
         flex: 1 !important;
         overflow-y: auto !important;
@@ -2060,6 +2096,18 @@ class AdvancedPromptEnhancer {
     }, 400);
   }
 
+  closeErrorOverlay(panel) {
+    this.debugLog('Closing error overlay');
+    
+    // Simply remove the panel without preserving any state
+    panel.style.opacity = '0';
+    
+    setTimeout(() => {
+      panel.remove();
+      this.debugLog('Error overlay closed');
+    }, 400);
+  }
+
   showSuccessChatGPT(message) {
     const panel = document.querySelector('.promptok-chatgpt-panel');
     if (!panel) return;
@@ -2079,14 +2127,18 @@ class AdvancedPromptEnhancer {
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚠️ Enhancement Error</h4>
-        <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
+        <button class="promptok-chatgpt-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
       <div class="promptok-chatgpt-content">
         <div class="error-message">
           <p>${message}</p>
         </div>
         <div class="promptok-chatgpt-actions">
-          <button id="promptok-chatgpt-minimize-error" class="primary">Minimize</button>
+          <button id="promptok-chatgpt-close-error" class="primary">Close</button>
         </div>
       </div>
       
@@ -2107,18 +2159,18 @@ class AdvancedPromptEnhancer {
     // Add resize functionality
     this.makeResizable(panel);
 
-    // Add minimize listeners
-    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
-    const minimizeErrorBtn = panel.querySelector('#promptok-chatgpt-minimize-error');
+    // Add close listeners
+    const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const closeErrorBtn = panel.querySelector('#promptok-chatgpt-close-error');
 
-    const minimizeHandler = () => this.minimizeChatGPTOverlay(panel);
-    minimizeBtn.addEventListener('click', minimizeHandler);
-    minimizeErrorBtn.addEventListener('click', minimizeHandler);
+    const closeHandler = () => this.closeErrorOverlay(panel);
+    closeBtn.addEventListener('click', closeHandler);
+    closeErrorBtn.addEventListener('click', closeHandler);
 
-    // Auto-minimize when clicking outside the panel
+    // Auto-close when clicking outside the panel
     const outsideClickHandler = (e) => {
       if (!panel.contains(e.target)) {
-        this.minimizeChatGPTOverlay(panel);
+        this.closeErrorOverlay(panel);
         document.removeEventListener('click', outsideClickHandler);
       }
     };
@@ -2128,7 +2180,7 @@ class AdvancedPromptEnhancer {
 
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.minimizeChatGPTOverlay(panel);
+        this.closeErrorOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
