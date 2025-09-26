@@ -43,6 +43,108 @@
     return button;
   }
 
+  function addChatPanelPerplexityStyles(panel) {
+    try {
+      if (!panel) return false;
+      if (panel.querySelector('style[data-promptok-panel-perplexity="1"]')) return true;
+      const style = document.createElement('style');
+      style.setAttribute('data-promptok-panel-perplexity', '1');
+      style.textContent = `
+        .promptok-chatgpt-panel {
+          background:
+            radial-gradient(1200px 600px at 8% 0%, rgba(56, 189, 248, 0.10), transparent 55%) !important,
+            radial-gradient(1000px 500px at 92% 8%, rgba(192, 132, 252, 0.12), transparent 55%) !important,
+            linear-gradient(180deg, rgba(9, 12, 22, 0.96) 0%, rgba(13, 16, 27, 0.96) 100%) !important;
+          color: #ffffff !important;
+          border: 1px solid rgba(56, 189, 248, 0.22) !important;
+          box-shadow:
+            0 25px 50px rgba(0, 0, 0, 0.6),
+            0 12px 24px rgba(56, 189, 248, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.12) !important;
+        }
+
+        .promptok-chatgpt-panel .promptok-chatgpt-header {
+          background: linear-gradient(180deg, rgba(56,189,248,0.10), rgba(56,189,248,0.06)) !important;
+          border-bottom: 1px solid rgba(56, 189, 248, 0.22) !important;
+          color: #ffffff !important;
+        }
+
+        .promptok-chatgpt-panel .promptok-chatgpt-header h4 {
+          color: #ffffff !important;
+          font-weight: 700 !important;
+          letter-spacing: -0.03em !important;
+          background: linear-gradient(135deg, #22d3ee 0%, #c084fc 50%, #60a5fa 100%) !important;
+          -webkit-background-clip: text !important;
+          -webkit-text-fill-color: transparent !important;
+          background-clip: text !important;
+          text-shadow: 0 0 20px rgba(56, 189, 248, 0.35) !important;
+        }
+
+        .promptok-chatgpt-panel .promptok-chatgpt-content {
+          color: #ffffff !important;
+        }
+
+        .promptok-chatgpt-panel .promptok-chatgpt-minimize,
+        .promptok-chatgpt-panel .promptok-chatgpt-close {
+          color: rgba(255, 255, 255, 0.8) !important;
+          background: rgba(0, 112, 243, 0.1) !important;
+          border: 1px solid rgba(0, 112, 243, 0.2) !important;
+        }
+        .promptok-chatgpt-panel .promptok-chatgpt-minimize:hover,
+        .promptok-chatgpt-panel .promptok-chatgpt-close:hover {
+          background: rgba(0, 112, 243, 0.2) !important;
+          color: #ffffff !important;
+          transform: translateY(-2px) scale(1.05);
+          box-shadow: 0 8px 24px rgba(0, 112, 243, 0.3) !important;
+        }
+
+        .promptok-chatgpt-panel .enhanced-prompt-preview {
+          background: rgba(255, 255, 255, 0.03) !important;
+          border: 1px solid rgba(0, 112, 243, 0.1) !important;
+          border-radius: 16px !important;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+        }
+        .promptok-chatgpt-panel .enhanced-prompt-preview h5 {
+          color: #ffffff !important;
+          text-shadow: 0 0 10px rgba(0, 112, 243, 0.3) !important;
+        }
+
+        .promptok-chatgpt-panel .prompt-text {
+          background: rgba(6, 10, 18, 0.5) !important;
+          border: 1px solid rgba(56, 189, 248, 0.18) !important;
+          color: #e5f4ff !important;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        .promptok-chatgpt-panel .promptok-chatgpt-actions button.primary {
+          background: linear-gradient(135deg, #22d3ee 0%, #60a5fa 100%) !important;
+          color: #0b1220 !important;
+          border: 1px solid rgba(56, 189, 248, 0.35) !important;
+          box-shadow: 0 8px 20px rgba(56, 189, 248, 0.25) !important;
+        }
+        .promptok-chatgpt-panel .promptok-chatgpt-actions button.primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 30px rgba(0, 112, 243, 0.4) !important;
+        }
+
+        .promptok-chatgpt-panel .promptok-chatgpt-actions button.secondary {
+          background: rgba(255, 255, 255, 0.05) !important;
+          color: #ffffff !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+        .promptok-chatgpt-panel .promptok-chatgpt-actions button.secondary:hover {
+          background: rgba(255, 255, 255, 0.1) !important;
+          transform: translateY(-2px);
+        }
+      `;
+      panel.appendChild(style);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function ensureTooltip(button) {
     let tip = button._promptokTooltip;
     if (!tip) {
@@ -205,6 +307,7 @@
           border: 1px solid rgba(0, 112, 243, 0.2);
           animation: slideInDark 0.5s cubic-bezier(0.16, 1, 0.3, 1);
           position: relative;
+          color: #ffffff;
         }
 
         @keyframes slideInDark {
@@ -263,53 +366,82 @@
           box-shadow: 0 6px 20px rgba(255, 59, 48, 0.3);
         }
 
-        .promptok-loading { text-align: center; padding: 40px 20px; }
+        .promptok-loading { text-align: center; padding: 32px 20px; }
 
         .loading-spinner {
           width: 40px; height: 40px;
-          border: 2px solid rgba(0, 112, 243, 0.1);
-          border-top: 2px solid #00f0ff;
-          border-right: 2px solid #667eea;
+          border: 3px solid rgba(0, 112, 243, 0.2);
+          border-top: 3px solid #0070f3;
           border-radius: 50%;
-          animation: spinNeon 1s linear infinite;
-          margin: 0 auto 20px;
-          box-shadow: 0 0 20px rgba(0, 112, 243, 0.3);
+          animation: promptokSpin 1s linear infinite;
+          margin: 0 auto 16px;
         }
 
-        @keyframes spinNeon { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes promptokSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         .promptok-actions {
-          display: flex; gap: 12px; margin-top: 24px; align-items: center;
+          display: flex; gap: 12px; margin-top: 20px; align-items: center;
         }
 
         .promptok-actions button {
-          flex: 1; padding: 12px 20px; border-radius: 12px; font-weight: 500; cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); font-size: calc(14px * var(--promptok-font-scale, 1));
-          letter-spacing: -0.025em;
+          flex: 1; padding: 12px 20px; border-radius: 12px; font-weight: 600; cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          font-size: calc(14px * var(--promptok-font-scale, 1));
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
 
         .promptok-actions button.primary {
-          background: linear-gradient(135deg, #00f0ff 0%, #667eea 100%);
-          color: #000; border: 1px solid rgba(0, 112, 243, 0.3);
-          font-weight: 600; box-shadow: 0 6px 20px rgba(0, 112, 243, 0.3);
+          background: linear-gradient(135deg, #0070f3 0%, #667eea 100%);
+          color: #ffffff;
+          border: 1px solid rgba(0, 112, 243, 0.3);
+          box-shadow: 0 8px 20px rgba(0, 112, 243, 0.25);
         }
-        .promptok-actions button.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0, 112, 243, 0.4); }
+        .promptok-actions button.primary:hover { 
+          transform: translateY(-2px);
+          box-shadow: 0 12px 30px rgba(0, 112, 243, 0.4);
+        }
 
         .promptok-actions button.copy-icon {
-          width: 40px; height: 40px; background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(0, 112, 243, 0.2); border-radius: 10px; color: #00f0ff;
-          font-size: calc(14px * var(--promptok-font-scale, 1)); display: flex; align-items: center; justify-content: center;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; flex-shrink: 0; backdrop-filter: blur(10px);
+          width: 48px; height: 48px; background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: #ffffff;
+          font-size: calc(16px * var(--promptok-font-scale, 1)); display: flex; align-items: center; justify-content: center;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; flex-shrink: 0;
+          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         }
-        .promptok-actions button.copy-icon:hover { background: rgba(0, 112, 243, 0.1); color: #00f0ff; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 112, 243, 0.3); border-color: rgba(0, 112, 243, 0.4); }
+        .promptok-actions button.copy-icon:hover { 
+          background: rgba(255, 255, 255, 0.1); 
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(255, 255, 255, 0.1);
+        }
 
-        .promptok-actions button.secondary { background: rgba(255, 255, 255, 0.05); color: #e0e0e0; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
-        .promptok-actions button.secondary:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-1px); }
+        .promptok-actions button.secondary { 
+          background: rgba(255, 255, 255, 0.05); 
+          color: #ffffff; 
+          border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+        .promptok-actions button.secondary:hover { 
+          background: rgba(255, 255, 255, 0.1); 
+          transform: translateY(-2px);
+        }
 
-        .promptok-status { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px; font-weight: 500; text-align: center; backdrop-filter: blur(10px); }
-        .promptok-status.success { background: rgba(34, 197, 94, 0.1); color: #22f055; border: 1px solid rgba(34, 197, 94, 0.2); }
+        .promptok-status { 
+          margin-top: 16px; padding: 12px 16px; border-radius: 12px; 
+          font-size: calc(13px * var(--promptok-font-scale, 1)); font-weight: 500; text-align: left; 
+          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        .promptok-status.success { 
+          background: rgba(34, 197, 94, 0.1); 
+          color: #22c55e; 
+          border: 1px solid rgba(34, 197, 94, 0.2); 
+        }
+        .promptok-status.error { 
+          background: rgba(239, 68, 68, 0.1); 
+          color: #ef4444; 
+          border: 1px solid rgba(239, 68, 68, 0.2); 
+        }
 
-        .error-message { padding: 20px 0; text-align: center; color: #ff6b6b; }
+        .error-message { padding: 16px 0; text-align: left; color: #ef4444; }
       `;
       overlay.appendChild(style);
       return true;
@@ -328,80 +460,164 @@
         .promptok-card.enhanced {
           background: linear-gradient(180deg, rgba(0, 112, 243, 0.12), rgba(0, 112, 243, 0.06));
           border: 1px solid rgba(0, 112, 243, 0.25);
-          border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.35);
-          padding: 18px; color: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+          padding: 18px;
+          color: #ffffff;
           font-size: calc(14px * var(--promptok-font-scale, 1));
         }
 
         .promptok-card.enhanced .promptok-header {
-          display: flex; justify-content: space-between; align-items: center;
-          background: rgba(147, 51, 234, 0.05); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: rgba(147, 51, 234, 0.05);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
           border-bottom: 1px solid rgba(147, 51, 234, 0.15);
-          padding: 20px 24px 16px; margin: 0;
+          padding: 20px 24px 16px;
+          margin: 0;
         }
 
         .promptok-card.enhanced .promptok-header h4 {
-          color: white; text-shadow: 0 0 20px rgba(0, 112, 243, 0.4); margin: 0;
-          font-size: calc(22px * var(--promptok-font-scale, 1)); font-weight: 700; letter-spacing: -0.03em;
+          color: white;
+          text-shadow: 0 0 20px rgba(0, 112, 243, 0.4);
+          margin: 0;
+          font-size: calc(22px * var(--promptok-font-scale, 1));
+          font-weight: 700;
+          letter-spacing: -0.03em;
           background: linear-gradient(135deg, #a855f7 0%, #ffffff 50%, #c084fc 100%);
-          -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
         }
 
         .header-controls { display: flex; gap: 10px; align-items: center; }
         .font-scale-controls { position: relative; display: inline-flex; overflow: visible; }
         .font-scale-controls .font-trigger {
-          color: rgba(255,255,255,0.9); width: 36px; height: 36px; border-radius: 999px;
-          background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-          display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;
+          color: rgba(255,255,255,0.9);
+          width: 36px; height: 36px; border-radius: 999px;
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: all 0.2s ease;
           backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
         }
         .font-scale-controls .font-trigger:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
         .font-scale-controls .font-icon { display: block; opacity: 0.9; }
         .font-scale-controls .font-popover {
-          position: absolute; top: 36px; right: 0; display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+          position: absolute; top: 36px; right: 0;
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 6px 10px;
           background: linear-gradient(135deg, rgba(196,132,252,0.12), rgba(147,51,234,0.1));
-          border: 1px solid rgba(196,132,252,0.25); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-          opacity: 0; pointer-events: none; transform: translateY(-2px); transition: opacity .15s ease, transform .15s ease; z-index: 2;
+          border: 1px solid rgba(196,132,252,0.25);
+          border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+          opacity: 0; pointer-events: none; transform: translateY(-2px);
+          transition: opacity .15s ease, transform .15s ease; z-index: 2;
         }
         .font-scale-controls:hover .font-popover,
         .font-scale-controls.open .font-popover { opacity: 1; pointer-events: auto; transform: translateY(0); }
         .font-scale-controls .font-scale-display { color: rgba(255,255,255,0.85); font-size: calc(12px * var(--promptok-font-scale, 1)); min-width: 48px; text-align: center; }
         .font-scale-controls .font-decrease,
         .font-scale-controls .font-increase {
-          color: rgba(255, 255, 255, 0.9); background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
-          width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease;
+          color: rgba(255, 255, 255, 0.9);
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.12);
+          width: 28px; height: 28px; border-radius: 999px;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: all 0.2s ease;
         }
         .font-scale-controls .font-decrease:hover,
         .font-scale-controls .font-increase:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
 
         .promptok-card.enhanced .promptok-minimize,
         .promptok-card.enhanced .promptok-close {
-          color: rgba(255, 255, 255, 0.8); background: rgba(0, 112, 243, 0.1); border: 1px solid rgba(0, 112, 243, 0.2);
-          width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
-          cursor: pointer; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); font-size: 18px; font-weight: 600; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+          color: rgba(255, 255, 255, 0.8);
+          background: rgba(0, 112, 243, 0.1);
+          border: 1px solid rgba(0, 112, 243, 0.2);
+          width: 36px;
+          height: 36px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          font-size: 18px;
+          font-weight: 600;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
+
         .promptok-card.enhanced .promptok-minimize:hover,
-        .promptok-card.enhanced .promptok-close:hover { background: rgba(0, 112, 243, 0.2); color: white; transform: translateY(-2px) scale(1.05); box-shadow: 0 8px 24px rgba(0, 112, 243, 0.3); }
+        .promptok-card.enhanced .promptok-close:hover {
+          background: rgba(0, 112, 243, 0.2);
+          color: white;
+          transform: translateY(-2px) scale(1.05);
+          box-shadow: 0 8px 24px rgba(0, 112, 243, 0.3);
+        }
 
         .enhanced-prompt-preview {
-          margin: 20px 24px; padding: 20px; background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-          border-radius: 16px; border: 1px solid rgba(0, 112, 243, 0.1);
+          margin: 20px 24px;
+          padding: 20px;
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-radius: 16px;
+          border: 1px solid rgba(0, 112, 243, 0.1);
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-          animation: previewGlow 0.5s cubic-bezier(0.16, 1, 0.3, 1); animation-delay: 0.1s; animation-fill-mode: both;
+          animation: previewGlow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+          animation-delay: 0.1s;
+          animation-fill-mode: both;
         }
-        @keyframes previewGlow { from { transform: translateY(20px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
 
-        .enhanced-prompt-preview h5 { margin: 0 0 14px 0; color: white; font-size: calc(15px * var(--promptok-font-scale, 1)); font-weight: 600; letter-spacing: -0.025em; text-shadow: 0 0 10px rgba(0, 112, 243, 0.3); }
+        @keyframes previewGlow {
+          from {
+            transform: translateY(20px) scale(0.98);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+        }
+
+        .enhanced-prompt-preview h5 {
+          margin: 0 0 14px 0;
+          color: white;
+          font-size: calc(15px * var(--promptok-font-scale, 1));
+          font-weight: 600;
+          letter-spacing: -0.025em;
+          text-shadow: 0 0 10px rgba(0, 112, 243, 0.3);
+        }
 
         .prompt-text {
-          background: rgba(0, 0, 0, 0.3); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(0, 112, 243, 0.2);
-          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace; font-size: calc(13px * var(--promptok-font-scale, 1)); line-height: 1.5; color: #00f0ff;
-          max-height: 120px; overflow-y: auto;
+          background: rgba(0, 0, 0, 0.3);
+          padding: 14px 18px;
+          border-radius: 10px;
+          border: 1px solid rgba(0, 112, 243, 0.2);
+          font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+          font-size: calc(13px * var(--promptok-font-scale, 1));
+          line-height: 1.6;
+          color: rgba(255, 255, 255, 0.95);
+          max-height: 160px;
+          overflow-y: auto;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
       `;
       overlay.appendChild(style);
       return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function addChatPanelMinimalStyles(panel) {
+    try {
+      if (!panel) return false;
+      // Unify minimal to use the exact same global ambient theme
+      // No separate minimal overrides to avoid site-specific differences.
+      return addChatPanelPerplexityStyles(panel);
     } catch (_) {
       return false;
     }
@@ -420,5 +636,7 @@
     removeOverlay,
     addOverlayStyles,
     addEnhancedStyles,
+    addChatPanelMinimalStyles,
+    addChatPanelPerplexityStyles,
   };
 })();

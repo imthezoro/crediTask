@@ -1006,6 +1006,9 @@ class AdvancedPromptEnhancer {
 
     // Create a right-side panel instead of full-screen overlay
     const panel = document.createElement('div');
+    // Create dim/blurred backdrop for ambiance
+    const backdrop = document.createElement('div');
+    backdrop.className = 'promptok-panel-backdrop';
     panel.className = 'promptok-chatgpt-panel';
     
     // Load saved panel size for this domain
@@ -1041,8 +1044,25 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    // Apply Perplexity styling if available
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+      window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
+    }
     panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
+    // Dock to right: full height from top to bottom
+    try {
+      panel.style.setProperty('top', '0', 'important');
+      panel.style.setProperty('right', '0', 'important');
+      panel.style.setProperty('bottom', '0', 'important');
+      panel.style.setProperty('left', 'auto', 'important');
+      panel.style.setProperty('height', '100vh', 'important');
+      panel.style.setProperty('max-height', 'none', 'important');
+    } catch (_) {}
+    document.body.appendChild(backdrop);
     document.body.appendChild(panel);
+
+    // Clicking backdrop minimizes the panel
+    backdrop.addEventListener('click', () => this.minimizeChatGPTOverlay(panel));
 
     // Add resize functionality
     this.makeResizable(panel);
@@ -1156,8 +1176,21 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    // Apply global ambient theme
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+      window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
+    }
     // Apply saved/user-selected font scale to container so all children inherit
     panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
+    // Dock to right: full height from top to bottom
+    try {
+      panel.style.setProperty('top', '0', 'important');
+      panel.style.setProperty('right', '0', 'important');
+      panel.style.setProperty('bottom', '0', 'important');
+      panel.style.setProperty('left', 'auto', 'important');
+      panel.style.setProperty('height', '100vh', 'important');
+      panel.style.setProperty('max-height', 'none', 'important');
+    } catch (_) {}
     document.body.appendChild(panel);
 
     // Add resize functionality
@@ -1172,16 +1205,22 @@ class AdvancedPromptEnhancer {
     style.textContent = `
       .promptok-chatgpt-panel {
         position: fixed !important;
-        top: 20px !important;
-        right: 20px !important;
+        top: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
         width: 420px !important;
-        max-height: 80vh !important;
+        max-height: none !important;
+        height: 100vh !important;
         z-index: 2147483647 !important;
         /* Base font scaling so all descendants inherit, ensures reload reflects saved zoom */
         font-size: calc(14px * var(--promptok-font-scale, 1)) !important;
-        background: linear-gradient(145deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%) !important;
-        border-left: 1px solid rgba(196, 132, 252, 0.3) !important;
-        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.8) !important;
+        /* Unified ambient theme */
+        background:
+          radial-gradient(1200px 600px at 8% 0%, rgba(56, 189, 248, 0.10), transparent 55%),
+          radial-gradient(1000px 500px at 92% 8%, rgba(192, 132, 252, 0.12), transparent 55%),
+          linear-gradient(180deg, rgba(9, 12, 22, 0.96) 0%, rgba(13, 16, 27, 0.96) 100%) !important;
+        border: 1px solid rgba(56, 189, 248, 0.22) !important;
+        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.75), 0 14px 28px rgba(56, 189, 248, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 -1px 0 rgba(0, 0, 0, 0.12) !important;
         display: flex !important;
         flex-direction: column !important;
         backdrop-filter: blur(25px) !important;
@@ -1207,8 +1246,8 @@ class AdvancedPromptEnhancer {
         justify-content: space-between !important;
         align-items: center !important;
         padding: 16px 20px !important;
-        background: rgba(196, 132, 252, 0.05) !important;
-        border-bottom: 1px solid rgba(196, 132, 252, 0.15) !important;
+        background: linear-gradient(180deg, rgba(56,189,248,0.10), rgba(56,189,248,0.06)) !important;
+        border-bottom: 1px solid rgba(56, 189, 248, 0.22) !important;
         backdrop-filter: blur(20px) !important;
         -webkit-backdrop-filter: blur(20px) !important;
         flex-shrink: 0 !important;
@@ -1220,11 +1259,11 @@ class AdvancedPromptEnhancer {
         font-size: calc(16px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
-        background: linear-gradient(135deg, #c084fc 0%, #e9d5ff 50%, #d8b4fe 100%) !important;
+        background: linear-gradient(135deg, #22d3ee 0%, #c084fc 50%, #60a5fa 100%) !important;
         -webkit-background-clip: text !important;
         -webkit-text-fill-color: transparent !important;
         background-clip: text !important;
-        text-shadow: 0 0 15px rgba(147, 51, 234, 0.3) !important;
+        text-shadow: 0 0 15px rgba(56, 189, 248, 0.35) !important;
       }
 
       .header-controls {
@@ -1337,7 +1376,7 @@ class AdvancedPromptEnhancer {
         overflow-y: auto !important;
         padding: 0 20px 20px !important;
         scrollbar-width: thin !important;
-        scrollbar-color: rgba(196, 132, 252, 0.4) transparent !important;
+        scrollbar-color: rgba(56, 189, 248, 0.4) transparent !important;
       }
 
       .promptok-chatgpt-content::-webkit-scrollbar {
@@ -1349,12 +1388,28 @@ class AdvancedPromptEnhancer {
       }
 
       .promptok-chatgpt-content::-webkit-scrollbar-thumb {
-        background: rgba(196, 132, 252, 0.4) !important;
+        background: rgba(56, 189, 248, 0.4) !important;
         border-radius: 3px !important;
       }
 
       .promptok-chatgpt-content::-webkit-scrollbar-thumb:hover {
-        background: rgba(196, 132, 252, 0.6) !important;
+        background: rgba(56, 189, 248, 0.6) !important;
+      }
+
+      /* Backdrop for panel ambiance */
+      .promptok-panel-backdrop {
+        position: fixed !important;
+        inset: 0 !important;
+        background: rgba(0, 0, 0, 0.55) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        z-index: 2147483646 !important;
+        opacity: 0;
+        animation: promptokBackdropIn 0.25s ease-out forwards;
+      }
+      @keyframes promptokBackdropIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
       }
 
       .loading-spinner {
@@ -1384,22 +1439,22 @@ class AdvancedPromptEnhancer {
         font-size: calc(14px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
         letter-spacing: -0.025em !important;
-        text-shadow: 0 0 8px rgba(147, 51, 234, 0.3) !important;
+        text-shadow: 0 0 8px rgba(56, 189, 248, 0.3) !important;
       }
 
       .prompt-text {
-        background: rgba(0, 0, 0, 0.3) !important;
+        background: rgba(6, 10, 18, 0.5) !important;
         padding: 12px 16px !important;
         border-radius: 8px !important;
-        border: 1px solid rgba(196, 132, 252, 0.2) !important;
+        border: 1px solid rgba(56, 189, 248, 0.18) !important;
         font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
         font-size: calc(12px * var(--promptok-font-scale)) !important;
         line-height: 1.4 !important;
-        color: #c084fc !important;
+        color: #e5f4ff !important;
         max-height: 100px !important;
         overflow-y: auto !important;
         box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-        text-shadow: 0 0 6px rgba(147, 51, 234, 0.4) !important;
+        text-shadow: 0 0 6px rgba(56, 189, 248, 0.25) !important;
       }
 
       .options-section h5 {
@@ -1407,7 +1462,7 @@ class AdvancedPromptEnhancer {
         color: white !important;
         font-size: calc(15px * var(--promptok-font-scale)) !important;
         font-weight: 600 !important;
-        text-shadow: 0 0 10px rgba(147, 51, 234, 0.4) !important;
+        text-shadow: 0 0 10px rgba(56, 189, 248, 0.35) !important;
         letter-spacing: -0.025em !important;
       }
 
@@ -1426,7 +1481,7 @@ class AdvancedPromptEnhancer {
         backdrop-filter: blur(20px) !important;
         -webkit-backdrop-filter: blur(20px) !important;
         border-radius: 12px !important;
-        border: 1px solid rgba(147, 51, 234, 0.1) !important;
+        border: 1px solid rgba(56, 189, 248, 0.18) !important;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
       }
 
@@ -1459,7 +1514,7 @@ class AdvancedPromptEnhancer {
         padding: 12px 16px !important;
         background: rgba(255, 255, 255, 0.05) !important;
         border-radius: 20px !important;
-        border: 1px solid rgba(196, 132, 252, 0.2) !important;
+        border: 1px solid rgba(56, 189, 248, 0.18) !important;
         cursor: pointer !important;
         transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2) !important;
@@ -1474,7 +1529,7 @@ class AdvancedPromptEnhancer {
         left: -100% !important;
         width: 100% !important;
         height: 100% !important;
-        background: linear-gradient(90deg, transparent, rgba(147, 51, 234, 0.1), transparent) !important;
+        background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.12), transparent) !important;
         transition: left 0.5s ease !important;
       }
 
@@ -1483,10 +1538,10 @@ class AdvancedPromptEnhancer {
       }
 
       .option-item:hover {
-        border-color: rgba(147, 51, 234, 0.4) !important;
-        background: rgba(147, 51, 234, 0.1) !important;
+        border-color: rgba(56, 189, 248, 0.4) !important;
+        background: rgba(56, 189, 248, 0.1) !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 4px 16px rgba(147, 51, 234, 0.2) !important;
+        box-shadow: 0 4px 16px rgba(56, 189, 248, 0.2) !important;
       }
 
       .option-item input[type="checkbox"],
@@ -1495,7 +1550,7 @@ class AdvancedPromptEnhancer {
         cursor: pointer !important;
         width: 16px !important;
         height: 16px !important;
-        accent-color: #c084fc !important;
+        accent-color: #22d3ee !important;
         flex-shrink: 0 !important;
       }
 
@@ -1512,7 +1567,7 @@ class AdvancedPromptEnhancer {
         font-size: calc(12px * var(--promptok-font-scale)) !important;
         letter-spacing: -0.025em !important;
         line-height: 1.2 !important;
-        text-shadow: 0 0 6px rgba(147, 51, 234, 0.2) !important;
+        text-shadow: 0 0 6px rgba(56, 189, 248, 0.2) !important;
       }
 
       .option-short {
@@ -1525,15 +1580,15 @@ class AdvancedPromptEnhancer {
 
       .option-item input[type="checkbox"]:checked ~ .option-content .option-label,
       .option-item input[type="radio"]:checked ~ .option-content .option-label {
-        color: #c084fc !important;
+        color: #22d3ee !important;
         font-weight: 700 !important;
-        text-shadow: 0 0 8px rgba(147, 51, 234, 0.5) !important;
+        text-shadow: 0 0 8px rgba(56, 189, 248, 0.45) !important;
       }
 
       .option-item input[type="checkbox"]:checked ~ .option-content .option-short,
       .option-item input[type="radio"]:checked ~ .option-content .option-short {
-        color: rgba(147, 51, 234, 0.8) !important;
-        text-shadow: 0 0 4px rgba(147, 51, 234, 0.3) !important;
+        color: rgba(56, 189, 248, 0.85) !important;
+        text-shadow: 0 0 4px rgba(56, 189, 248, 0.25) !important;
       }
 
       .promptok-chatgpt-actions {
@@ -1557,25 +1612,25 @@ class AdvancedPromptEnhancer {
       }
 
       .promptok-chatgpt-actions button.primary {
-        background: linear-gradient(135deg, #c084fc 0%, #e9d5ff 100%) !important;
-        color: #000 !important;
-        border: 1px solid rgba(147, 51, 234, 0.3) !important;
+        background: linear-gradient(135deg, #22d3ee 0%, #60a5fa 100%) !important;
+        color: #0b1220 !important;
+        border: 1px solid rgba(56, 189, 248, 0.35) !important;
         font-weight: 700 !important;
-        box-shadow: 0 4px 16px rgba(147, 51, 234, 0.3) !important;
+        box-shadow: 0 8px 20px rgba(56, 189, 248, 0.25) !important;
       }
 
       .promptok-chatgpt-actions button.primary:hover {
         transform: translateY(-1px) !important;
-        box-shadow: 0 6px 20px rgba(147, 51, 234, 0.4) !important;
+        box-shadow: 0 12px 30px rgba(56, 189, 248, 0.35) !important;
       }
 
       .promptok-chatgpt-actions button.copy-icon {
         width: 36px !important;
         height: 36px !important;
         background: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(196, 132, 252, 0.2) !important;
+        border: 1px solid rgba(56, 189, 248, 0.25) !important;
         border-radius: 8px !important;
-        color: #c084fc !important;
+        color: #22d3ee !important;
         font-size: calc(12px * var(--promptok-font-scale)) !important;
         display: flex !important;
         align-items: center !important;
@@ -1587,11 +1642,11 @@ class AdvancedPromptEnhancer {
       }
 
       .promptok-chatgpt-actions button.copy-icon:hover {
-        background: rgba(147, 51, 234, 0.1) !important;
-        color: #c084fc !important;
+        background: rgba(56, 189, 248, 0.12) !important;
+        color: #22d3ee !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0 4px 16px rgba(147, 51, 234, 0.3) !important;
-        border-color: rgba(147, 51, 234, 0.4) !important;
+        box-shadow: 0 4px 16px rgba(56, 189, 248, 0.25) !important;
+        border-color: rgba(56, 189, 248, 0.35) !important;
       }
 
       .promptok-chatgpt-status {
@@ -1696,7 +1751,10 @@ class AdvancedPromptEnhancer {
       }
     `;
     panel.appendChild(style);
+    return style;
   }
+
+  // (Cleanup) Removed inline ambient overrides; relying on unified CSS theme
 
   makeResizable(panel) {
     const resizeHandles = panel.querySelectorAll('.promptok-resize-handle');
@@ -2006,6 +2064,7 @@ class AdvancedPromptEnhancer {
 
     setTimeout(() => {
       panel.remove();
+      try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
       this.showMinimizedButton();
       // Persist session after minimizing
       this.saveSessionState().catch(() => {});
@@ -2017,6 +2076,7 @@ class AdvancedPromptEnhancer {
     if (panel && panel.parentNode) {
       panel.remove();
     }
+    try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
   }
 
   autoFadeErrorOverlay(panel) {
@@ -2056,7 +2116,7 @@ class AdvancedPromptEnhancer {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
-    panel.className = 'promptok-chatgpt-panel';
+    panel.className = 'promptok-chatgpt-panel promptok-panel-perplexity';
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚠️ Enhancement Error</h4>
@@ -2087,6 +2147,10 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    // Apply Perplexity styling if available
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+      window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
+    }
     document.body.appendChild(panel);
 
     // Add resize functionality
@@ -2129,7 +2193,7 @@ class AdvancedPromptEnhancer {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
-    panel.className = 'promptok-chatgpt-panel';
+    panel.className = 'promptok-chatgpt-panel promptok-panel-perplexity';
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>🔒 Login Required</h4>
@@ -2158,6 +2222,10 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    // Apply Perplexity styling if available
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+      window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
+    }
     document.body.appendChild(panel);
 
     // Add resize functionality
@@ -2202,7 +2270,7 @@ class AdvancedPromptEnhancer {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
-    panel.className = 'promptok-chatgpt-panel';
+    panel.className = 'promptok-chatgpt-panel promptok-panel-perplexity';
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚡ Enhancement Limit Reached</h4>
@@ -2231,6 +2299,10 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
+    // Apply Perplexity styling if available
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+      window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
+    }
     document.body.appendChild(panel);
 
     // Add resize functionality
@@ -2900,12 +2972,9 @@ class AdvancedPromptEnhancer {
     setTimeout(() => toast.remove(), 2500);
   }
 
-  // New: Unified enhancement options router
+  // Enhancement options router: use side panel globally (Perplexity-themed panel)
   showEnhancementOptions(parsedData) {
-    if (this.isChatGPT()) {
-      return this.showEnhancementOptionsChatGPT(parsedData);
-    }
-    return this.showEnhancementOptionsRegular(parsedData);
+    return this.showEnhancementOptionsChatGPT(parsedData);
   }
 
   // New: Non-ChatGPT enhancement overlay
