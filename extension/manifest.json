@@ -49,7 +49,18 @@
         "*://replicate.com/*",
         "*://openrouter.ai/*"
       ],
-      "js": ["env-config.js", "enhanced-content.js"],
+      "js": [
+        "env-config.js",
+        "content-scripts/content-constants.js",
+        "content-scripts/content-selectors.js",
+        "content-scripts/content-config.js",
+        "content-scripts/content-styles.js",
+        "content-scripts/content-dom.js",
+        "content-scripts/content-state.js",
+        "content-scripts/content-auth.js",
+        "content-scripts/content-ui.js",
+        "enhanced-content.js"
+      ],
       "css": ["overlay.css"],
       "run_at": "document_idle",
       "all_frames": true

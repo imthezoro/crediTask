@@ -32,22 +32,12 @@ class AdvancedPromptEnhancer {
 
     // Attach global listeners once for repositioning
     this.attachGlobalPositionListeners();
-
-    // Apply site-level classes to document for CSS targeting
-    try {
-      if (window.PromptOK_Config && window.PromptOK_Styles) {
-        const { flags } = window.PromptOK_Config.getSiteConfig(window.location && window.location.hostname);
-        window.PromptOK_Styles.applyDocumentSiteClasses(flags);
-      }
-    } catch (_) { /* ignore */ }
   }
 
   // Session persistence helpers
   async setStorageItem(key, value) {
     try {
-      if (window.PromptOK_State && typeof window.PromptOK_State.setItem === 'function') {
-        await window.PromptOK_State.setItem(key, value);
-      } else if (chrome?.storage?.local) {
+      if (chrome?.storage?.local) {
         await chrome.storage.local.set({ [key]: value });
       } else if (window.localStorage) {
         localStorage.setItem(key, JSON.stringify(value));
@@ -59,9 +49,7 @@ class AdvancedPromptEnhancer {
 
   async getStorageItem(key) {
     try {
-      if (window.PromptOK_State && typeof window.PromptOK_State.getItem === 'function') {
-        return await window.PromptOK_State.getItem(key);
-      } else if (chrome?.storage?.local) {
+      if (chrome?.storage?.local) {
         const out = await chrome.storage.local.get([key]);
         return out?.[key];
       } else if (window.localStorage) {
@@ -151,9 +139,7 @@ class AdvancedPromptEnhancer {
 
   async clearSessionState() {
     try {
-      if (window.PromptOK_State && typeof window.PromptOK_State.removeItem === 'function') {
-        await window.PromptOK_State.removeItem(this.sessionStorageKey);
-      } else if (chrome?.storage?.local) {
+      if (chrome?.storage?.local) {
         await chrome.storage.local.remove(this.sessionStorageKey);
       } else if (window.localStorage) {
         localStorage.removeItem(this.sessionStorageKey);
@@ -295,24 +281,79 @@ class AdvancedPromptEnhancer {
   }
 
   getSiteSpecificSelectors() {
-    try {
-      if (window.PromptOK_Selectors && typeof window.PromptOK_Selectors.getSiteSpecificSelectors === 'function') {
-        return window.PromptOK_Selectors.getSiteSpecificSelectors(window.location.hostname, window.location.href);
-      }
-    } catch (_) { /* ignore */ }
-    // Fallback to inline list (none) - generic selectors are appended elsewhere
-    return [];
+    const hostname = window.location.hostname;
+    const url = window.location.href;
+    const selectors = [];
+    
+    if (hostname.includes('openai.com') || hostname.includes('chatgpt.com') || url.includes('chat.openai.com')) {
+      // ChatGPT selectors - more comprehensive
+      selectors.push(
+        'textarea[data-id="root"]',
+        '#prompt-textarea',
+        'textarea[placeholder*="message" i]',
+        'textarea[placeholder*="send a message" i]',
+        'div[contenteditable="true"][data-testid="composer-text-input"]',
+        'div[contenteditable="true"][role="textbox"]',
+        'textarea'
+      );
+    } else if (hostname.includes('claude.ai')) {
+      // Claude selectors
+      selectors.push(
+        'div[contenteditable="true"][data-testid="chat-input"]',
+        'div[contenteditable="true"] p',
+        'div[contenteditable="true"][role="textbox"]'
+      );
+    } else if (hostname.includes('perplexity.ai')) {
+      // Perplexity selectors - more comprehensive
+      selectors.push(
+        'textarea[placeholder*="ask anything" i]',
+        'textarea[placeholder*="ask follow-up" i]',
+        'textarea[placeholder*="search" i]',
+        'textarea[placeholder*="ask" i]',
+        'div[contenteditable="true"]',
+        'div[role="textbox"]',
+        '[role="textbox"]',
+        // Slate/Lexical editors commonly used by Perplexity
+        '[data-slate-editor="true"]',
+        'div[contenteditable="true"][data-slate-editor="true"]',
+        'div[contenteditable="true"][data-lexical-editor]',
+        '[data-testid*="editor" i]',
+        'div[contenteditable="true"][data-testid*="search" i]',
+        'div[contenteditable="true"][aria-label*="ask" i]',
+        'textarea'
+      );
+    } else if (hostname.includes('gemini.google.com') || hostname.includes('bard.google.com')) {
+      // Gemini/Bard selectors
+      selectors.push(
+        'textarea[placeholder*="enter a prompt" i]',
+        'div[contenteditable="true"][aria-label*="message" i]',
+        'textarea[jsname]'
+      );
+    }
+    
+    return selectors;
   }
 
   // Deep query across shadow roots
   queryDeepAll(selector, root = document) {
-    try {
-      if (window.PromptOK_DOM && typeof window.PromptOK_DOM.queryDeepAll === 'function') {
-        return window.PromptOK_DOM.queryDeepAll(selector, root);
+    const out = [];
+    const traverse = (node) => {
+      try {
+        if (!node) return;
+        // Regular matches in this root
+        const matches = node.querySelectorAll ? node.querySelectorAll(selector) : [];
+        matches && matches.forEach && matches.forEach((el) => out.push(el));
+        // Traverse shadow roots
+        const tree = node.querySelectorAll ? node.querySelectorAll('*') : [];
+        tree && tree.forEach && tree.forEach((el) => {
+          if (el.shadowRoot) traverse(el.shadowRoot);
+        });
+      } catch (_) {
+        // ignore
       }
-    } catch (_) { /* ignore */ }
-    // Fallback simple query
-    try { return Array.from((root || document).querySelectorAll(selector)); } catch (_) { return []; }
+    };
+    traverse(root);
+    return out;
   }
 
   async detect() {
@@ -381,14 +422,18 @@ class AdvancedPromptEnhancer {
   }
 
   isValidInput(element) {
+    if (!element) return false;
     try {
-      if (window.PromptOK_DOM && typeof window.PromptOK_DOM.isValidInput === 'function') {
-        return window.PromptOK_DOM.isValidInput(element);
-      }
+      const style = window.getComputedStyle(element);
+      const isVisible = style.display !== 'none' && style.visibility !== 'hidden' && element.offsetWidth > 0 && element.offsetHeight > 0;
+      const isInteractable = !element.disabled && !element.readOnly;
+      const isTextarea = element.tagName === 'TEXTAREA';
+      const isContentEditable = element.getAttribute && (element.getAttribute('contenteditable') === 'true' || element.getAttribute('role') === 'textbox');
+      return isVisible && isInteractable && (isTextarea || isContentEditable);
     } catch (e) {
       this.debugLog('Error validating input:', e);
+      return false;
     }
-    return false;
   }
 
   hasEnhanceButton(input) {
@@ -438,24 +483,64 @@ class AdvancedPromptEnhancer {
   }
 
   createEnhanceButton(input) {
-    try {
-      const inputId = input.getAttribute('data-promptok-id');
-      if (window.PromptOK_UI && typeof window.PromptOK_UI.createEnhanceButton === 'function') {
-        return window.PromptOK_UI.createEnhanceButton({ inputId, zIndex: 2147483647, size: 32 });
-      }
-    } catch (_) { /* ignore */ }
-    // Fallback to basic button if UI helper unavailable
     const button = document.createElement('button');
+    // Include the generic class so stylesheet rules apply
     button.className = `${this.buttonClass} promptok-enhance-button`;
-    button.setAttribute('data-input-id', input.getAttribute('data-promptok-id'));
+    button.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L15.09 8.26L22 9L17 14.74L18.18 22L12 18.27L5.82 22L7 14.74L2 9L8.91 8.26L12 2Z" fill="currentColor"/>
+        <path d="M12 7L14.09 12.26L19 13L15 16.74L16.18 21L12 17.77L7.82 21L9 16.74L5 13L9.91 12.26L12 7Z" fill="currentColor" opacity="0.6"/>
+      </svg>
+    `;
+    // Remove default browser tooltip; keep aria-label for accessibility
+    try { button.removeAttribute('title'); } catch (_) { /* ignore */ }
+    button.setAttribute('aria-label', 'Enhance prompt with AI');
+    // Link button to specific input
+    const inputId = input.getAttribute('data-promptok-id');
+    button.setAttribute('data-input-id', inputId);
+    // Modern inline styles with glassmorphism - reverted to original 32px size
+    const s = (prop, val) => button.style.setProperty(prop, val, 'important');
+    s('position', 'absolute');
+    s('width', '32px');
+    s('height', '32px');
+    s('z-index', '2147483647');
+    s('display', 'flex');
+    s('align-items', 'center');
+    s('justify-content', 'center');
+    s('cursor', 'pointer');
+    s('border-radius', '12px');
+    s('border', '1px solid rgba(255, 255, 255, 0.15)');
+    s('background', 'linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(20, 20, 30, 0.9) 100%)');
+    s('backdrop-filter', 'blur(20px)');
+    s('box-shadow', '0 8px 24px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 112, 243, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
+    s('color', '#00f0ff');
+    s('font-size', '16px');
+    s('font-weight', '600');
+    s('transition', 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)');
+    s('line-height', '1');
+    s('text-shadow', '0 0 8px rgba(0, 112, 243, 0.6)');
+    // Position will be set by updateFloatingButtonPosition()
     return button;
   }
 
   // Toggle loading state on the floating button with tooltip support
   setButtonLoading(button, isLoading, message = 'Enhancing…') {
     try {
-      if (window.PromptOK_UI && typeof window.PromptOK_UI.setButtonLoading === 'function') {
-        return window.PromptOK_UI.setButtonLoading(button, isLoading, message);
+      if (!button) return;
+      if (isLoading) {
+        button.classList.add('loading');
+        button.setAttribute('aria-busy', 'true');
+        button.dataset.loading = 'true';
+        button.style.setProperty('pointer-events', 'auto', 'important'); // keep hover events
+        // Store tooltip text; show only on hover
+        button._promptokTooltipText = message;
+        this.updateButtonTooltip(button, '', /*show*/ false);
+      } else {
+        button.classList.remove('loading');
+        button.removeAttribute('aria-busy');
+        delete button.dataset.loading;
+        button._promptokTooltipText = '';
+        this.updateButtonTooltip(button, '', /*show*/ false);
       }
     } catch (_) { /* ignore */ }
   }
@@ -463,8 +548,19 @@ class AdvancedPromptEnhancer {
   // Ensure a tooltip element exists for the button and update its text/visibility
   updateButtonTooltip(button, text, show) {
     try {
-      if (window.PromptOK_UI && typeof window.PromptOK_UI.updateButtonTooltip === 'function') {
-        return window.PromptOK_UI.updateButtonTooltip(button, text, show);
+      let tip = button._promptokTooltip;
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.className = 'promptok-tooltip';
+        tip.textContent = '';
+        button.appendChild(tip);
+        button._promptokTooltip = tip;
+      }
+      if (typeof text === 'string') tip.textContent = text;
+      if (show) {
+        tip.classList.add('show');
+      } else {
+        tip.classList.remove('show');
       }
     } catch (_) { /* ignore */ }
   }
@@ -535,10 +631,17 @@ class AdvancedPromptEnhancer {
   // Find the closest ancestor that does NOT have scrollable overflow so the icon stays put when inner content scrolls
   findClosestNonScrollableAncestor(el) {
     try {
-      if (window.PromptOK_DOM && typeof window.PromptOK_DOM.findClosestNonScrollableAncestor === 'function') {
-        return window.PromptOK_DOM.findClosestNonScrollableAncestor(el);
+      let node = el && el.parentElement;
+      while (node && node !== document.body) {
+        const cs = window.getComputedStyle(node);
+        const overflowY = cs.overflowY;
+        const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
+        if (!isScrollable) return node;
+        node = node.parentElement;
       }
-    } catch (_) { /* ignore */ }
+    } catch (_) {
+      // ignore
+    }
     return null;
   }
 
@@ -546,8 +649,30 @@ class AdvancedPromptEnhancer {
   // to avoid being occluded by their stacking contexts.
   findGeminiAnchor(el) {
     try {
-      if (window.PromptOK_DOM && typeof window.PromptOK_DOM.findGeminiAnchor === 'function') {
-        return window.PromptOK_DOM.findGeminiAnchor(el);
+      const isToolbarish = (node) => {
+        if (!node || !node.classList) return false;
+        const cls = Array.from(node.classList).join(' ');
+        return (
+          cls.includes('leading-actions-wrapper') ||
+          cls.includes('toolbox-drawer') ||
+          cls.includes('uploader') ||
+          cls.includes('uploader-button-container')
+        );
+      };
+      let node = el && el.parentElement;
+      let lastNonScrollable = null;
+      while (node && node !== document.body) {
+        try {
+          const cs = window.getComputedStyle(node);
+          const overflowY = cs.overflowY;
+          const isScrollable = overflowY === 'auto' || overflowY === 'scroll';
+          if (!isScrollable) lastNonScrollable = node;
+          if (isToolbarish(node)) {
+            // Anchor to the first parent above toolbarish wrapper, preferring non-scrollable
+            return lastNonScrollable || node.parentElement || document.body;
+          }
+        } catch (_) { /* ignore */ }
+        node = node.parentElement;
       }
     } catch (_) { /* ignore */ }
     return null;
@@ -555,15 +680,15 @@ class AdvancedPromptEnhancer {
 
   updateFloatingButtonPosition(input, button) {
     try {
-      // Per-site offsets via config helper
-      let rightOffset = 60, bottomOffset = 12;
-      try {
-        if (window.PromptOK_Config && typeof window.PromptOK_Config.getSiteConfig === 'function') {
-          const { offsets } = window.PromptOK_Config.getSiteConfig(window.location && window.location.hostname);
-          rightOffset = offsets.right;
-          bottomOffset = offsets.bottom;
-        }
-      } catch (_) { /* ignore */ }
+      // Modern offsets with better spacing - adjusted for 32px button
+      const host = (window.location && window.location.hostname) || '';
+      const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
+      const isClaude = host.includes('claude.ai');
+      const isPerplexity = host.includes('perplexity.ai');
+      const isGemini = host.includes('gemini.google.com') || host.includes('bard.google.com');
+      // Modern site-specific offsets for better integration
+      const rightOffset = isGPT ? 100 : (isClaude ? 180 : (isPerplexity ? 60 : (isGemini ? 80 : 60)));
+      const bottomOffset = isGPT ? 12 : (isClaude ? 12 : (isPerplexity ? 12 : (isGemini ? 12 : 12)));
 
       const s = (prop, val) => button.style.setProperty(prop, val, 'important');
       s('right', `${rightOffset}px`);
@@ -797,19 +922,28 @@ class AdvancedPromptEnhancer {
 
   async getExtensionJWT() {
     try {
-      if (window.PromptOK_Auth && typeof window.PromptOK_Auth.getExtensionJWT === 'function') {
-        const response = await window.PromptOK_Auth.getExtensionJWT();
-        if (response && response.jwt) return response;
+      // Request JWT from background script
+      const response = await chrome.runtime.sendMessage({
+        type: 'GET_EXTENSION_JWT'
+      });
+
+      if (response.error) {
+        console.error('[PromptOK Content] JWT error:', response.error);
         return { jwt: null, expiresAt: null };
       }
-      // Fallback to original implementation if helper missing
-      const response = await chrome.runtime.sendMessage({ type: 'GET_EXTENSION_JWT' });
-      if (response && response.jwt) return response;
-      return { jwt: null, expiresAt: null };
+
+      if (!response.jwt) {
+        console.log('[PromptOK Content] No JWT available');
+        return { jwt: null, expiresAt: null };
+      }
+
+      return response;
     } catch (error) {
+      // Handle the specific MV3 error where the extension context becomes invalid
       const msg = (error && (error.message || String(error))) || '';
       if (typeof msg === 'string' && msg.toLowerCase().includes('extension context invalidated')) {
         console.warn('[PromptOK Content] Extension context invalidated. Please refresh the page and open the PromptOK popup once to reinitialize.');
+        // Provide a clear user-facing cue without retrying
         this.showAuthRequired();
         return { jwt: null, expiresAt: null };
       }
@@ -2849,16 +2983,10 @@ class AdvancedPromptEnhancer {
     if (this.isChatGPT()) {
       this.showSuccessChatGPT(message);
     } else {
-      // Delegate to UI helper if available
-      try {
-        if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericSuccess === 'function') {
-          window.PromptOK_UI.showGenericSuccess(message);
-          return;
-        }
-      } catch (_) { /* ignore */ }
-      // Fallback to original minimal behavior
+      // Original success implementation for other sites
       const overlay = document.querySelector('.promptok-overlay');
       if (!overlay) return;
+
       const statusEl = overlay.querySelector('.promptok-status');
       if (statusEl) {
         statusEl.textContent = message;
@@ -2872,14 +3000,22 @@ class AdvancedPromptEnhancer {
     if (this.isChatGPT()) {
       return this.showErrorChatGPT(message);
     }
-    // Delegate to UI helper if available
-    try {
-      if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericError === 'function') {
-        window.PromptOK_UI.showGenericError(message);
-        return;
+    // For non-ChatGPT pages, render error in the existing overlay if present
+    const overlay = document.querySelector('.promptok-overlay');
+    if (overlay) {
+      let statusEl = overlay.querySelector('.promptok-status');
+      if (!statusEl) {
+        const card = overlay.querySelector('.promptok-card');
+        statusEl = document.createElement('div');
+        statusEl.className = 'promptok-status';
+        if (card) card.appendChild(statusEl);
+        else overlay.appendChild(statusEl);
       }
-    } catch (_) { /* ignore */ }
-    // Fallback minimal toast
+      statusEl.textContent = `⚠️ ${message}`;
+      statusEl.className = 'promptok-status error';
+      return;
+    }
+    // Minimal toast fallback
     const toast = document.createElement('div');
     toast.textContent = `⚠️ ${message}`;
     Object.assign(toast.style, {
@@ -2914,17 +3050,8 @@ class AdvancedPromptEnhancer {
       // Remove any existing overlay
       this.removeExistingOverlay();
 
-      // Use UI helper to ensure overlay exists
-      let overlay = null;
-      try {
-        if (window.PromptOK_UI && typeof window.PromptOK_UI.ensureOverlay === 'function') {
-          overlay = window.PromptOK_UI.ensureOverlay();
-        }
-      } catch (_) { /* ignore */ }
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.className = 'promptok-overlay';
-      }
+      const overlay = document.createElement('div');
+      overlay.className = 'promptok-overlay';
 
       const optionsHTML = this.buildOptionsHTML(parsedData);
       overlay.innerHTML = `
@@ -2978,32 +3105,11 @@ class AdvancedPromptEnhancer {
         </div>
       `;
 
-      // Prefer UI helper for styles; fallback to built-in injectors
-      try {
-        const handledOverlay = (window.PromptOK_UI && typeof window.PromptOK_UI.addOverlayStyles === 'function')
-          ? window.PromptOK_UI.addOverlayStyles(overlay)
-          : false;
-        if (!handledOverlay) this.addOverlayStyles(overlay);
-      } catch (_) { this.addOverlayStyles(overlay); }
-
-      try {
-        const handledEnhanced = (window.PromptOK_UI && typeof window.PromptOK_UI.addEnhancedStyles === 'function')
-          ? window.PromptOK_UI.addEnhancedStyles(overlay)
-          : false;
-        if (!handledEnhanced) this.addEnhancedStyles(overlay);
-      } catch (_) { this.addEnhancedStyles(overlay); }
+      this.addOverlayStyles(overlay);
+      this.addEnhancedStyles(overlay);
       const card = overlay.querySelector('.promptok-card.enhanced');
       if (card) card.style.setProperty('--promptok-font-scale', String(this.fontScale));
-      // Apply site-specific classes to overlay for targeted styles
-      try {
-        if (window.PromptOK_Config && window.PromptOK_Styles) {
-          const { flags } = window.PromptOK_Config.getSiteConfig(window.location && window.location.hostname);
-          window.PromptOK_Styles.applyOverlaySiteClasses(overlay, flags);
-        }
-      } catch (_) { /* ignore */ }
-      if (!document.body.contains(overlay)) {
-        document.body.appendChild(overlay);
-      }
+      document.body.appendChild(overlay);
 
       // Wire up listeners
       this.setupEnhancedEventListeners(overlay, parsedData);
@@ -3255,15 +3361,10 @@ class AdvancedPromptEnhancer {
 
   removeExistingOverlay() {
     // Pure DOM cleanup: remove any existing overlay without touching state
-    try {
-      if (window.PromptOK_UI && typeof window.PromptOK_UI.removeOverlay === 'function') {
-        return window.PromptOK_UI.removeOverlay();
-      }
-    } catch (_) { /* ignore */ }
     const existing = document.querySelector(`.${this.overlayClass}`);
     if (existing) {
-      try { existing.style.opacity = '0'; } catch (_) {}
-      setTimeout(() => { try { existing.remove(); } catch (_) {} }, 400);
+      existing.style.opacity = '0';
+      setTimeout(() => existing.remove(), 400);
     }
   }
 

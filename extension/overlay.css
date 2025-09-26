@@ -1,4 +1,10 @@
 /* Enhance button styles - simplified and more reliable */
+/* Site-specific hooks (safe placeholders; add overrides as needed). 
+   Use CSS custom properties so the rules are non-empty and non-invasive. */
+.promptok-site-gpt { --promptok-site: gpt; }
+.promptok-site-claude { --promptok-site: claude; }
+.promptok-site-perplexity { --promptok-site: perplexity; }
+.promptok-site-gemini { --promptok-site: gemini; }
 .promptok-enhance-button {
   position: absolute !important;
   right: 8px !important;
