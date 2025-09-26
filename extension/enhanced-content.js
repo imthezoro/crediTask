@@ -62,6 +62,29 @@ class AdvancedPromptEnhancer {
     return null;
   }
 
+  // Panel size persistence helpers
+  getPanelSizeKey() {
+    const hostname = window.location.hostname;
+    return `promptok.panelSize.${hostname}`;
+  }
+
+  async savePanelSize(width, height, top, left) {
+    const key = this.getPanelSizeKey();
+    const sizeData = { width, height, top, left, timestamp: Date.now() };
+    await this.setStorageItem(key, sizeData);
+    this.debugLog('Panel size saved for', window.location.hostname, sizeData);
+  }
+
+  async loadPanelSize() {
+    const key = this.getPanelSizeKey();
+    const sizeData = await this.getStorageItem(key);
+    if (sizeData) {
+      this.debugLog('Panel size loaded for', window.location.hostname, sizeData);
+      return sizeData;
+    }
+    return null;
+  }
+
   async loadFontScale() {
     const saved = await this.getStorageItem(this.fontScaleKey);
     if (typeof saved === 'number' && isFinite(saved)) {
@@ -1112,12 +1135,24 @@ class AdvancedPromptEnhancer {
     return host.includes('chatgpt.com') || host.includes('chat.openai.com');
   }
 
-  showLoadingOverlayChatGPT() {
+  async showLoadingOverlayChatGPT() {
     this.removeExistingOverlay();
 
     // Create a right-side panel instead of full-screen overlay
     const panel = document.createElement('div');
     panel.className = 'promptok-chatgpt-panel';
+    
+    // Load saved panel size for this domain
+    const savedSize = await this.loadPanelSize();
+    if (savedSize) {
+      // Apply saved dimensions
+      panel.style.setProperty('width', `${savedSize.width}px`, 'important');
+      panel.style.setProperty('height', `${savedSize.height}px`, 'important');
+      panel.style.setProperty('top', `${savedSize.top}px`, 'important');
+      panel.style.setProperty('left', `${savedSize.left}px`, 'important');
+      panel.style.setProperty('right', 'auto', 'important');
+      panel.style.setProperty('max-height', 'none', 'important');
+    }
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>✨ Enhancing...</h4>
@@ -1172,11 +1207,23 @@ class AdvancedPromptEnhancer {
     document.addEventListener('keydown', escHandler, { once: true });
   }
 
-  showEnhancementOptionsChatGPT(parsedData) {
+  async showEnhancementOptionsChatGPT(parsedData) {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
     panel.className = 'promptok-chatgpt-panel';
+    
+    // Load saved panel size for this domain
+    const savedSize = await this.loadPanelSize();
+    if (savedSize) {
+      // Apply saved dimensions
+      panel.style.setProperty('width', `${savedSize.width}px`, 'important');
+      panel.style.setProperty('height', `${savedSize.height}px`, 'important');
+      panel.style.setProperty('top', `${savedSize.top}px`, 'important');
+      panel.style.setProperty('left', `${savedSize.left}px`, 'important');
+      panel.style.setProperty('right', 'auto', 'important');
+      panel.style.setProperty('max-height', 'none', 'important');
+    }
     panel.setAttribute('data-enhancement-data', JSON.stringify(parsedData));
 
     // Build the options UI
@@ -1895,6 +1942,10 @@ class AdvancedPromptEnhancer {
       if (isResizing) {
         isResizing = false;
         currentHandle = null;
+        
+        // Save panel size after resize
+        const rect = panel.getBoundingClientRect();
+        this.savePanelSize(rect.width, rect.height, rect.top, rect.left);
         
         // Remove visual feedback
         panel.style.removeProperty('user-select');
@@ -3210,7 +3261,7 @@ class AdvancedPromptEnhancer {
     }
   }
 
-  restoreOverlay() {
+  async restoreOverlay() {
     this.debugLog('Restoring overlay from minimized state');
     this.debugLog('Current enhancement data:', this.currentEnhancementData);
     this.debugLog('Is minimized:', this.isMinimized);
