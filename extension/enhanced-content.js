@@ -325,8 +325,7 @@ class AdvancedPromptEnhancer {
     // Note: We no longer gate the button on auth/credits here.
     // Auth/credits are checked in startEnhancement() when user clicks the button.
 
-    // Site-specific selectors with priority order
-    const siteSelectors = this.getSiteSpecificSelectors();
+    // Global selector strategy across all sites
     const genericSelectors = [
       // Most common patterns first
       'textarea[placeholder*="message" i]',
@@ -347,8 +346,9 @@ class AdvancedPromptEnhancer {
       'textarea:not([readonly]):not([disabled]):not([style*="display: none"]):not([hidden])',
       'input[type="text"]:not([readonly]):not([disabled]):not([style*="display: none"]):not([hidden])'
     ];
-    
-    const selectors = [...siteSelectors, ...genericSelectors];
+    // Use only the generic selectors for uniform behavior
+    const selectors = genericSelectors;
+    this.debugLog('Global input detection active (no site-specific selectors). Selector count:', selectors.length);
     
     // Try each selector individually for better debugging
     let input = null;
@@ -388,7 +388,28 @@ class AdvancedPromptEnhancer {
     } catch (e) {
       this.debugLog('Error validating input:', e);
     }
-    return false;
+    // Global fallback validation
+    try {
+      if (!element || !(element instanceof Element)) return false;
+      // Exclude our own UI/panel elements
+      if (element.closest && element.closest('.promptok-chatgpt-panel, .promptok-overlay, .promptok-enhance-button')) return false;
+      const tag = (element.tagName || '').toUpperCase();
+      const editable = element.isContentEditable || element.getAttribute('contenteditable') === 'true';
+      const roleTextbox = (element.getAttribute && element.getAttribute('role')) === 'textbox';
+      const isTextArea = tag === 'TEXTAREA';
+      const isTextInput = tag === 'INPUT' && element.getAttribute('type') === 'text';
+      const disabled = element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true';
+      const readonly = element.hasAttribute('readonly');
+      // Visibility check
+      const cs = window.getComputedStyle(element);
+      const visible = cs && cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+      // Basic size check
+      const rect = element.getBoundingClientRect();
+      const sizeOk = rect && rect.width >= 80 && rect.height >= 20;
+      return !disabled && !readonly && visible && sizeOk && (editable || roleTextbox || isTextArea || isTextInput);
+    } catch (_) {
+      return false;
+    }
   }
 
   hasEnhanceButton(input) {
@@ -512,23 +533,9 @@ class AdvancedPromptEnhancer {
     } catch (_) {
       // best-effort
     }
-    // Hide/show based on viewport visibility of the input (disabled for GPT to avoid disappearing on inner scroll)
+    // Global behavior: keep button always visible regardless of site/scroll state
     try {
-      const host = (window.location && window.location.hostname) || '';
-      const isGPT = host.includes('openai.com') || host.includes('chatgpt.com') || host.includes('chat.openai.com');
-      const isClaude = host.includes('claude.ai');
-      if (!(isGPT || isClaude) && window.IntersectionObserver) {
-        const io = new IntersectionObserver((entries) => {
-          const entry = entries && entries[0];
-          const visible = !!(entry && entry.isIntersecting);
-          button.style.setProperty('display', visible ? 'flex' : 'none', 'important');
-        }, { root: null, threshold: 0.2 });
-        io.observe(input);
-        button._promptokIntersectionObserver = io;
-      } else {
-        // Ensure visible on GPT/Claude
-        button.style.setProperty('display', 'flex', 'important');
-      }
+      button.style.setProperty('display', 'flex', 'important');
     } catch (_) { /* ignore */ }
   }
 
@@ -2112,6 +2119,17 @@ class AdvancedPromptEnhancer {
     }
   }
 
+  // Global wrappers to normalize error UI across all sites
+  showAuthError() {
+    // Always use ChatGPT-style auth error panel globally
+    return this.showAuthErrorChatGPT();
+  }
+
+  showRateLimitError() {
+    // Always use ChatGPT-style rate limit panel globally
+    return this.showRateLimitErrorChatGPT();
+  }
+
   showErrorChatGPT(message) {
     this.removeExistingOverlay();
 
@@ -2120,11 +2138,14 @@ class AdvancedPromptEnhancer {
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚠️ Enhancement Error</h4>
-        <button class="promptok-chatgpt-close" aria-label="Close">
-          <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-            <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
+        <div class="header-controls">
+          <button class="promptok-chatgpt-minimize" aria-label="Minimize">−</button>
+          <button class="promptok-chatgpt-close" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="promptok-chatgpt-content">
         <div class="error-message">
@@ -2156,18 +2177,21 @@ class AdvancedPromptEnhancer {
     // Add resize functionality
     this.makeResizable(panel);
 
-    // Add close listeners
+    // Add minimize/close listeners (standardized to minimize on outside/ESC)
     const closeBtn = panel.querySelector('.promptok-chatgpt-close');
+    const minimizeBtn = panel.querySelector('.promptok-chatgpt-minimize');
     const closeErrorBtn = panel.querySelector('#promptok-chatgpt-close-error');
 
+    const minimizeHandler = () => this.minimizeChatGPTOverlay(panel);
     const closeHandler = () => this.closeErrorOverlay(panel);
-    closeBtn.addEventListener('click', closeHandler);
-    closeErrorBtn.addEventListener('click', closeHandler);
+    if (minimizeBtn) minimizeBtn.addEventListener('click', minimizeHandler);
+    if (closeErrorBtn) closeErrorBtn.addEventListener('click', closeHandler);
+    if (closeBtn) closeBtn.addEventListener('click', closeHandler);
 
-    // Auto-close when clicking outside the panel
+    // Minimize when clicking outside the panel (standardized)
     const outsideClickHandler = (e) => {
       if (!panel.contains(e.target)) {
-        this.closeErrorOverlay(panel);
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('click', outsideClickHandler);
       }
     };
@@ -2177,16 +2201,11 @@ class AdvancedPromptEnhancer {
 
     const escHandler = (e) => {
       if (e.key === 'Escape') {
-        this.closeErrorOverlay(panel);
+        this.minimizeChatGPTOverlay(panel);
         document.removeEventListener('keydown', escHandler);
       }
     };
     document.addEventListener('keydown', escHandler, { once: true });
-
-    // Auto-fade and close after 0.8 seconds
-    setTimeout(() => {
-      this.autoFadeErrorOverlay(panel);
-    }, 800);
   }
 
   showAuthErrorChatGPT() {
@@ -2917,18 +2936,19 @@ class AdvancedPromptEnhancer {
   }
 
   showSuccess(message) {
-    // Check if we're on ChatGPT and use appropriate success method
-    if (this.isChatGPT()) {
+    // Always prefer the unified side-panel success UI everywhere
+    try {
       this.showSuccessChatGPT(message);
-    } else {
-      // Delegate to UI helper if available
+      return;
+    } catch (e) {
+      // Delegate to UI helper if available as a safe fallback
       try {
         if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericSuccess === 'function') {
           window.PromptOK_UI.showGenericSuccess(message);
           return;
         }
       } catch (_) { /* ignore */ }
-      // Fallback to original minimal behavior
+      // Fallback to overlay status if present
       const overlay = document.querySelector('.promptok-overlay');
       if (!overlay) return;
       const statusEl = overlay.querySelector('.promptok-status');
@@ -2941,35 +2961,37 @@ class AdvancedPromptEnhancer {
 
   // New: Unified error helper used across flows
   showError(message) {
-    if (this.isChatGPT()) {
-      return this.showErrorChatGPT(message);
-    }
-    // Delegate to UI helper if available
+    // Always prefer the unified side-panel error UI everywhere
     try {
-      if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericError === 'function') {
-        window.PromptOK_UI.showGenericError(message);
-        return;
-      }
-    } catch (_) { /* ignore */ }
-    // Fallback minimal toast
-    const toast = document.createElement('div');
-    toast.textContent = `⚠️ ${message}`;
-    Object.assign(toast.style, {
-      position: 'fixed',
-      bottom: '16px',
-      right: '16px',
-      padding: '10px 14px',
-      borderRadius: '10px',
-      background: 'rgba(255, 71, 87, 0.15)',
-      color: '#ff6b6b',
-      border: '1px solid rgba(255, 71, 87, 0.3)',
-      backdropFilter: 'blur(10px)',
-      zIndex: '2147483647',
-      fontSize: '13px',
-      boxShadow: '0 6px 20px rgba(255, 71, 87, 0.2)'
-    });
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2500);
+      return this.showErrorChatGPT(message);
+    } catch (e) {
+      // Delegate to UI helper if available as a safe fallback
+      try {
+        if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericError === 'function') {
+          window.PromptOK_UI.showGenericError(message);
+          return;
+        }
+      } catch (_) { /* ignore */ }
+      // Last-resort minimal toast
+      const toast = document.createElement('div');
+      toast.textContent = `⚠️ ${message}`;
+      Object.assign(toast.style, {
+        position: 'fixed',
+        bottom: '16px',
+        right: '16px',
+        padding: '10px 14px',
+        borderRadius: '10px',
+        background: 'rgba(255, 71, 87, 0.15)',
+        color: '#ff6b6b',
+        border: '1px solid rgba(255, 71, 87, 0.3)',
+        backdropFilter: 'blur(10px)',
+        zIndex: '2147483647',
+        fontSize: '13px',
+        boxShadow: '0 6px 20px rgba(255, 71, 87, 0.2)'
+      });
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
+    }
   }
 
   // Enhancement options router: use side panel globally (Perplexity-themed panel)
