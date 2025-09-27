@@ -43,12 +43,13 @@
     return button;
   }
 
-  function addChatPanelPerplexityStyles(panel) {
+  // Global panel theme styles (formerly Perplexity-specific). Applied across all sites.
+  function addChatPanelGlobalStyles(panel) {
     try {
       if (!panel) return false;
-      if (panel.querySelector('style[data-promptok-panel-perplexity="1"]')) return true;
+      if (panel.querySelector('style[data-promptok-panel-global="1"]')) return true;
       const style = document.createElement('style');
-      style.setAttribute('data-promptok-panel-perplexity', '1');
+      style.setAttribute('data-promptok-panel-global', '1');
       style.textContent = `
         .promptok-chatgpt-panel {
           background:
@@ -617,7 +618,7 @@
       if (!panel) return false;
       // Unify minimal to use the exact same global ambient theme
       // No separate minimal overrides to avoid site-specific differences.
-      return addChatPanelPerplexityStyles(panel);
+      return addChatPanelGlobalStyles(panel);
     } catch (_) {
       return false;
     }
@@ -637,6 +638,9 @@
     addOverlayStyles,
     addEnhancedStyles,
     addChatPanelMinimalStyles,
-    addChatPanelPerplexityStyles,
+    // Global naming used by content scripts
+    addChatPanelGlobalStyles,
+    // Backward-compatible alias (remove later if unused)
+    addChatPanelPerplexityStyles: addChatPanelGlobalStyles,
   };
 })();

@@ -294,15 +294,7 @@ class AdvancedPromptEnhancer {
     this.applyPromptToInput(testPrompt);
   }
 
-  getSiteSpecificSelectors() {
-    try {
-      if (window.PromptOK_Selectors && typeof window.PromptOK_Selectors.getSiteSpecificSelectors === 'function') {
-        return window.PromptOK_Selectors.getSiteSpecificSelectors(window.location.hostname, window.location.href);
-      }
-    } catch (_) { /* ignore */ }
-    // Fallback to inline list (none) - generic selectors are appended elsewhere
-    return [];
-  }
+  // Removed site-specific selector hook; detection is now globally consistent
 
   // Deep query across shadow roots
   queryDeepAll(selector, root = document) {
@@ -1051,8 +1043,11 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
-    // Apply Perplexity styling if available
-    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+    // Apply global panel theme styling
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelGlobalStyles === 'function') {
+      window.PromptOK_UI.addChatPanelGlobalStyles(panel);
+    } else if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+      // Backward-compat alias (to be removed later)
       window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
     }
     panel.style.setProperty('--promptok-font-scale', String(this.fontScale));
@@ -1184,7 +1179,9 @@ class AdvancedPromptEnhancer {
 
     this.addChatGPTStyles(panel);
     // Apply global ambient theme
-    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelGlobalStyles === 'function') {
+      window.PromptOK_UI.addChatPanelGlobalStyles(panel);
+    } else if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
       window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
     }
     // Apply saved/user-selected font scale to container so all children inherit
@@ -2086,27 +2083,7 @@ class AdvancedPromptEnhancer {
     try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
   }
 
-  autoFadeErrorOverlay(panel) {
-    if (!panel || !panel.parentNode) return;
-    
-    // Gradually increase transparency over time - faster fade
-    let opacity = 1.0;
-    const fadeStep = 0.1; // Decrease opacity by 10% each step (faster)
-    const fadeInterval = 50; // Every 50ms (more frequent)
-    
-    const fadeTimer = setInterval(() => {
-      opacity -= fadeStep;
-      
-      if (opacity <= 0) {
-        // Fully transparent, just remove without slide animation
-        this.closeErrorOverlay(panel);
-        clearInterval(fadeTimer);
-      } else {
-        // Gradually fade out
-        panel.style.setProperty('opacity', opacity.toString(), 'important');
-      }
-    }, fadeInterval);
-  }
+  // Removed auto-fade for errors to standardize minimize/close behavior
 
   showSuccessChatGPT(message) {
     const panel = document.querySelector('.promptok-chatgpt-panel');
@@ -2134,7 +2111,7 @@ class AdvancedPromptEnhancer {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
-    panel.className = 'promptok-chatgpt-panel promptok-panel-perplexity';
+    panel.className = 'promptok-chatgpt-panel promptok-panel-global';
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚠️ Enhancement Error</h4>
@@ -2168,8 +2145,10 @@ class AdvancedPromptEnhancer {
     `;
 
     this.addChatGPTStyles(panel);
-    // Apply Perplexity styling if available
-    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
+    // Apply global panel theme styling
+    if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelGlobalStyles === 'function') {
+      window.PromptOK_UI.addChatPanelGlobalStyles(panel);
+    } else if (window.PromptOK_UI && typeof window.PromptOK_UI.addChatPanelPerplexityStyles === 'function') {
       window.PromptOK_UI.addChatPanelPerplexityStyles(panel);
     }
     document.body.appendChild(panel);
@@ -2212,7 +2191,7 @@ class AdvancedPromptEnhancer {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
-    panel.className = 'promptok-chatgpt-panel promptok-panel-perplexity';
+    panel.className = 'promptok-chatgpt-panel promptok-panel-global';
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>🔒 Login Required</h4>
@@ -2289,7 +2268,7 @@ class AdvancedPromptEnhancer {
     this.removeExistingOverlay();
 
     const panel = document.createElement('div');
-    panel.className = 'promptok-chatgpt-panel promptok-panel-perplexity';
+    panel.className = 'promptok-chatgpt-panel promptok-panel-global';
     panel.innerHTML = `
       <div class="promptok-chatgpt-header">
         <h4>⚡ Enhancement Limit Reached</h4>
@@ -2999,110 +2978,7 @@ class AdvancedPromptEnhancer {
     return this.showEnhancementOptionsChatGPT(parsedData);
   }
 
-  // New: Non-ChatGPT enhancement overlay
-  showEnhancementOptionsRegular(parsedData) {
-    try {
-      // Remove any existing overlay
-      this.removeExistingOverlay();
-
-      // Use UI helper to ensure overlay exists
-      let overlay = null;
-      try {
-        if (window.PromptOK_UI && typeof window.PromptOK_UI.ensureOverlay === 'function') {
-          overlay = window.PromptOK_UI.ensureOverlay();
-        }
-      } catch (_) { /* ignore */ }
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.className = 'promptok-overlay';
-      }
-
-      const optionsHTML = this.buildOptionsHTML(parsedData);
-      overlay.innerHTML = `
-        <div class="promptok-card enhanced" id="promptok-enhanced-card">
-          <div class="promptok-header">
-            <h4>✨ Enhanced Prompt Ready</h4>
-            <div class="header-controls">
-              <div class="font-scale-controls" title="Text size">
-                <button class="font-trigger" aria-label="Adjust text size">
-                  <svg class="font-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2"/>
-                    <path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                </button>
-                <div class="font-popover">
-                  <button class="font-decrease" aria-label="Decrease text size">
-                    <svg class="font-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                  </button>
-                  <span class="font-scale-display">100%</span>
-                  <button class="font-increase" aria-label="Increase text size">
-                    <svg class="font-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              <button class="promptok-minimize" aria-label="Minimize" title="Minimize">−</button>
-              <button class="promptok-close" aria-label="Close">×</button>
-            </div>
-          </div>
-
-          <div class="enhanced-prompt-preview">
-            <h5>Base Enhanced Prompt:</h5>
-            <div class="prompt-text">${this.escapeHtml(parsedData.enhanced_prompt)}</div>
-          </div>
-
-          <div class="options-section">
-            <h5>Customize Your Prompt:</h5>
-            <p class="options-description">Select options to further customize your enhanced prompt</p>
-            ${optionsHTML}
-          </div>
-
-          <div class="promptok-actions">
-            <button id="promptok-apply" class="primary">Apply</button>
-            <button id="promptok-copy" class="copy-icon" title="Copy to clipboard">📋</button>
-          </div>
-
-          <div class="promptok-status"></div>
-        </div>
-      `;
-
-      // Prefer UI helper for styles; fallback to built-in injectors
-      try {
-        const handledOverlay = (window.PromptOK_UI && typeof window.PromptOK_UI.addOverlayStyles === 'function')
-          ? window.PromptOK_UI.addOverlayStyles(overlay)
-          : false;
-        if (!handledOverlay) this.addOverlayStyles(overlay);
-      } catch (_) { this.addOverlayStyles(overlay); }
-
-      try {
-        const handledEnhanced = (window.PromptOK_UI && typeof window.PromptOK_UI.addEnhancedStyles === 'function')
-          ? window.PromptOK_UI.addEnhancedStyles(overlay)
-          : false;
-        if (!handledEnhanced) this.addEnhancedStyles(overlay);
-      } catch (_) { this.addEnhancedStyles(overlay); }
-      const card = overlay.querySelector('.promptok-card.enhanced');
-      if (card) card.style.setProperty('--promptok-font-scale', String(this.fontScale));
-      // Apply site-specific classes to overlay for targeted styles
-      try {
-        if (window.PromptOK_Config && window.PromptOK_Styles) {
-          const { flags } = window.PromptOK_Config.getSiteConfig(window.location && window.location.hostname);
-          window.PromptOK_Styles.applyOverlaySiteClasses(overlay, flags);
-        }
-      } catch (_) { /* ignore */ }
-      if (!document.body.contains(overlay)) {
-        document.body.appendChild(overlay);
-      }
-
-      // Wire up listeners
-      this.setupEnhancedEventListeners(overlay, parsedData);
-    } catch (e) {
-      console.error('[PromptOK] Failed to render enhancement overlay:', e);
-      this.showError('Failed to render enhancement panel.');
-    }
-  }
+  // Removed non-ChatGPT overlay; using unified side panel for all sites
 
   applySimpleEnhancement(enhancedText) {
     const input = this.detect();
