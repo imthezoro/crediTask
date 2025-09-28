@@ -9,14 +9,11 @@ import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
 import { createAdminClient } from '@/lib/supabase-server';
 
-// Define a safe type for errors returned by the edge function
-type EdgeFunctionError = {
-  message?: string;
-  error?: string;
-  provider?: string;
-  provider_status?: number | string;
-  provider_status_text?: string;
-  provider_response?: unknown;
+// Define a type for the usage increment RPC response row
+type UsageIncrementRow = {
+  allowed?: boolean;
+  new_usage?: number;
+  quota?: number;
 };
 
 // Handle preflight OPTIONS requests
@@ -222,8 +219,8 @@ export async function POST(request: NextRequest) {
         })
         .select('id');
       if (pendingRows && Array.isArray(pendingRows) && pendingRows.length > 0) {
-        // @ts-ignore
-        sessionId = pendingRows[0]?.id ?? null;
+        const first = (pendingRows as Array<{ id: string }>)[0];
+        sessionId = first?.id ?? null;
       }
     } catch (e) {
       console.warn('[extension/enhance] Could not insert pending session', e);
@@ -383,7 +380,9 @@ Now, when you are given the user prompt, do the above.`;
       console.error('[extension/enhance] Error in increment_usage_if_allowed RPC:', rpcError);
       // continue; respect incRow.allowed if present
     }
-    const incRow = Array.isArray(incData) ? (incData as any)[0] : null;
+    const incRow: UsageIncrementRow | null = Array.isArray(incData)
+      ? (incData[0] as UsageIncrementRow)
+      : null;
     if (incRow && incRow.allowed === false) {
       try {
         if (sessionId) {

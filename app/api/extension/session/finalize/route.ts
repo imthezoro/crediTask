@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     let payload
     try {
       payload = await verifyExtensionJWT(token)
-    } catch (e) {
+    } catch {
       return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Invalid or expired token' }, 401, request)
     }
 
