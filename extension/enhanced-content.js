@@ -42,6 +42,142 @@ class AdvancedPromptEnhancer {
     } catch (_) { /* ignore */ }
   }
 
+  createHistoryButton() {
+    const b = document.createElement('button');
+    b.className = 'promptok-history-button';
+    const s = (p,v)=>b.style.setProperty(p,v,'important');
+    s('position','fixed');
+    s('width','26px'); s('height','26px');
+    s('border-radius','10px');
+    s('z-index','2147483647');
+    s('display','flex'); s('align-items','center'); s('justify-content','center');
+    s('background','rgba(0,0,0,0.75)'); s('color','#fff');
+    s('border','1px solid rgba(255,255,255,0.2)');
+    s('box-shadow','0 6px 16px rgba(0,0,0,0.35)');
+    // Hidden by default; fade/slide in on hover
+    s('opacity','0'); s('pointer-events','none');
+    s('transition','opacity .18s ease, transform .18s ease');
+    s('transform','translateX(6px)');
+    b.innerHTML = '<span style="font-size:14px; line-height:1">🕘</span>';
+    return b;
+  }
+
+  positionHistoryButtonNear(mainBtn, historyBtn){
+    if (!mainBtn || !historyBtn) return;
+    const s = (p,v)=>historyBtn.style.setProperty(p,v,'important');
+    // Robust: always anchor in viewport next to main button rect (avoids parent clipping)
+    try {
+      const updatePos = () => {
+        const rect = mainBtn.getBoundingClientRect();
+        const size = 26; // history button size
+        const gap = 12;  // visual gap between buttons
+        const left = Math.max(8, rect.left - gap - size);
+        const top = Math.max(8, rect.top + (rect.height - size) / 2);
+        s('left', `${left}px`);
+        s('top', `${top}px`);
+        s('right', 'auto'); s('bottom', 'auto');
+      };
+      // Set immediately and on scroll/resize
+      updatePos();
+      if (!historyBtn._posUpdater) {
+        historyBtn._posUpdater = updatePos;
+        window.addEventListener('scroll', updatePos, true);
+        window.addEventListener('resize', updatePos, true);
+        // Track main button size/position changes
+        if (window.ResizeObserver) {
+          const ro = new ResizeObserver(() => updatePos());
+          ro.observe(mainBtn);
+          historyBtn._posResizeObserver = ro;
+        }
+      }
+    } catch(_) { /* noop */ }
+  }
+
+  async showHistoryForCurrentChat(){
+    const jwtData = await this.getExtensionJWT();
+    if (!jwtData.jwt) { this.showAuthRequired(); return; }
+    const baseUrl = await window.promptokEnvConfig.getApiBase();
+    let chatUrl = null; try { chatUrl = window.location && window.location.href; } catch(_){ }
+    if (!chatUrl) { this.showError('Could not resolve chat URL'); return; }
+    const url = new URL(`${baseUrl}/api/extension/history`);
+    url.searchParams.set('chatUrl', chatUrl);
+    url.searchParams.set('limit', '3');
+    const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${jwtData.jwt}` } });
+    if (!res.ok) { const err = await res.json().catch(()=>({})); this.showError('Failed to load history'); console.warn(err); return; }
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    // Determine anchor rect (history button preferred)
+    let anchorRect = null;
+    try {
+      const anchorEl = this._historyButtonEl || document.querySelector('.promptok-history-button');
+      if (anchorEl) anchorRect = anchorEl.getBoundingClientRect();
+    } catch(_) { }
+    this.renderHistoryPopover(items, anchorRect);
+  }
+
+  renderHistoryPopover(items, anchorRect){
+    // Create a small floating card near the history icon
+    const pop = document.createElement('div');
+    pop.className = 'promptok-history-popover';
+    pop.setAttribute('data-history', '1');
+    const s = (p,v)=>pop.style.setProperty(p,v,'important');
+    s('position','fixed'); s('z-index','2147483647'); s('max-width','360px');
+    s('background','rgba(10,10,10,0.96)'); s('backdrop-filter','blur(12px)'); s('-webkit-backdrop-filter','blur(12px)');
+    s('border','1px solid rgba(255,255,255,0.12)'); s('border-radius','12px'); s('box-shadow','0 12px 32px rgba(0,0,0,0.45)');
+    s('padding','10px'); s('color','#fff'); s('opacity','0'); s('transform','translateY(6px)'); s('transition','opacity .18s ease, transform .18s ease');
+    pop.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:0 4px;">
+        <div style="font-weight:600; font-size:12px; opacity:.9;">History</div>
+        <button class="promptok-history-close" aria-label="Close" style="background:transparent;color:#fff;border:0;cursor:pointer;font-size:14px;">✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; max-height:40vh; overflow:auto;">
+        ${items.map(it => `
+          <div style="padding:8px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04)">
+            <div style="font-size:11px; opacity:.7; display:flex; gap:10px;">
+              <span>${(it.site||'')}</span>
+              <span>${(it.status||'')}</span>
+              <span>${(it.response_time_ms||0)}ms</span>
+              <span>${new Date(it.created_at).toLocaleString()}</span>
+            </div>
+            <div style="margin-top:6px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;">
+              ${(it.final_prompt || it.base_enhanced_prompt || '').replace(/</g,'&lt;')}
+            </div>
+          </div>
+        `).join('')}
+        ${items.length === 0 ? '<div style="opacity:.8; font-size:12px; padding:4px 6px;">No history for this chat.</div>' : ''}
+      </div>
+    `;
+    document.body.appendChild(pop);
+
+    // Position relative to anchor rect (above the history icon, centered)
+    const placePopover = () => {
+      try {
+        const rect = anchorRect || (this._historyButtonEl && this._historyButtonEl.getBoundingClientRect());
+        if (!rect) return;
+        // Measure
+        const pr = pop.getBoundingClientRect();
+        let left = rect.left + rect.width/2 - pr.width/2;
+        left = Math.max(8, Math.min(left, window.innerWidth - pr.width - 8));
+        let top = rect.top - pr.height - 8; // above icon
+        if (top < 8) { // not enough space above, place below
+          top = rect.bottom + 8;
+        }
+        s('left', `${Math.round(left)}px`);
+        s('top', `${Math.round(top)}px`);
+      } catch(_) {}
+    };
+    // First layout, then animate in
+    placePopover();
+    requestAnimationFrame(() => { s('opacity','1'); s('transform','translateY(0)'); });
+
+    // Close handlers
+    const close = () => { try { pop.remove(); } catch(_){} };
+    const closeBtn = pop.querySelector('.promptok-history-close');
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    const outside = (e) => { if (!pop.contains(e.target) && !this._historyButtonEl?.contains(e.target)) { close(); document.removeEventListener('mousedown', outside, true); } };
+    document.addEventListener('mousedown', outside, true);
+  }
+
   // Session persistence helpers
   async setStorageItem(key, value) {
     try {
@@ -288,10 +424,10 @@ class AdvancedPromptEnhancer {
   }
 
   // Test function to debug apply functionality
-  testApply() {
+  async testApply() {
     this.debugLog('Testing apply functionality...');
     const testPrompt = "This is a test prompt to verify the apply button works.";
-    this.applyPromptToInput(testPrompt);
+    await this.applyPromptToInput(testPrompt);
   }
 
   // Removed site-specific selector hook; detection is now globally consistent
@@ -513,6 +649,59 @@ class AdvancedPromptEnhancer {
     if (button.parentElement !== parent) {
       parent.appendChild(button);
     }
+    // Ensure history hover button exists and is positioned near the main button
+    try {
+      if (!button._promptokHistoryButton) {
+        const hbtn = this.createHistoryButton();
+        this.debugLog('Creating history button near main enhance button');
+        button._promptokHistoryButton = hbtn;
+        // Keep a reference on the instance for anchoring the popover
+        this._historyButtonEl = hbtn;
+        try {
+          // Append to body so position:fixed isn't affected by transformed ancestors
+          document.body.appendChild(hbtn);
+        } catch(_) {
+          parent.appendChild(hbtn);
+        }
+        // Hover interactions: show when over either icon; debounce hide so moving between icons doesn't retract
+        let visHideTimer = null;
+        const show = () => {
+          if (visHideTimer) { try { clearTimeout(visHideTimer); } catch(_){} visHideTimer = null; }
+          hbtn.style.setProperty('opacity', '1', 'important');
+          hbtn.style.setProperty('transform', 'translateX(0)', 'important');
+          hbtn.style.setProperty('pointer-events', 'auto', 'important');
+        };
+        const hideNow = () => {
+          if (visHideTimer) { try { clearTimeout(visHideTimer); } catch(_){} visHideTimer = null; }
+          hbtn.style.setProperty('opacity', '0', 'important');
+          hbtn.style.setProperty('transform', 'translateX(6px)', 'important');
+          hbtn.style.setProperty('pointer-events', 'none', 'important');
+        };
+        const scheduleHideIfNoneHovered = () => {
+          if (visHideTimer) { try { clearTimeout(visHideTimer); } catch(_){} }
+          visHideTimer = setTimeout(() => {
+            const overMainNow = button.matches(':hover');
+            const overHistNow = hbtn.matches(':hover');
+            if (!overMainNow && !overHistNow) hideNow();
+          }, 140); // small debounce to allow moving from main -> history
+        };
+        const handleEnter = () => show();
+        const handleLeave = () => scheduleHideIfNoneHovered();
+        button.addEventListener('mouseenter', handleEnter);
+        button.addEventListener('mouseleave', handleLeave);
+        hbtn.addEventListener('mouseenter', handleEnter);
+        hbtn.addEventListener('mouseleave', handleLeave);
+        // Click on history icon: toggle history popover (open/close)
+        hbtn.addEventListener('click', async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const existing = document.querySelector('.promptok-history-popover[data-history="1"]');
+          if (existing) { try { existing.remove(); } catch(_) {} return; }
+          try { await this.showHistoryForCurrentChat(); } catch(err){ console.warn('[PromptOK] history load failed', err);} 
+        });
+        // No auto-reveal: icon remains hidden until hovered over the enhance icon
+      }
+      this.positionHistoryButtonNear(button, button._promptokHistoryButton);
+    } catch(_){}
     this.updateFloatingButtonPosition(input, button);
     this.floatingButtons.set(input, button);
     // Observe ONLY size changes of this input to keep anchor stable on growth
@@ -830,6 +1019,11 @@ class AdvancedPromptEnhancer {
         site = window.PromptOK_Config.getSiteName(window.location && window.location.hostname);
       }
     } catch (_) { /* ignore */ }
+    // Derive chat URL (session identifier)
+    let chatUrl = null;
+    try {
+      chatUrl = (window.location && window.location.href) || null;
+    } catch (_) { /* ignore */ }
     
     console.log('[PromptOK Content] Making API request:', {
       endpoint: apiEndpoint,
@@ -844,7 +1038,7 @@ class AdvancedPromptEnhancer {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwt}`
       },
-      body: JSON.stringify({ prompt, site })
+      body: JSON.stringify({ prompt, site, chatUrl })
     });
   }
 
@@ -939,7 +1133,7 @@ class AdvancedPromptEnhancer {
       
       const jsonData = this.extractJsonFromResponse(responseText);
       if (!jsonData) {
-        console.log('No JSON found, falling back to simple enhancement');
+        this.debugLog('No structured JSON found in enhancement response; using simple enhancement.');
         return null;
       }
       
@@ -953,34 +1147,49 @@ class AdvancedPromptEnhancer {
   }
 
   extractJsonFromResponse(responseText) {
-    // Try to find complete JSON block first
-    let jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i);
-    
-    if (!jsonMatch) {
-      // If no complete block, try to find truncated JSON
-      jsonMatch = responseText.match(/```json\s*([\s\S]*?)$/i);
-      
-      if (jsonMatch) {
-        console.warn('Found truncated JSON block, attempting to parse');
-        let jsonText = jsonMatch[1].trim();
-        
-        // Try to fix common truncation issues
-        if (!jsonText.endsWith('}')) {
-          // Find the last complete object/array and close it
-          const lastCompleteObject = this.findLastCompleteJson(jsonText);
-          if (lastCompleteObject) {
-            jsonText = lastCompleteObject;
-          }
-        }
-        
-        return jsonText;
+    // 1) Try to parse entire response as JSON
+    try {
+      const trimmed = (responseText || '').trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        JSON.parse(trimmed);
+        return trimmed;
       }
-      
-      console.warn('No JSON block found in response');
-      return null;
+    } catch (_) { /* ignore */ }
+
+    // 2) Try to find fenced ```json blocks
+    let jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i);
+    if (jsonMatch && jsonMatch[1]) {
+      return jsonMatch[1].trim();
     }
-    
-    return jsonMatch[1].trim();
+
+    // 3) Try any fenced ``` block and see if it parses
+    let genericMatch = responseText.match(/```\s*([\s\S]*?)```/i);
+    if (genericMatch && genericMatch[1]) {
+      const candidate = genericMatch[1].trim();
+      try { JSON.parse(candidate); return candidate; } catch(_) {}
+    }
+
+    // 4) Heuristic: take substring from first '{' to last '}' and try parse
+    try {
+      const first = responseText.indexOf('{');
+      const last = responseText.lastIndexOf('}');
+      if (first !== -1 && last !== -1 && last > first) {
+        const candidate = responseText.substring(first, last + 1).trim();
+        JSON.parse(candidate);
+        return candidate;
+      }
+    } catch (_) { /* ignore */ }
+
+    // 5) Truncated fenced json (no closing backticks)
+    const truncMatch = responseText.match(/```json\s*([\s\S]*?)$/i);
+    if (truncMatch && truncMatch[1]) {
+      let jsonText = truncMatch[1].trim();
+      const lastCompleteObject = this.findLastCompleteJson(jsonText);
+      if (lastCompleteObject) return lastCompleteObject;
+    }
+
+    // Nothing structured found
+    return null;
   }
 
   findLastCompleteJson(jsonText) {
@@ -2024,11 +2233,11 @@ class AdvancedPromptEnhancer {
 
     // Apply prompt (base + selected options)
     const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
-    applyBtn.addEventListener('click', () => {
+    applyBtn.addEventListener('click', async () => {
       this.debugLog('Apply button clicked');
       const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
       this.debugLog('Final prompt built:', finalPrompt);
-      this.applyPromptToInput(finalPrompt);
+      await this.applyPromptToInput(finalPrompt);
       // Best-effort: finalize session with final prompt
       this.finalizeSession(finalPrompt).catch(() => {});
     });
@@ -2483,11 +2692,11 @@ class AdvancedPromptEnhancer {
 
     // Apply prompt (base + selected options)
     const applyBtn = overlay.querySelector('#promptok-apply');
-    applyBtn.addEventListener('click', () => {
+    applyBtn.addEventListener('click', async () => {
       this.debugLog('Apply button clicked');
       const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
       this.debugLog('Final prompt built:', finalPrompt);
-      this.applyPromptToInput(finalPrompt);
+      await this.applyPromptToInput(finalPrompt);
       // Best-effort: finalize session with final prompt
       this.finalizeSession(finalPrompt).catch(() => {});
     });
@@ -2578,15 +2787,18 @@ class AdvancedPromptEnhancer {
     }
   }
 
-  applyPromptToInput(finalPrompt) {
+  async applyPromptToInput(finalPrompt) {
     this.debugLog('Starting applyPromptToInput');
-    const input = this.currentInput || this.detect();
+    const input = this.currentInput || await this.detect();
     if (!input) {
       this.showError('Could not find input field to apply prompt');
       return;
     }
     
-    this.debugLog('Input detected:', input.tagName, 'isLexical:', input.hasAttribute('data-lexical-editor'));
+    const safeTag = (input && input.tagName) ? input.tagName : '(unknown)';
+    const hasAttrFn = input && typeof input.hasAttribute === 'function';
+    const isLex = hasAttrFn ? input.hasAttribute('data-lexical-editor') : false;
+    this.debugLog('Input detected:', safeTag, 'isLexical:', isLex);
     this.debugLog('Input value before:', this.getInputValue(input));
     
     input.focus();
@@ -2610,7 +2822,7 @@ class AdvancedPromptEnhancer {
   }
 
   setInputValue(input, text) {
-    const isLexical = input.hasAttribute('data-lexical-editor');
+    const isLexical = (input && typeof input.hasAttribute === 'function') && input.hasAttribute('data-lexical-editor');
     
     if (isLexical) {
       return this.setLexicalValue(input, text);
@@ -2776,7 +2988,7 @@ class AdvancedPromptEnhancer {
   tryAggressiveApply(input, finalPrompt) {
     this.debugLog('Trying aggressive apply method');
     
-    const isLexical = input.hasAttribute('data-lexical-editor');
+    const isLexical = (input && typeof input.hasAttribute === 'function') && input.hasAttribute('data-lexical-editor');
     
     if (isLexical) {
       this.tryLexicalAggressiveApply(input, finalPrompt);

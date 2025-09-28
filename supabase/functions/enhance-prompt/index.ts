@@ -128,7 +128,7 @@ serve(async (req) => {
     )
 
     // Parse request body
-    const { prompt, site } = await req.json()
+    const { prompt, site, chatUrl } = await req.json()
 
     if (!prompt) {
       return new Response(
@@ -189,6 +189,7 @@ serve(async (req) => {
 
     // Prepare session bookkeeping
     const siteLabel = (typeof site === 'string' && site.trim().length > 0) ? site.trim() : 'unknown'
+    const chatUrlLabel = (typeof chatUrl === 'string' && chatUrl.trim().length > 0) ? chatUrl.trim().slice(0, 2048) : null
     let sessionId: string | null = null
 
     // Create a pending prompt session before LLM call to track lifecycle
@@ -199,6 +200,7 @@ serve(async (req) => {
           user_id: userId,
           original_prompt: prompt,
           site: siteLabel,
+          chat_url: chatUrlLabel,
           status: 'pending',
           response_time_ms: 0,
         })
@@ -329,7 +331,7 @@ Now, when you are given the user prompt, do the above.`
           const responseTime = Math.max(0, Date.now() - t0)
           await supabaseClient
             .from('prompt_sessions')
-            .update({ status: 'failed', response_time_ms: responseTime })
+            .update({ status: 'failed', response_time_ms: responseTime, chat_url: chatUrlLabel })
             .eq('id', sessionId)
         }
       } catch (_) {}
@@ -443,6 +445,7 @@ Now, when you are given the user prompt, do the above.`
         sessionId,
         responseTimeMs: totalResponseTime,
         site: siteLabel,
+        chatUrl: chatUrlLabel,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
