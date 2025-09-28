@@ -790,7 +790,10 @@ class AdvancedPromptEnhancer {
     const data = await this.handleApiResponse(response);
     return {
       rawResponse: data.enhancedPrompt,
-      structuredData: data.structuredData
+      structuredData: data.structuredData,
+      sessionId: data.sessionId || null,
+      responseTimeMs: data.responseTimeMs || null,
+      site: data.site || null,
     };
   }
 
@@ -820,6 +823,13 @@ class AdvancedPromptEnhancer {
   async makeApiRequest(prompt, jwt) {
     // Use environment-based API endpoint
     const apiEndpoint = await this.getApiEndpoint();
+    // Derive site label
+    let site = 'unknown';
+    try {
+      if (window.PromptOK_Config && typeof window.PromptOK_Config.getSiteName === 'function') {
+        site = window.PromptOK_Config.getSiteName(window.location && window.location.hostname);
+      }
+    } catch (_) { /* ignore */ }
     
     console.log('[PromptOK Content] Making API request:', {
       endpoint: apiEndpoint,
@@ -834,7 +844,7 @@ class AdvancedPromptEnhancer {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwt}`
       },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt, site })
     });
   }
 
@@ -886,6 +896,30 @@ class AdvancedPromptEnhancer {
       throw new Error(errorMessage);
     }
     return response.json();
+  }
+
+  async finalizeSession(finalPrompt, statusOverride) {
+    try {
+      const sessionId = this.currentEnhancementData && this.currentEnhancementData.sessionId;
+      if (!sessionId) return;
+      const jwtData = await this.getExtensionJWT();
+      if (!jwtData.jwt) return;
+      const baseUrl = await window.promptokEnvConfig.getApiBase();
+      const res = await fetch(`${baseUrl}/api/extension/session/finalize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtData.jwt}`,
+        },
+        body: JSON.stringify({ sessionId, finalPrompt, status: statusOverride || 'completed' })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn('[PromptOK] finalizeSession failed', res.status, err);
+      }
+    } catch (e) {
+      console.warn('[PromptOK] finalizeSession error', e);
+    }
   }
 
   async refreshJWT() {
@@ -1995,6 +2029,8 @@ class AdvancedPromptEnhancer {
       const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
       this.debugLog('Final prompt built:', finalPrompt);
       this.applyPromptToInput(finalPrompt);
+      // Best-effort: finalize session with final prompt
+      this.finalizeSession(finalPrompt).catch(() => {});
     });
 
     // Copy to clipboard
@@ -2452,6 +2488,8 @@ class AdvancedPromptEnhancer {
       const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
       this.debugLog('Final prompt built:', finalPrompt);
       this.applyPromptToInput(finalPrompt);
+      // Best-effort: finalize session with final prompt
+      this.finalizeSession(finalPrompt).catch(() => {});
     });
 
     // Copy to clipboard
@@ -2559,6 +2597,10 @@ class AdvancedPromptEnhancer {
       // Verify and show result
       setTimeout(() => {
         this.verifyAndShowResult(input, finalPrompt, success);
+        if (!success) {
+          // Attempt to mark session as failed apply
+          this.finalizeSession(finalPrompt, 'failed').catch(() => {});
+        }
       }, 200);
       
     } catch (error) {

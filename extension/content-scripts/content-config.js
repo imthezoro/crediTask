@@ -30,8 +30,18 @@
     return { flags, offsets };
   }
 
+  function getSiteName(hostname) {
+    const flags = detectSite(hostname);
+    if (flags.isGPT) return 'gpt';
+    if (flags.isClaude) return 'claude';
+    if (flags.isPerplexity) return 'perplexity';
+    if (flags.isGemini) return 'gemini';
+    return 'unknown';
+  }
+
   window.PromptOK_Config = {
     detectSite,
     getSiteConfig,
+    getSiteName,
   };
 })();

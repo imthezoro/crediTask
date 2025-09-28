@@ -78,7 +78,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validation = validateRequest(
       z.object({
-        prompt: z.string().min(1).max(10000)
+        prompt: z.string().min(1).max(10000),
+        site: z.string().min(1).max(64).optional(),
       }),
       body
     );
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt } = validation.data!;
+    const { prompt, site } = validation.data!;
     const sanitizedPrompt = sanitizeString(prompt);
 
     // Validate environment configuration
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
         'apikey': supabaseAnonKey,
         'x-extension-token': token,
       },
-      body: JSON.stringify({ prompt: sanitizedPrompt })
+      body: JSON.stringify({ prompt: sanitizedPrompt, site: (typeof site === 'string' ? site : undefined) })
     });
 
     if (!edgeResponse.ok) {
@@ -261,7 +262,10 @@ export async function POST(request: NextRequest) {
       success: true,
       enhancedPrompt: result.enhancedPrompt,
       structuredData: result.structuredData,
-      usageCount: result.usageCount
+      usageCount: result.usageCount,
+      sessionId: result.sessionId,
+      responseTimeMs: result.responseTimeMs,
+      site: result.site,
     }, 200, request);
 
   } catch (error) {

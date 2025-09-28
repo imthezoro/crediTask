@@ -128,7 +128,7 @@ serve(async (req) => {
     )
 
     // Parse request body
-    const { prompt } = await req.json()
+    const { prompt, site } = await req.json()
 
     if (!prompt) {
       return new Response(
@@ -267,6 +267,8 @@ Now, when you are given the user prompt, do the above.`
       )
     }
 
+    const t0 = Date.now()
+
     const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -360,16 +362,27 @@ Now, when you are given the user prompt, do the above.`
       )
     }
 
-    // Save prompt session for history
-    const { error: sessionError } = await supabaseClient
+    // Save prompt session for history with metrics
+    const responseTime = Math.max(0, Date.now() - t0)
+    const siteLabel = (typeof site === 'string' && site.trim().length > 0) ? site.trim() : 'unknown'
+
+    const { data: sessionRows, error: sessionError } = await supabaseClient
       .from('prompt_sessions')
       .insert({
         user_id: userId,
         original_prompt: prompt,
         base_enhanced_prompt: enhancedText.trim(),
-        site: 'extension'
+        site: siteLabel,
+        status: 'completed',
+        response_time_ms: responseTime,
       })
+      .select('id')
 
+    let sessionId: string | null = null
+    if (sessionRows && Array.isArray(sessionRows) && sessionRows.length > 0) {
+      // @ts-ignore
+      sessionId = sessionRows[0]?.id ?? null
+    }
     if (sessionError) {
       console.error('Error saving prompt session:', sessionError)
       // Continue anyway - don't fail the request for session save issues
@@ -381,7 +394,10 @@ Now, when you are given the user prompt, do the above.`
         structuredData: structuredResponse,
         usageCount: (incRow && typeof incRow.new_usage === 'number')
           ? incRow.new_usage
-          : (userProfile.usage_count + 1)
+          : (userProfile.usage_count + 1),
+        sessionId,
+        responseTimeMs: responseTime,
+        site: siteLabel,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
