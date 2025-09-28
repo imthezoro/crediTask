@@ -18,6 +18,8 @@ class AdvancedPromptEnhancer {
     this.floatingButtons = new Map(); // inputEl -> buttonEl
     this._repositionBound = null;
     this._mutationObserver = null;
+    // Persist the latest enhancement payload so minimized icon can restore the same popup
+    this.lastParsedData = null;
     
     // Debug mode - set to true for detailed logging
     this.debug = true;
@@ -197,7 +199,7 @@ class AdvancedPromptEnhancer {
           const safe = cleaned.replace(/</g,'&lt;');
           const when = (()=>{ try { return new Date(it.created_at).toLocaleString(); } catch(_) { return ''; } })();
           return `
-            <div style="padding:10px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04)">
+            <div class="promptok-history-item" style="padding:10px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04); cursor:pointer" data-item="${encodeURIComponent(JSON.stringify(it))}">
               <div style="font-size:11px; opacity:.65;">${when}</div>
               <div style="margin-top:6px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; line-height:1.45;">${safe}</div>
             </div>
@@ -235,6 +237,41 @@ class AdvancedPromptEnhancer {
     if (closeBtn) closeBtn.addEventListener('click', close);
     const outside = (e) => { if (!pop.contains(e.target) && !this._historyButtonEl?.contains(e.target)) { close(); document.removeEventListener('mousedown', outside, true); } };
     document.addEventListener('mousedown', outside, true);
+
+    // Click handling: open the enhancement popup with this history record's data
+    try {
+      const clickable = Array.from(pop.querySelectorAll('.promptok-history-item'));
+      clickable.forEach((el) => {
+        el.addEventListener('click', async (e) => {
+          e.preventDefault(); e.stopPropagation();
+          // Close the history popover
+          close();
+          // Build parsedData from the history item
+          let item = null;
+          try {
+            const raw = el.getAttribute('data-item') || '%7B%7D';
+            // data-item is URI-encoded JSON string; decode safely
+            item = JSON.parse(decodeURIComponent(raw));
+          } catch(_) { item = {}; }
+          const parsedData = await this.buildParsedDataFromHistoryItem(item);
+          if (!parsedData || !parsedData.enhanced_prompt) {
+            this.showError('Could not parse history entry.');
+            return;
+          }
+          // Reset selection to default for re-apply
+          this.selectedOptions.clear();
+          // Persist last parsed data so minimized button can restore
+          this.lastParsedData = parsedData;
+          // Show the options panel populated with this history record
+          try {
+            await this.showEnhancementOptions(parsedData);
+          } catch(err) {
+            console.warn('[PromptOK] Failed to open enhancement panel from history', err);
+            this.showError('Failed to open enhancement panel.');
+          }
+        }, { once: true });
+      });
+    } catch(_) { /* noop */ }
   }
 
   // Sanitize history text to show exactly what the user saw in the enhancement popup
@@ -1475,6 +1512,8 @@ class AdvancedPromptEnhancer {
       panel.style.setProperty('max-height', 'none', 'important');
     }
     panel.setAttribute('data-enhancement-data', JSON.stringify(parsedData));
+    // Keep a copy for minimized restore flow
+    try { this.lastParsedData = parsedData; } catch(_) {}
 
     // Build the options UI
     const optionsHTML = this.buildOptionsHTML(parsedData);
@@ -1564,6 +1603,88 @@ class AdvancedPromptEnhancer {
 
     // Add event listeners
     this.setupChatGPTEventListeners(panel, parsedData);
+  }
+
+  // Build a parsed enhancement payload from a history API item
+  async buildParsedDataFromHistoryItem(item) {
+    try {
+      // 1) If server already stored structured fields
+      if (item && typeof item === 'object') {
+        if (item.parsed_data && item.parsed_data.enhanced_prompt && item.parsed_data.assumption_groups) {
+          return item.parsed_data;
+        }
+        if (item.enhanced_prompt && item.assumption_groups) {
+          return { enhanced_prompt: String(item.enhanced_prompt), assumption_groups: item.assumption_groups };
+        }
+      }
+      // 2) Try to extract JSON from final_prompt or base_enhanced_prompt
+      const raw = (item && (item.final_prompt || item.base_enhanced_prompt)) ? String(item.final_prompt || item.base_enhanced_prompt) : '';
+      if (raw) {
+        try {
+          const jsonText = this.extractJsonFromResponse(raw);
+          if (jsonText) {
+            const parsed = JSON.parse(jsonText);
+            if (parsed && parsed.enhanced_prompt && parsed.assumption_groups) {
+              return parsed;
+            }
+          }
+        } catch(_) { /* ignore */ }
+      }
+      // 3) Fallback: use formatted text as enhanced_prompt with no options
+      const fallback = this.formatHistoryPrompt(raw);
+      return { enhanced_prompt: fallback, assumption_groups: [] };
+    } catch(_) {
+      return null;
+    }
+  }
+
+  // Create or update a minimized button that restores the last popup
+  showMinimizedButton() {
+    try {
+      // Remove any existing minimized button first to avoid duplicates
+      this.removeMinimizedButton();
+      const btn = document.createElement('button');
+      btn.className = this.minimizedButtonClass;
+      const s = (p,v)=>btn.style.setProperty(p,v,'important');
+      s('position','fixed'); s('right','16px'); s('bottom','16px');
+      s('z-index','2147483647'); s('width','40px'); s('height','40px');
+      s('border-radius','12px'); s('background','rgba(10,10,10,0.9)'); s('color','#fff');
+      s('border','1px solid rgba(255,255,255,0.18)'); s('box-shadow','0 10px 24px rgba(0,0,0,0.5)');
+      s('display','flex'); s('align-items','center'); s('justify-content','center');
+      s('cursor','pointer');
+      btn.title = 'Restore PromptOK panel';
+      btn.innerHTML = `
+        <span class="minimized-count" style="position:absolute; top:-6px; right:-6px; background:#38bdf8; color:#001018; font-weight:700; font-size:11px; width:20px; height:20px; border-radius:999px; display:none; align-items:center; justify-content:center; border:1px solid rgba(0,0,0,0.35)"></span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2" ry="2" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M7 10h10M7 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      `;
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        // Restore only if we have something to show
+        const data = this.lastParsedData;
+        if (!data) { this.removeMinimizedButton(); return; }
+        this.isMinimized = false;
+        try { this.removeMinimizedButton(); } catch(_) {}
+        try {
+          await this.showEnhancementOptions(data);
+        } catch(err) {
+          console.warn('[PromptOK] Failed to restore panel from minimized', err);
+          this.showError('Failed to restore panel.');
+        }
+      });
+      document.body.appendChild(btn);
+      // Reflect current selection count
+      this.updateMinimizedButtonCount();
+    } catch(_) { /* noop */ }
+  }
+
+  removeMinimizedButton() {
+    try {
+      const el = document.querySelector(`.${this.minimizedButtonClass}`);
+      if (el) el.remove();
+    } catch(_) { /* noop */ }
   }
 
   addChatGPTStyles(panel) {
