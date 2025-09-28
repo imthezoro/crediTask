@@ -187,6 +187,31 @@ serve(async (req) => {
       )
     }
 
+    // Prepare session bookkeeping
+    const siteLabel = (typeof site === 'string' && site.trim().length > 0) ? site.trim() : 'unknown'
+    let sessionId: string | null = null
+
+    // Create a pending prompt session before LLM call to track lifecycle
+    try {
+      const { data: pendingRows } = await supabaseClient
+        .from('prompt_sessions')
+        .insert({
+          user_id: userId,
+          original_prompt: prompt,
+          site: siteLabel,
+          status: 'pending',
+          response_time_ms: 0,
+        })
+        .select('id')
+      if (pendingRows && Array.isArray(pendingRows) && pendingRows.length > 0) {
+        // @ts-ignore
+        sessionId = pendingRows[0]?.id ?? null
+      }
+    } catch (e) {
+      // Best-effort: continue without sessionId if RLS or other issue
+      console.warn('[Edge Function] Could not insert pending session', e)
+    }
+
     // Advanced system prompt for comprehensive enhancement
     const SYSTEM_PROMPT = `You are a Prompt-Enhancement Engine. When given an input user prompt (the "original prompt"), you must transform it into a high-quality, production-ready "enhanced prompt" and produce machine-readable output so a client UI can:
 
@@ -267,6 +292,7 @@ Now, when you are given the user prompt, do the above.`
       )
     }
 
+    // single timer for the whole enhancement flow
     const t0 = Date.now()
 
     const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -297,6 +323,16 @@ Now, when you are given the user prompt, do the above.`
     if (!openrouterResponse.ok) {
       const errorData = await openrouterResponse.json().catch(() => ({}))
       console.error('OpenRouter API error:', errorData)
+      // Mark session failed
+      try {
+        if (sessionId) {
+          const responseTime = Math.max(0, Date.now() - t0)
+          await supabaseClient
+            .from('prompt_sessions')
+            .update({ status: 'failed', response_time_ms: responseTime })
+            .eq('id', sessionId)
+        }
+      } catch (_) {}
       return new Response(
         JSON.stringify({
           error: 'OPENROUTER_ERROR',
@@ -317,6 +353,15 @@ Now, when you are given the user prompt, do the above.`
     const enhancedText = openrouterData.choices?.[0]?.message?.content
 
     if (!enhancedText) {
+      try {
+        if (sessionId) {
+          const responseTime = Math.max(0, Date.now() - t0)
+          await supabaseClient
+            .from('prompt_sessions')
+            .update({ status: 'failed', response_time_ms: responseTime })
+            .eq('id', sessionId)
+        }
+      } catch (_) {}
       return new Response(
         JSON.stringify({ error: 'Invalid response from OpenRouter API' }),
         {
@@ -349,6 +394,15 @@ Now, when you are given the user prompt, do the above.`
     const incRow = Array.isArray(incData) ? incData[0] : null
     if (incRow && incRow.allowed === false) {
       // Another concurrent tab likely consumed the last quota. Deny this request to keep limits correct.
+      try {
+        if (sessionId) {
+          const responseTime = Math.max(0, Date.now() - t0)
+          await supabaseClient
+            .from('prompt_sessions')
+            .update({ status: 'failed', response_time_ms: responseTime })
+            .eq('id', sessionId)
+        }
+      } catch (_) {}
       return new Response(
         JSON.stringify({ 
           error: 'Usage limit reached. Please upgrade your plan.',
@@ -362,30 +416,21 @@ Now, when you are given the user prompt, do the above.`
       )
     }
 
-    // Save prompt session for history with metrics
-    const responseTime = Math.max(0, Date.now() - t0)
-    const siteLabel = (typeof site === 'string' && site.trim().length > 0) ? site.trim() : 'unknown'
-
-    const { data: sessionRows, error: sessionError } = await supabaseClient
-      .from('prompt_sessions')
-      .insert({
-        user_id: userId,
-        original_prompt: prompt,
-        base_enhanced_prompt: enhancedText.trim(),
-        site: siteLabel,
-        status: 'completed',
-        response_time_ms: responseTime,
-      })
-      .select('id')
-
-    let sessionId: string | null = null
-    if (sessionRows && Array.isArray(sessionRows) && sessionRows.length > 0) {
-      // @ts-ignore
-      sessionId = sessionRows[0]?.id ?? null
-    }
-    if (sessionError) {
-      console.error('Error saving prompt session:', sessionError)
-      // Continue anyway - don't fail the request for session save issues
+    // Update session to completed with metrics and base prompt
+    let totalResponseTime = Math.max(0, Date.now() - t0)
+    try {
+      if (sessionId) {
+        await supabaseClient
+          .from('prompt_sessions')
+          .update({
+            base_enhanced_prompt: enhancedText.trim(),
+            status: 'completed',
+            response_time_ms: totalResponseTime,
+          })
+          .eq('id', sessionId)
+      }
+    } catch (e) {
+      console.warn('[Edge Function] Could not update completed session', e)
     }
 
     return new Response(
@@ -396,7 +441,7 @@ Now, when you are given the user prompt, do the above.`
           ? incRow.new_usage
           : (userProfile.usage_count + 1),
         sessionId,
-        responseTimeMs: responseTime,
+        responseTimeMs: totalResponseTime,
         site: siteLabel,
       }),
       {
