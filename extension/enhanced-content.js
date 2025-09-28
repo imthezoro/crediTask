@@ -2360,6 +2360,13 @@ class AdvancedPromptEnhancer {
     return this.showRateLimitErrorChatGPT();
   }
 
+  showError(message) {
+    // Lightweight center-top banner with quick slide down, wait ~2s, then slide up + fade out
+    // Keep specialized flows (auth/limit) using dedicated panels via showAuthError()/showRateLimitError()
+    const text = typeof message === 'string' && message ? message : 'Something went wrong.';
+    return this.showNotification('error', text, 2000, { position: 'top-center', animation: 'slide' });
+  }
+
   showErrorChatGPT(message) {
     this.removeExistingOverlay();
 
@@ -3177,62 +3184,206 @@ class AdvancedPromptEnhancer {
   }
 
   showSuccess(message) {
-    // Always prefer the unified side-panel success UI everywhere
+    // Render as a lightweight notification that fades automatically (success style)
+    this.showNotification('success', message || 'Done!', 3000);
+  }
+
+  // Toast notification system (success/error/info) with auto-dismiss and smooth animations
+  showNotification(type = 'info', message = '', duration = 3000, opts = {}) {
     try {
-      this.showSuccessChatGPT(message);
-      return;
-    } catch (e) {
-      // Delegate to UI helper if available as a safe fallback
-      try {
-        if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericSuccess === 'function') {
-          window.PromptOK_UI.showGenericSuccess(message);
-          return;
-        }
-      } catch (_) { /* ignore */ }
-      // Fallback to overlay status if present
-      const overlay = document.querySelector('.promptok-overlay');
-      if (!overlay) return;
-      const statusEl = overlay.querySelector('.promptok-status');
-      if (statusEl) {
-        statusEl.textContent = message;
-        statusEl.className = 'promptok-status success';
+      const position = opts && typeof opts.position === 'string' ? opts.position : 'top-right';
+      const animation = opts && typeof opts.animation === 'string' ? opts.animation : 'fade';
+      const container = this.getOrCreateToastContainer(position);
+      const toast = document.createElement('div');
+      toast.className = 'promptok-toast';
+
+      // Base styles (inline with !important to beat host page styles)
+      const s = (p, v) => toast.style.setProperty(p, v, 'important');
+      s('display', 'flex');
+      s('gap', '10px');
+      s('align-items', 'flex-start');
+      s('position', 'relative');
+      s('padding', '12px 16px');
+      s('margin', '7px 0');
+      s('border-radius', '14px');
+      s('backdrop-filter', 'blur(14px)');
+      s('-webkit-backdrop-filter', 'blur(14px)');
+      s('box-shadow', '0 14px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08) inset');
+      s('border', '1px solid rgba(255,255,255,0.12)');
+      s('color', '#fff');
+      s('font', '13px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial');
+      s('max-width', '504px');
+      s('pointer-events', 'none'); // non-interactive (no close button)
+      s('opacity', '0');
+      // Initial transform depends on animation
+      if (animation === 'slide') {
+        s('transform', 'translateY(-12px)');
+        s('transition', 'opacity .16s ease, transform .16s ease');
+      } else {
+        s('transform', 'translateY(8px)');
+        s('transition', 'opacity .18s ease, transform .18s ease');
       }
+
+      // Color accents per type
+      let accent = '0, 112, 243'; // blue
+      if (type === 'success') accent = '16, 185, 129'; // green
+      if (type === 'error') accent = '239, 68, 68'; // red-500 base
+      // Base background
+      s('background', `linear-gradient(180deg, rgba(16,16,20,0.94), rgba(10,10,12,0.94))`);
+      s('--accent', `rgb(${accent})`);
+      s('border-color', 'rgba(255,255,255,0.12)');
+      // Error-specific full red styling (cylindrical pill)
+      if (type === 'error') {
+        s('background', 'linear-gradient(180deg, rgba(239,68,68,0.97), rgba(220,38,38,0.97))');
+        s('box-shadow', '0 16px 36px rgba(220,38,38,0.45), 0 0 0 1px rgba(255,255,255,0.08) inset');
+        s('border', '1px solid rgba(255,255,255,0.16)');
+        s('border-radius', '999px');
+        s('padding', '14px 20px');
+      }
+
+      // Left accent bar (skip for error to preserve clean pill look)
+      const bar = document.createElement('div');
+      const bs = (p, v) => bar.style.setProperty(p, v, 'important');
+      bs('width', '4px');
+      bs('border-radius', '4px');
+      bs('background', `var(--accent)`);
+      bs('box-shadow', '0 0 10px rgba(255,255,255,0.10) inset, 0 0 12px var(--accent)');
+
+      // Icon + text
+      const content = document.createElement('div');
+      const cs = (p, v) => content.style.setProperty(p, v, 'important');
+      cs('display', 'flex'); cs('gap', '8px'); cs('align-items', 'flex-start');
+
+      const icon = document.createElement('div');
+      const is = (p, v) => icon.style.setProperty(p, v, 'important');
+      is('width', '18px'); is('height', '18px');
+      is('margin-top', '1px');
+      is('color', 'var(--accent)');
+      icon.innerHTML = type === 'success'
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 7L9 18l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 16h-1v-4h-1m1-4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/></svg>';
+
+      const text = document.createElement('div');
+      const ts = (p, v) => text.style.setProperty(p, v, 'important');
+      ts('white-space', 'pre-wrap'); ts('word-break', 'break-word'); ts('opacity', '.98');
+      ts('letter-spacing', '0.2px');
+      if (type === 'error') { ts('font-weight', '600'); ts('font-family', 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial'); }
+      text.textContent = message;
+
+      // Append icon only for non-error types
+      if (type !== 'error') content.appendChild(icon);
+      content.appendChild(text);
+      // Skip left bar for error (clean pill look)
+      if (type !== 'error') toast.appendChild(bar);
+      toast.appendChild(content);
+
+      // Insert and animate in
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        s('opacity', '1');
+        s('transform', 'translateY(0)');
+      });
+
+      let hideTimer = null;
+      let remaining = Math.max(1500, Number(duration) || 3000);
+      let startTime = null;
+      const removeToast = () => {
+        try { if (hideTimer) clearTimeout(hideTimer); } catch(_) {}
+        // Smooth fade-out
+        s('opacity', '0');
+        if (animation === 'slide') {
+          s('transform', 'translateY(-12px)');
+        } else {
+          s('transform', 'translateY(6px)');
+        }
+        setTimeout(() => { try { toast.remove(); } catch(_){} }, 220);
+        // If manual close and container becomes empty, remove container
+        setTimeout(() => {
+          if (container && !container.children.length) {
+            try { container.remove(); } catch(_){}
+          }
+        }, 260);
+        // Cleanup listeners
+        try {
+          document.removeEventListener('visibilitychange', onVisibility);
+          window.removeEventListener('blur', onBlur);
+          window.removeEventListener('focus', onFocus);
+        } catch(_) {}
+      };
+
+      const startTimer = () => {
+        try { if (hideTimer) clearTimeout(hideTimer); } catch(_) {}
+        startTime = Date.now();
+        hideTimer = setTimeout(() => removeToast(), remaining);
+      };
+      const pauseTimer = () => {
+        if (hideTimer) {
+          try { clearTimeout(hideTimer); } catch(_) {}
+          hideTimer = null;
+          if (startTime) {
+            const elapsed = Date.now() - startTime;
+            remaining = Math.max(0, remaining - elapsed);
+          }
+        }
+      };
+      const onVisibility = () => {
+        if (document.hidden) {
+          pauseTimer();
+        } else {
+          if (remaining > 0) startTimer(); else removeToast();
+        }
+      };
+      const onBlur = () => { pauseTimer(); };
+      const onFocus = () => { if (!document.hidden) { if (remaining > 0) startTimer(); else removeToast(); } };
+      try {
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('blur', onBlur);
+        window.addEventListener('focus', onFocus);
+      } catch(_) {}
+
+      // Auto-dismiss with visibility-aware timer
+      startTimer();
+
+      return toast;
+    } catch (_) {
+      // As a last resort, fallback to alert (should rarely happen)
+      try { console.warn('[PromptOK] Notification failed, falling back to alert'); } catch(_){}
+      try { alert(message); } catch(_){}
     }
   }
 
-  // New: Unified error helper used across flows
-  showError(message) {
-    // Always prefer the unified side-panel error UI everywhere
-    try {
-      return this.showErrorChatGPT(message);
-    } catch (e) {
-      // Delegate to UI helper if available as a safe fallback
-      try {
-        if (window.PromptOK_UI && typeof window.PromptOK_UI.showGenericError === 'function') {
-          window.PromptOK_UI.showGenericError(message);
-          return;
-        }
-      } catch (_) { /* ignore */ }
-      // Last-resort minimal toast
-      const toast = document.createElement('div');
-      toast.textContent = `⚠️ ${message}`;
-      Object.assign(toast.style, {
-        position: 'fixed',
-        bottom: '16px',
-        right: '16px',
-        padding: '10px 14px',
-        borderRadius: '10px',
-        background: 'rgba(255, 71, 87, 0.15)',
-        color: '#ff6b6b',
-        border: '1px solid rgba(255, 71, 87, 0.3)',
-        backdropFilter: 'blur(10px)',
-        zIndex: '2147483647',
-        fontSize: '13px',
-        boxShadow: '0 6px 20px rgba(255, 71, 87, 0.2)'
-      });
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2500);
+  getOrCreateToastContainer(position = 'top-right') {
+    // Separate containers for positions to avoid mixing layouts
+    let container = document.querySelector(`.promptok-toast-container[data-position="${position}"]`);
+    if (container) return container;
+    container = document.createElement('div');
+    container.className = 'promptok-toast-container';
+    container.setAttribute('data-position', position);
+    const s = (p, v) => container.style.setProperty(p, v, 'important');
+    s('position', 'fixed');
+    s('z-index', '2147483647');
+    s('display', 'flex');
+    s('flex-direction', 'column');
+    s('gap', '0');
+    s('pointer-events', 'none'); // allow page clicks through gaps
+
+    // Position presets
+    if (position === 'top-center') {
+      s('top', '16px');
+      s('left', '50%');
+      s('right', 'auto');
+      s('transform', 'translateX(-50%)');
+      s('align-items', 'center');
+    } else {
+      // default top-right
+      s('top', '14px');
+      s('right', '14px');
+      s('left', 'auto');
     }
+
+    // Appending to body
+    document.body.appendChild(container);
+    return container;
   }
 
   // Enhancement options router: use side panel globally (Perplexity-themed panel)
@@ -3241,15 +3392,6 @@ class AdvancedPromptEnhancer {
   }
 
   // Removed non-ChatGPT overlay; using unified side panel for all sites
-
-  applySimpleEnhancement(enhancedText) {
-    const input = this.detect();
-    if (!input) return;
-
-    this.setInputValue(input, enhancedText);
-    this.showSuccess('Prompt enhanced!');
-    setTimeout(() => this.removeExistingOverlay(), 1500);
-  }
 
   showMinimizedButton() {
     // Remove any existing minimized button
