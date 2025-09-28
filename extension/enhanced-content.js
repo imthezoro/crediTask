@@ -2414,13 +2414,8 @@ class AdvancedPromptEnhancer {
 
   updateChatGPTButtonText(panel) {
     const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
-    const count = this.selectedOptions.size;
-
-    if (count > 0) {
-      applyBtn.textContent = `Apply + ${count} Option${count > 1 ? 's' : ''}`;
-    } else {
-      applyBtn.textContent = 'Apply';
-    }
+    // Always show a simple label regardless of selected options
+    applyBtn.textContent = 'Apply';
   }
 
   minimizeChatGPTOverlay(panel) {
@@ -2904,13 +2899,8 @@ class AdvancedPromptEnhancer {
 
   updateButtonText(overlay) {
     const applyBtn = overlay.querySelector('#promptok-apply');
-    const count = this.selectedOptions.size;
-
-    if (count > 0) {
-      applyBtn.textContent = `Apply + ${count} Option${count > 1 ? 's' : ''}`;
-    } else {
-      applyBtn.textContent = 'Apply';
-    }
+    // Always show a simple label regardless of selected options
+    applyBtn.textContent = 'Apply';
   }
 
   async applyPromptToInput(finalPrompt) {
