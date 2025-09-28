@@ -1639,10 +1639,10 @@ class AdvancedPromptEnhancer {
   }
 
   // Create or update a minimized button that restores the last popup
-  showMinimizedButton() {
+  showMinimizedButton(options = {}) {
     try {
-      // Remove any existing minimized button first to avoid duplicates
-      this.removeMinimizedButton();
+      const existing = document.querySelector(`.${this.minimizedButtonClass}`);
+      if (existing) return existing;
       const btn = document.createElement('button');
       btn.className = this.minimizedButtonClass;
       const s = (p,v)=>btn.style.setProperty(p,v,'important');
@@ -1652,6 +1652,9 @@ class AdvancedPromptEnhancer {
       s('border','1px solid rgba(255,255,255,0.18)'); s('box-shadow','0 10px 24px rgba(0,0,0,0.5)');
       s('display','flex'); s('align-items','center'); s('justify-content','center');
       s('cursor','pointer');
+      if (options && options.hiddenForMeasure) {
+        s('opacity','0'); s('visibility','hidden'); s('pointer-events','none');
+      }
       btn.title = 'Restore PromptOK panel';
       btn.innerHTML = `
         <span class="minimized-count" style="position:absolute; top:-6px; right:-6px; background:#38bdf8; color:#001018; font-weight:700; font-size:11px; width:20px; height:20px; border-radius:999px; display:none; align-items:center; justify-content:center; border:1px solid rgba(0,0,0,0.35)"></span>
@@ -1677,6 +1680,7 @@ class AdvancedPromptEnhancer {
       document.body.appendChild(btn);
       // Reflect current selection count
       this.updateMinimizedButtonCount();
+      return btn;
     } catch(_) { /* noop */ }
   }
 
@@ -1685,6 +1689,51 @@ class AdvancedPromptEnhancer {
       const el = document.querySelector(`.${this.minimizedButtonClass}`);
       if (el) el.remove();
     } catch(_) { /* noop */ }
+  }
+
+  // Ensure we have a minimized button to measure. If not present, create a hidden temp one.
+  // Returns { btn, createdTemp }
+  getOrCreateMinimizedButtonForMeasure() {
+    let btn = document.querySelector(`.${this.minimizedButtonClass}`);
+    let createdTemp = false;
+    if (btn) {
+      try { btn.classList.remove('promptok-pulse'); } catch(_) {}
+      return { btn, createdTemp };
+    }
+    // Create hidden minimized button using the same builder (ensures handlers/counts attached)
+    btn = this.showMinimizedButton({ hiddenForMeasure: true }) || document.querySelector(`.${this.minimizedButtonClass}`);
+    createdTemp = true;
+    return { btn, createdTemp };
+  }
+
+  // Brief glow pulse on minimized icon to draw attention after morph completes
+  pulseMinimizedButton() {
+    try {
+      const btn = document.querySelector(`.${this.minimizedButtonClass}`);
+      if (!btn) return;
+      // Inject style once
+      let style = document.getElementById('promptok-minimized-pulse-style');
+      if (!style) {
+        style = document.createElement('style');
+        style.id = 'promptok-minimized-pulse-style';
+        style.textContent = `
+          @keyframes promptokGlowPulse { 
+            0% { box-shadow: 0 0 0 rgba(56,189,248,0.0); }
+            40% { box-shadow: 0 0 24px rgba(56,189,248,0.65), 0 0 12px rgba(56,189,248,0.45) inset; }
+            100% { box-shadow: 0 0 0 rgba(56,189,248,0.0); }
+          }
+          .promptok-pulse { 
+            animation: promptokGlowPulse 600ms cubic-bezier(0.16, 1, 0.3, 1);
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      // Restart animation
+      btn.classList.remove('promptok-pulse');
+      void btn.offsetWidth; // reflow
+      btn.classList.add('promptok-pulse');
+      setTimeout(() => { try { btn.classList.remove('promptok-pulse'); } catch(_) {} }, 700);
+    } catch (_) { /* noop */ }
   }
 
   addChatGPTStyles(panel) {
@@ -2534,36 +2583,185 @@ class AdvancedPromptEnhancer {
   }
 
   updateChatGPTButtonText(panel) {
-    const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
-    // Always show a simple label regardless of selected options
-    applyBtn.textContent = 'Apply';
+    try {
+      const applyBtn = panel && panel.querySelector ? panel.querySelector('#promptok-chatgpt-apply') : null;
+      if (applyBtn) {
+        // Always show a simple label regardless of selected options
+        applyBtn.textContent = 'Apply';
+      }
+    } catch (_) { /* noop */ }
   }
 
-  minimizeChatGPTOverlay(panel) {
-    this.debugLog('Minimizing ChatGPT overlay, preserving data');
-    this.debugLog('Enhancement data before minimize:', !!this.currentEnhancementData);
+minimizeChatGPTOverlay(panel) {
+  this.debugLog('Minimizing ChatGPT overlay with morph animation');
+  this.debugLog('Enhancement data before minimize:', !!this.currentEnhancementData);
 
-    this.isMinimized = true;
-    panel.style.opacity = '0';
+  // Prevent double-trigger (e.g., button + outside click)
+  if (panel && panel._promptokMinimizing) return;
+  if (panel) panel._promptokMinimizing = true;
+  this.isMinimized = true;
 
-    setTimeout(() => {
-      panel.remove();
+  try {
+    // Calculate morph target (actual minimized icon position and size)
+    // Robust FLIP: freeze panel to fixed coordinates, then animate to target
+    this.freezePanelForFlip(panel);
+    // Reset any prior transform so rect math is correct
+    panel.style.transform = 'translate(0px, 0px) scale(1, 1)';
+    const { btn: targetBtn, createdTemp } = this.getOrCreateMinimizedButtonForMeasure();
+    // Force layout to settle before measuring
+    void panel.offsetWidth; void targetBtn.offsetWidth;
+    // One more RAF to ensure any pending styles applied before measurement
+    // We'll measure and kick animation on the subsequent RAF
+    const startMorph = () => {
+      const rect = panel.getBoundingClientRect();
+      const trBtn = targetBtn.getBoundingClientRect();
+      // Create a ghost target so destination stays stable during animation
+      const ghost = this.createGhostTargetFromRect(trBtn);
+      const tr = ghost.getBoundingClientRect();
+      const targetW = Math.max(1, tr.width || 40);
+      const targetH = Math.max(1, tr.height || 40);
+      // Top-left alignment (simpler & precise with origin top-left)
+      const dx = tr.left - rect.left;
+      const dy = tr.top - rect.top;
+      const scaleX = targetW / Math.max(1, rect.width);
+      const scaleY = targetH / Math.max(1, rect.height);
+
+      if (this.debug) {
+        // Compute centers for logging only
+        const srcCX = rect.left + rect.width / 2;
+        const srcCY = rect.top + rect.height / 2;
+        const dstCX = tr.left + tr.width / 2;
+        const dstCY = tr.top + tr.height / 2;
+        console.log('[PromptOK Debug] Morph calc:', {
+          panelRect: { left: rect.left, top: rect.top, w: rect.width, h: rect.height },
+          targetRect: { left: tr.left, top: tr.top, w: tr.width, h: tr.height },
+          centers: { srcCX, srcCY, dstCX, dstCY },
+          delta: { dx, dy },
+          scale: { scaleX, scaleY }
+        });
+      }
+
+      // Prepare transitions
+      panel.style.willChange = 'transform, opacity, border-radius';
+      panel.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease, border-radius 0.35s ease';
+      panel.style.transformOrigin = 'top left';
+
+      // Fade out the backdrop in parallel if present
+      const backdrop = document.querySelector('.promptok-panel-backdrop');
+      if (backdrop) {
+        try {
+          backdrop.style.transition = 'opacity 0.28s ease';
+          backdrop.style.opacity = '0';
+        } catch(_) { /* noop */ }
+      }
+
+      // Kick off the transform on the next frame
+      requestAnimationFrame(() => {
+        try {
+          panel.style.borderRadius = '12px';
+          panel.style.opacity = '0.98';
+          // Use subpixel precision and translate3d to avoid rounding drift
+          panel.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scaleX}, ${scaleY})`;
+        } catch(_) { /* noop */ }
+      });
+    };
+
+    requestAnimationFrame(startMorph);
+
+    let finished = false;
+    const onEnd = () => {
+      if (finished) return;
+      finished = true;
+      panel.removeEventListener('transitionend', onEnd);
+      try { panel.remove(); } catch(_) {}
       try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
-      this.showMinimizedButton();
+      // Reveal minimized icon and trigger a glow pulse to indicate where it went
+      try {
+        targetBtn.style.removeProperty('opacity');
+        targetBtn.style.removeProperty('visibility');
+        targetBtn.style.removeProperty('pointer-events');
+      } catch(_) { /* noop */ }
+      this.pulseMinimizedButton();
       // Persist session after minimizing
       this.saveSessionState().catch(() => {});
-      this.debugLog('ChatGPT overlay minimized, data preserved:', !!this.currentEnhancementData);
+      this.debugLog('ChatGPT overlay minimized with morph, data preserved:', !!this.currentEnhancementData);
+      try { if (panel) panel._promptokMinimizing = false; } catch(_) {}
+      // Clean ghost if present
+      try { const g = document.getElementById('promptok-ghost-target'); if (g) g.remove(); } catch(_) {}
+    };
+    panel.addEventListener('transitionend', onEnd);
+    // Safety timeout in case transitionend doesn't fire
+    setTimeout(onEnd, 420);
+  } catch (e) {
+    // Fallback to previous fade remove
+    panel.style.opacity = '0';
+    setTimeout(() => {
+      try { panel.remove(); } catch(_) {}
+      try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
+      // Ensure minimized button exists and is visible
+      const btn = this.showMinimizedButton({ hiddenForMeasure: true }) || document.querySelector(`.${this.minimizedButtonClass}`);
+      try {
+        btn.style.removeProperty('opacity');
+        btn.style.removeProperty('visibility');
+        btn.style.removeProperty('pointer-events');
+      } catch(_) { /* noop */ }
+      this.pulseMinimizedButton();
+      this.saveSessionState().catch(() => {});
+      try { if (panel) panel._promptokMinimizing = false; } catch(_) {}
     }, 400);
+  }
+}
+
+  // Freeze panel for FLIP: set fixed coords and explicit size so transform math is stable
+  freezePanelForFlip(panel) {
+    try {
+      const r = panel.getBoundingClientRect();
+      const s = (p,v)=>panel.style.setProperty(p, v, 'important');
+      s('position','fixed');
+      s('left', `${r.left}px`);
+      s('top', `${r.top}px`);
+      s('width', `${r.width}px`);
+      s('height', `${r.height}px`);
+      // Neutralize right/bottom constraints if any
+      s('right','auto'); s('bottom','auto');
+      // Ensure max-height/overflow don’t fight during scale
+      s('max-height', `${r.height}px`);
+      s('overflow', 'hidden');
+    } catch(_) { /* noop */ }
+  }
+
+  // Create a fixed-position ghost target that mirrors the current target rect.
+  // This stabilizes the destination across any late layout shifts.
+  createGhostTargetFromRect(rect) {
+    try {
+      let ghost = document.getElementById('promptok-ghost-target');
+      if (!ghost) {
+        ghost = document.createElement('div');
+        ghost.id = 'promptok-ghost-target';
+        const s = (p,v)=>ghost.style.setProperty(p, v, 'important');
+        s('position','fixed'); s('z-index','2147483646');
+        s('pointer-events','none'); s('background','transparent');
+        document.body.appendChild(ghost);
+      }
+      const s = (p,v)=>ghost.style.setProperty(p, v, 'important');
+      s('left', `${rect.left}px`); s('top', `${rect.top}px`);
+      s('width', `${rect.width}px`); s('height', `${rect.height}px`);
+      return ghost;
+    } catch(_) {
+      // Fallback: return a synthetic object with current target button rect
+      const el = document.querySelector(`.${this.minimizedButtonClass}`) || document.body;
+      return el;
+    }
   }
 
   closeErrorOverlay(panel) {
     if (panel && panel.parentNode) {
       panel.remove();
+      try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
     }
-    try { document.querySelector('.promptok-panel-backdrop')?.remove(); } catch (_) {}
-  }
 
-  // Removed auto-fade for errors to standardize minimize/close behavior
+    // Removed auto-fade for errors to standardize minimize/close behavior
+  }
 
   showSuccessChatGPT(message) {
     const panel = document.querySelector('.promptok-chatgpt-panel');
