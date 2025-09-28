@@ -17,17 +17,26 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Accept Authorization or x-extension-token for consistency
     const authHeader = request.headers.get('authorization')
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Bearer token required' }, 401, request)
+    const extHeader = request.headers.get('x-extension-token')
+    const token = authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : (extHeader || '')
+    if (!token) {
+      return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Extension token required' }, 401, request)
     }
 
-    const token = authHeader.substring(7)
     let payload
     try {
       payload = await verifyExtensionJWT(token)
     } catch {
       return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Invalid or expired token' }, 401, request)
+    }
+
+    // Enforce token version parity
+    if ((payload as any).token_version !== 1) {
+      return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Unsupported token version' }, 401, request)
     }
 
     const bodyJson = await request.json().catch(() => null)
@@ -40,6 +49,29 @@ export async function POST(request: NextRequest) {
     const status = parsed.data.status || 'completed'
 
     const admin = createAdminClient()
+
+    // Soft-delete and session revocation checks
+    const { data: profile, error: profileError } = await admin
+      .from('user_profiles')
+      .select('is_active, session_revoked_at')
+      .eq('id', payload.userId)
+      .single()
+    if (profileError) {
+      console.error('[extension/session/finalize] Profile fetch failed:', profileError)
+      return createCorsResponse({ error: 'PROFILE_ERROR', message: 'Failed to validate account' }, 500, request)
+    }
+    if (!profile) {
+      return createCorsResponse({ error: 'NOT_FOUND', message: 'User profile not found' }, 404, request)
+    }
+    if (profile.is_active === false) {
+      return createCorsResponse({ error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' }, 403, request)
+    }
+    const revokedAt = profile.session_revoked_at ? Date.parse(profile.session_revoked_at as unknown as string) : null
+    const tokenIatMs = (payload as any).iat ? ((payload as any).iat as number) * 1000 : 0
+    if (revokedAt && tokenIatMs < revokedAt) {
+      return createCorsResponse({ error: 'SESSION_REVOKED', message: 'Session has been revoked. Please sign in again.' }, 401, request)
+    }
+
     const sanitized = sanitizeString(finalPrompt)
 
     const { error, data } = await admin

@@ -65,6 +65,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Enforce token version for forward compatibility
+    if ((payload as any).token_version !== 1) {
+      return createCorsResponse(
+        { error: 'UNAUTHORIZED', message: 'Unsupported token version' },
+        401,
+        request
+      );
+    }
+
     // Validate scope contains 'enhance'
     if (!payload.scope || !payload.scope.includes('enhance')) {
       console.error('[extension/enhance] Insufficient scope:', payload.scope);
@@ -167,16 +176,30 @@ export async function POST(request: NextRequest) {
 
     // Fetch user profile for plan/usage
     const userId = payload.userId;
+    // Validate userId looks like a UUID to avoid PostgREST type errors
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.error('[extension/enhance] Invalid userId format in token:', { userIdSample: String(userId).slice(0, 8) + '...' })
+      return createCorsResponse(
+        { error: 'UNAUTHORIZED', message: 'Invalid token subject' },
+        401,
+        request
+      );
+    }
     const { data: userProfile, error: profileError } = await admin
       .from('user_profiles')
-      .select('plan, usage_count, plan_valid_until, prompt_limit')
+      .select('usage_count, is_active')
       .eq('id', userId)
       .single();
 
     if (profileError) {
       console.error('[extension/enhance] Error fetching user profile:', profileError);
+      const isProd = process.env.NODE_ENV === 'production';
       return createCorsResponse(
-        { error: 'Failed to verify user plan' },
+        {
+          error: 'Failed to verify user plan',
+          ...(isProd ? {} : { hint: 'profile_fetch_failed', details: String(profileError?.message || profileError) }),
+        },
         500,
         request
       );
@@ -190,20 +213,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Enforce prompt_limit like edge function
-    const limit: number | null = (userProfile as { prompt_limit?: number | null })?.prompt_limit ?? null;
-    const overLimit = typeof limit === 'number' && userProfile.usage_count >= limit;
-    if (overLimit) {
+    // Soft-delete enforcement
+    if (userProfile && (userProfile as any).is_active === false) {
       return createCorsResponse(
-        {
-          error: 'Usage limit reached. Please upgrade your plan.',
-          usage: userProfile.usage_count,
-          limit: limit ?? undefined,
-        },
+        { error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' },
         403,
         request
       );
     }
+    // Quota enforcement is delegated to RPC increment_usage_if_allowed below
 
     // Create pending prompt session (best effort)
     try {
@@ -425,9 +443,7 @@ Now, when you are given the user prompt, do the above.`;
       success: true,
       enhancedPrompt: (enhancedText as string).trim(),
       structuredData: structuredResponse,
-      usageCount: (incRow && typeof incRow.new_usage === 'number')
-        ? incRow.new_usage
-        : (userProfile.usage_count + 1),
+      usageCount: (incRow && typeof incRow.new_usage === 'number') ? incRow.new_usage : undefined,
       sessionId,
       responseTimeMs: totalResponseTime,
       site: siteLabel,
