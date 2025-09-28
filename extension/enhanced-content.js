@@ -58,7 +58,15 @@ class AdvancedPromptEnhancer {
     s('opacity','0'); s('pointer-events','none');
     s('transition','opacity .18s ease, transform .18s ease');
     s('transform','translateX(6px)');
-    b.innerHTML = '<span style="font-size:14px; line-height:1">🕘</span>';
+    b.setAttribute('aria-label', 'View history');
+    b.setAttribute('title', 'View history');
+    // Inline SVG: modern history/clock icon (stroke inherits currentColor)
+    b.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
     return b;
   }
 
