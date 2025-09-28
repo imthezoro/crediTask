@@ -87,6 +87,9 @@ class AdvancedPromptEnhancer {
       };
       // Set immediately and on scroll/resize
       updatePos();
+      // Re-run after layout settles to avoid transient 0,0 rects
+      try { requestAnimationFrame(() => updatePos()); } catch(_) {}
+      try { setTimeout(() => updatePos(), 50); } catch(_) {}
       if (!historyBtn._posUpdater) {
         historyBtn._posUpdater = updatePos;
         window.addEventListener('scroll', updatePos, true);
@@ -139,19 +142,18 @@ class AdvancedPromptEnhancer {
         <button class="promptok-history-close" aria-label="Close" style="background:transparent;color:#fff;border:0;cursor:pointer;font-size:14px;">✕</button>
       </div>
       <div style="display:flex; flex-direction:column; gap:8px; max-height:40vh; overflow:auto;">
-        ${items.map(it => `
-          <div style="padding:8px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04)">
-            <div style="font-size:11px; opacity:.7; display:flex; gap:10px;">
-              <span>${(it.site||'')}</span>
-              <span>${(it.status||'')}</span>
-              <span>${(it.response_time_ms||0)}ms</span>
-              <span>${new Date(it.created_at).toLocaleString()}</span>
+        ${items.map(it => {
+          const raw = (it.final_prompt && String(it.final_prompt)) || (it.base_enhanced_prompt && String(it.base_enhanced_prompt)) || '';
+          const cleaned = this.formatHistoryPrompt(raw);
+          const safe = cleaned.replace(/</g,'&lt;');
+          const when = (()=>{ try { return new Date(it.created_at).toLocaleString(); } catch(_) { return ''; } })();
+          return `
+            <div style="padding:10px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04)">
+              <div style="font-size:11px; opacity:.65;">${when}</div>
+              <div style="margin-top:6px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; line-height:1.45;">${safe}</div>
             </div>
-            <div style="margin-top:6px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;">
-              ${(it.final_prompt || it.base_enhanced_prompt || '').replace(/</g,'&lt;')}
-            </div>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
         ${items.length === 0 ? '<div style="opacity:.8; font-size:12px; padding:4px 6px;">No history for this chat.</div>' : ''}
       </div>
     `;
@@ -184,6 +186,49 @@ class AdvancedPromptEnhancer {
     if (closeBtn) closeBtn.addEventListener('click', close);
     const outside = (e) => { if (!pop.contains(e.target) && !this._historyButtonEl?.contains(e.target)) { close(); document.removeEventListener('mousedown', outside, true); } };
     document.addEventListener('mousedown', outside, true);
+  }
+
+  // Sanitize history text to show exactly what the user saw in the enhancement popup
+  // - Prefer final prompt; else base enhanced prompt
+  // - Remove internal headings like **Enhanced Prompt**
+  // - Remove fenced code blocks (``` ... ```), especially JSON
+  // - Trim excessive whitespace
+  formatHistoryPrompt(text) {
+    try {
+      const original = String(text || '');
+      let t = original;
+
+      // 1) Try to extract the explicit "Enhanced Prompt" section until a separator (---), code fence, or end
+      //    This mirrors what the popup displays as the primary enhanced text.
+      const sectionMatch = t.match(/\*\*\s*Enhanced\s+Prompt\s*\*\*[\s:]*\n?([\s\S]*?)(?:\n-{3,}|\n```|$)/i);
+      if (sectionMatch && sectionMatch[1]) {
+        const extracted = sectionMatch[1].trim();
+        if (extracted) {
+          return extracted;
+        }
+      }
+
+      // 2) Try to parse fenced JSON and use enhanced_prompt field directly, if present
+      try {
+        const jsonFence = t.match(/```json\s*([\s\S]*?)```/i);
+        if (jsonFence && jsonFence[1]) {
+          const parsed = JSON.parse(jsonFence[1]);
+          const ep = parsed && typeof parsed.enhanced_prompt === 'string' ? parsed.enhanced_prompt.trim() : '';
+          if (ep) return ep;
+        }
+      } catch (_) { /* ignore JSON parse errors */ }
+
+      // 3) As a fallback, remove headings and code blocks and return remaining meaningful text
+      t = t.replace(/^\s*\*\*\s*Enhanced\s+Prompt\s*\*\*\s*:?.*$/gmi, '').trim();
+      t = t.replace(/```[\s\S]*?```/g, '').trim();
+      t = t.replace(/^[-*_]{3,}\s*$/gmi, '').trim();
+      t = t.replace(/\n{3,}/g, '\n\n');
+
+      // If still empty, just return the original text (safeguard against blank rendering)
+      return t || original.trim();
+    } catch (_) {
+      return String(text || '');
+    }
   }
 
   // Session persistence helpers
