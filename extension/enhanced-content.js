@@ -3989,22 +3989,42 @@ minimizeChatGPTOverlay(panel) {
       Promise.resolve().then(async () => {
         const loaded = await this.loadSessionState();
         this.debugLog('Session loaded:', loaded);
-        if (!loaded || !this.currentEnhancementData) {
-          this.debugLog('No enhancement data available to restore');
+        // After attempting to load session, prefer restoring from currentEnhancementData if available
+        if (this.currentEnhancementData) {
+          this.removeMinimizedButton();
+          this.isMinimized = false;
+          if (this.currentEnhancementData.structuredData) {
+            this.debugLog('Restoring with structured data');
+            this.showEnhancementOptions(this.currentEnhancementData.structuredData);
+          } else {
+            this.debugLog('Restoring with raw response data');
+            const parsedData = this.parseEnhancementResponse(this.currentEnhancementData.rawResponse);
+            if (parsedData) {
+              this.showEnhancementOptions(parsedData);
+            } else {
+              this.debugLog('Parsed data from raw response was empty after session load');
+            }
+          }
           return;
         }
-        this.removeMinimizedButton();
-        this.isMinimized = false;
-        if (this.currentEnhancementData.structuredData) {
-          this.debugLog('Restoring with structured data');
-          this.showEnhancementOptions(this.currentEnhancementData.structuredData);
-        } else {
-          this.debugLog('Restoring with raw response data');
-          const parsedData = this.parseEnhancementResponse(this.currentEnhancementData.rawResponse);
-          if (parsedData) {
-            this.showEnhancementOptions(parsedData);
+
+        // Fallback: if we opened from History (no API call), use lastParsedData
+        if (this.lastParsedData) {
+          this.debugLog('Restoring from lastParsedData fallback');
+          this.removeMinimizedButton();
+          this.isMinimized = false;
+          try {
+            await this.showEnhancementOptions(this.lastParsedData);
+          } catch (err) {
+            console.warn('[PromptOK] Failed to restore from lastParsedData', err);
+            this.showError('Failed to restore panel.');
           }
+          return;
         }
+
+        // Nothing to restore
+        this.debugLog('No enhancement data or lastParsedData available to restore');
+        return;
       });
       return;
     }
