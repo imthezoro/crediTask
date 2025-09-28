@@ -104,6 +104,55 @@ class AdvancedPromptEnhancer {
     } catch(_) { /* noop */ }
   }
 
+  // --- Reload icon swap (visual-only) ---
+  getReloadSVG() {
+    return (
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '  <path d="M20 12a8 8 0 1 1-2.343-5.657" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '  <path d="M20 4v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg>'
+    );
+  }
+
+  showReloadBadge(button){
+    try {
+      if (!button) return;
+      if (button.classList.contains('loading')) return; // avoid fighting spinner
+      if (!button._promptokDefaultIconHTML) {
+        button._promptokDefaultIconHTML = button.innerHTML;
+      }
+      if (!button._promptokReloadActive) {
+        button.innerHTML = this.getReloadSVG();
+        button._promptokReloadActive = true;
+      }
+    } catch(_) { /* ignore */ }
+  }
+
+  hideReloadBadge(button){
+    try {
+      if (!button) return;
+      if (button._promptokReloadActive) {
+        const original = typeof button._promptokDefaultIconHTML === 'string' ? button._promptokDefaultIconHTML : '';
+        if (original) button.innerHTML = original;
+        button._promptokReloadActive = false;
+      }
+    } catch(_) { /* ignore */ }
+  }
+
+  updateReloadIndicator(button, input){
+    try {
+      if (!button || !input) return;
+      if (button.classList.contains('loading')) { this.hideReloadBadge(button); return; }
+      const last = input && input._promptokLastEnhancedValue ? String(input._promptokLastEnhancedValue) : '';
+      const cur = input ? String(this.getInputValue(input) || '') : '';
+      if (last && cur.trim() === last.trim()) {
+        this.showReloadBadge(button);
+      } else {
+        this.hideReloadBadge(button);
+      }
+    } catch(_) { /* ignore */ }
+  }
+
   async showHistoryForCurrentChat(){
     const jwtData = await this.getExtensionJWT();
     if (!jwtData.jwt) { this.showAuthRequired(); return; }
@@ -634,6 +683,8 @@ class AdvancedPromptEnhancer {
     const button = this.createEnhanceButton(input);
     this.positionButton(input, button);
     this.attachButtonEvents(button, input);
+    // Initial badge update based on current input state
+    try { this.updateReloadIndicator(button, input); } catch(_){}
     
     // Mark input as having button
     input.classList.add('promptok-input-with-button');
@@ -894,6 +945,14 @@ class AdvancedPromptEnhancer {
   attachButtonEvents(button, input) {
     // Store reference to input for this button
     button._promptokInput = input;
+    // Track live changes to toggle reload indicator
+    const onInputChange = () => {
+      try { this.updateReloadIndicator(button, input); } catch(_){}
+    };
+    try {
+      input.addEventListener('input', onInputChange);
+      input.addEventListener('change', onInputChange);
+    } catch(_) { /* ignore */ }
     
     button.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -904,6 +963,11 @@ class AdvancedPromptEnhancer {
       }
       // Set the current input context
       this.currentInput = input;
+      // Snapshot current text so we can show reload if user hasn't changed it
+      try {
+        input._promptokLastEnhancedValue = String(this.getInputValue(input) || '');
+        this.updateReloadIndicator(button, input);
+      } catch(_) { /* ignore */ }
       // Start loading UX on the icon
       this.setButtonLoading(button, true, 'Enhancing…');
       // Set a long-wait tooltip updater after 5s from click
@@ -1018,6 +1082,8 @@ class AdvancedPromptEnhancer {
       if (button) {
         try { if (button._promptokLongWaitTimer) clearTimeout(button._promptokLongWaitTimer); } catch(_){}
         this.setButtonLoading(button, false);
+        // Refresh reload state after enhancement completes (even if user didn't apply)
+        try { this.updateReloadIndicator(button, this.currentInput || input); } catch(_) { /* ignore */ }
       }
     }
   }
@@ -3036,6 +3102,15 @@ class AdvancedPromptEnhancer {
       return;
     }
     
+    // Mark last enhanced value when applied (used for reload indicator)
+    if (isApplied) {
+      try {
+        input._promptokLastEnhancedValue = expectedText;
+        const btn = this.floatingButtons.get(input);
+        if (btn) this.updateReloadIndicator(btn, input);
+      } catch(_) { /* ignore */ }
+    }
+
     const count = this.selectedOptions.size;
     const message = count > 0 
       ? `Enhanced prompt with ${count} option${count > 1 ? 's' : ''} applied!`
