@@ -59,6 +59,9 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_publishable_key
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key
 
+# LLM Provider (OpenRouter)
+OPENROUTER_API_KEY=your_openrouter_api_key
+
 # App
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
 ```
@@ -117,9 +120,10 @@ vercel --prod
 
 ### Supabase Configuration
 
-1. **Deploy Edge Functions**:
+1. **Deploy Edge Functions (optional)**:
 ```bash
-supabase functions deploy enhance-prompt
+# Enhancement logic has been migrated to Next.js API and no longer requires the edge function.
+# Keep only if you still use other functions.
 supabase functions deploy aggregate_daily_metrics
 ```
 
@@ -214,7 +218,7 @@ All API endpoints require authentication via Supabase JWT tokens.
 
 ### How it works
 1. Extension captures prompt text from supported AI platforms
-2. Sends enhancement request to Supabase Edge Functions
+2. Sends enhancement request to Next.js API route `/api/extension/enhance`
 3. Displays enhanced prompt to user
 4. Logs session data for analytics
 
@@ -409,43 +413,41 @@ extension/             # Chrome extension source
 ## Usage Limits & Enforcement
 
 ### Single Source of Truth
-Usage limits are enforced **only** in Supabase Edge Functions to maintain consistency and prevent bypasses:
+Usage limits are enforced server-side in the Next.js enhancement API route for consistency and security.
 
-#### Current Limits (Enforced in Edge Functions)
-- **Paid Plans**: Unlimited usage
-- **Free Users**: 10 prompts maximum (`usage_count < 10`)
-- **Guest Users**: 5 prompts maximum (`usage_count < 5`)
+#### Current Limits (Enforced in API)
+- **Paid Plans**: Unlimited usage (enforced by `prompt_limit` being null or high)
+- **Free Users**: Limited by `user_profiles.prompt_limit`
+- **Guest Users**: Limited by `user_profiles.prompt_limit`
 
 #### Enforcement Points
-1. **Primary**: `supabase/functions/enhance-prompt/index.ts` - Main enhancement endpoint
-2. **Secondary**: `supabase/functions/guest-prompt/index.ts` - Guest-specific wrapper
+1. **Primary**: `app/api/extension/enhance/route.ts` – Main enhancement endpoint
+   - Reads `user_profiles` (plan, usage_count, prompt_limit)
+   - Uses RPC `increment_usage_if_allowed` for atomic increments
+   - Creates/updates `prompt_sessions` rows for each request
+2. **Secondary**: Other routes (e.g., `/api/analyze`) should not enforce quotas
 
-#### What Was Removed
-- **Next.js API Routes**: No longer check quotas (e.g., `/app/api/analyze/route.ts`)
-- **lib/rateLimit.ts**: Still exists but usage checks removed from API routes
-- **Extension Client**: Only provides UX feedback, not authoritative enforcement
-
-#### Why This Architecture
-- **Security**: Server-side enforcement prevents client bypasses
-- **Consistency**: Single codebase manages all usage limits
-- **Simplicity**: No need to sync limits across multiple files
-- **Performance**: Edge Functions handle the core enhancement flow
+#### What Changed
+- Previous enforcement lived in `supabase/functions/enhance-prompt/index.ts`. This logic has been migrated into Next.js API for simpler architecture and fewer moving parts.
 
 #### Modifying Limits
-To change usage limits, update only these constants:
-```typescript
-// supabase/functions/enhance-prompt/index.ts
-const FREE_PLAN_LIMIT = 10 // Free users get 10 prompts
-
-// supabase/functions/guest-prompt/index.ts  
-const GUEST_QUOTA = 5 // Guest users get 5 prompts
-```
+- Update the `prompt_limit` per plan in the database or your business logic that sets it.
+- The RPC `increment_usage_if_allowed` governs atomic increments.
 
 #### Usage Tracking
-- `usage_count` incremented after successful enhancements
-- Stored in `user_profiles` table
-- Checked before processing each request
-- Reset behavior depends on your business logic (not implemented)
+- `usage_count` is incremented after successful enhancements
+- Stored in `user_profiles`
+- Sessions are logged in `prompt_sessions`
+
+## Edge Function Decommission Notes
+
+- The enhancement Edge Function `supabase/functions/enhance-prompt/index.ts` is now obsolete.
+- All clients (web and extension) use the Next.js API `POST /api/extension/enhance`.
+- Once verified in production, you can remove the edge function folder to avoid confusion.
+- Ensure environment variables are set in your deployment:
+  - `OPENROUTER_API_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ## Browser Extension Build & Release (GitHub Actions)
 

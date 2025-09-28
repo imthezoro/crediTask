@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Extension-Token',
 };
 
 /**
@@ -17,7 +17,7 @@ export function getCorsHeaders(request?: NextRequest): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': isExtension ? (origin || '*') : '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Extension-Token',
     'Access-Control-Allow-Credentials': isExtension ? 'true' : 'false',
     'Access-Control-Max-Age': '86400',
   };

@@ -7,6 +7,7 @@ import {
 import { z } from 'zod';
 import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
+import { createAdminClient } from '@/lib/supabase-server';
 
 // Define a safe type for errors returned by the edge function
 type EdgeFunctionError = {
@@ -39,18 +40,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract and validate Authorization header
+    // Extract and validate token from Authorization or x-extension-token
     const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const extHeader = request.headers.get('x-extension-token');
+    const token = authHeader && authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : (extHeader || '');
+    if (!token) {
       return createCorsResponse(
-        { error: 'UNAUTHORIZED', message: 'Bearer token required' },
+        { error: 'UNAUTHORIZED', message: 'Extension token required' },
         401,
         request
       );
     }
 
     // Verify JWT token
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
     
     let payload: ExtensionJWTPayload;
     try {
@@ -97,13 +101,12 @@ export async function POST(request: NextRequest) {
     const sanitizedPrompt = sanitizeString(prompt);
 
     // Validate environment configuration
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('[extension/enhance] Missing required environment variables:', {
-        hasUrl: !!supabaseUrl,
-        hasKey: !!supabaseAnonKey
+    const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!openrouterApiKey || !serviceRoleKey) {
+      console.error('[extension/enhance] Missing required envs', {
+        hasOpenrouterKey: !!openrouterApiKey,
+        hasServiceRoleKey: !!serviceRoleKey,
       });
       return createCorsResponse(
         { error: 'CONFIGURATION_ERROR', message: 'Service configuration error' },
@@ -156,97 +159,177 @@ export async function POST(request: NextRequest) {
       }, 200, request);
     }
 
-    const edgeFunctionUrl = `${supabaseUrl}/functions/v1/enhance-prompt`;
+    // From here, inline the previous Edge Function logic
+    const admin = createAdminClient();
 
-    // Call Edge Function with extension token in custom header
-    // Use anon key for Supabase gateway authentication
-    const edgeResponse = await fetch(edgeFunctionUrl, {
+    // Prepare labels and timing
+    const siteLabel = (typeof site === 'string' && site.trim().length > 0) ? site.trim() : 'unknown';
+    const chatUrlLabel = (typeof chatUrl === 'string' && chatUrl.trim().length > 0) ? chatUrl.trim().slice(0, 2048) : null;
+    const t0 = Date.now();
+    let sessionId: string | null = null;
+
+    // Fetch user profile for plan/usage
+    const userId = payload.userId;
+    const { data: userProfile, error: profileError } = await admin
+      .from('user_profiles')
+      .select('plan, usage_count, plan_valid_until, prompt_limit')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.error('[extension/enhance] Error fetching user profile:', profileError);
+      return createCorsResponse(
+        { error: 'Failed to verify user plan' },
+        500,
+        request
+      );
+    }
+
+    if (!userProfile) {
+      return createCorsResponse(
+        { error: 'User profile not found' },
+        404,
+        request
+      );
+    }
+
+    // Enforce prompt_limit like edge function
+    const limit: number | null = (userProfile as { prompt_limit?: number | null })?.prompt_limit ?? null;
+    const overLimit = typeof limit === 'number' && userProfile.usage_count >= limit;
+    if (overLimit) {
+      return createCorsResponse(
+        {
+          error: 'Usage limit reached. Please upgrade your plan.',
+          usage: userProfile.usage_count,
+          limit: limit ?? undefined,
+        },
+        403,
+        request
+      );
+    }
+
+    // Create pending prompt session (best effort)
+    try {
+      const { data: pendingRows } = await admin
+        .from('prompt_sessions')
+        .insert({
+          user_id: userId,
+          original_prompt: sanitizedPrompt,
+          site: siteLabel,
+          chat_url: chatUrlLabel,
+          status: 'pending',
+          response_time_ms: 0,
+        })
+        .select('id');
+      if (pendingRows && Array.isArray(pendingRows) && pendingRows.length > 0) {
+        // @ts-ignore
+        sessionId = pendingRows[0]?.id ?? null;
+      }
+    } catch (e) {
+      console.warn('[extension/enhance] Could not insert pending session', e);
+    }
+
+    // System prompt copied from Edge Function for parity
+    const SYSTEM_PROMPT = `You are a Prompt-Enhancement Engine. When given an input user prompt (the "original prompt"), you must transform it into a high-quality, production-ready "enhanced prompt" and produce machine-readable output so a client UI can:
+
+1. Present the top assumptions the LLM has to make to run the prompt, as *selectable options* (the user will choose among them).
+2. Present additional configurable option groups (tone, audience, length, format, domain constraints, persona, output type, examples, constraints, locale/timeframe etc.) as choices the user can select.
+
+CRITICAL: The "enhanced_prompt" field must be a complete, standalone prompt that works perfectly without any placeholders or brackets like [audience level], [specific aspects], etc. It should be immediately usable by any LLM.
+
+The append_snippets are ONLY for adding extra context when options are selected. The base enhanced_prompt should never contain placeholder text.
+
+Format your response as follows:
+
+**Enhanced Prompt**
+[Your enhanced version of the prompt - complete and usable without placeholders]
+
+---
+
+\`\`\`json
+{
+  "enhanced_prompt": "[Complete enhanced prompt with NO placeholders or brackets]",
+  "display_excerpt": "[Brief 1-line summary]",
+  "assumption_groups": [
+    {
+      "group_id": "A1",
+      "title": "[Category Name]",
+      "description": "[What this group helps clarify]",
+      "input_type": "radio",
+      "options": [
+        {
+          "option_id": "A1_O1",
+          "label": "[Option Name]",
+          "short": "[Brief description]",
+          "append_snippet": "[Text to append to prompt if selected]"
+        }
+      ]
+    }
+  ],
+  "combination_snippets": [
+    {
+      "combo": ["A1_O1", "A2_O1"],
+      "append_snippet": "[Special text when these options are combined]"
+    }
+  ]
+}
+\`\`\`
+
+Guidelines:
+- The enhanced_prompt must be complete and functional without any placeholders
+- Never use bracket notation like [audience level] or [specific aspects] in enhanced_prompt
+- Make reasonable assumptions for the enhanced_prompt base version
+- Provide 2-4 assumption groups with 2-4 options each
+- append_snippets should add specific context when options are selected
+- Set "input_type" to "radio" for mutually exclusive options or "checkbox" for multiple selections
+- Use "radio" for categories like audience level, format type, or focus area where only one choice makes sense
+- Use "checkbox" for features, topics, or elements that can be combined together
+- Each append_snippet should be short (one or two sentences) and written so that simply appending it to the enhanced_prompt results in a clear, enforceable instruction for any downstream LLM.
+- Only produce up to 6 option groups, and within each group up to 6 options. Prefer 3–5 options per useful group.
+- Be conservative about making assumptions. If a critical missing detail would dramatically change the prompt, include a followup question and mark it as REQUIRED.
+- Avoid hallucinations. When the original prompt references facts that are plausibly time-sensitive or ambiguous, do not invent specifics.
+
+Behavior and tone:
+- Produce safe, factual, and helpful guidance.
+- When improving style, make minimal but high-impact edits. The enhanced prompt should remain faithful to the user's intent.
+- When possible, normalize ambiguous units, formats and scopes.
+- When producing append_snippets, use imperative, LLM-friendly phrasing. Keep it short.
+
+Now, when you are given the user prompt, do the above.`;
+
+    // Call OpenRouter API
+    const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${openrouterApiKey}`,
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'apikey': supabaseAnonKey,
-        'x-extension-token': token,
+        'HTTP-Referer': 'https://promptok.app',
+        'X-Title': 'PromptOK',
       },
-      body: JSON.stringify({ 
-        prompt: sanitizedPrompt, 
-        site: (typeof site === 'string' ? site : undefined),
-        chatUrl: (typeof chatUrl === 'string' ? chatUrl : undefined),
-      })
+      body: JSON.stringify({
+        model: 'nvidia/nemotron-nano-9b-v2:free',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: sanitizedPrompt },
+        ],
+        max_tokens: 3500,
+        temperature: 0.2,
+      }),
     });
 
-    if (!edgeResponse.ok) {
-      const rawError = (await edgeResponse.json().catch(() => ({ error: 'Edge function error' }))) as unknown;
-      const errorData: EdgeFunctionError = typeof rawError === 'object' && rawError !== null
-        ? (rawError as EdgeFunctionError)
-        : { error: 'Edge function error' };
-      console.error('[extension/enhance] Edge function failed:', {
-        status: edgeResponse.status,
-        statusText: edgeResponse.statusText,
-        error: errorData,
-        provider: errorData.provider,
-        provider_status: errorData.provider_status,
-        provider_status_text: errorData.provider_status_text,
-        provider_response: errorData.provider_response,
-      });
-
-      // //Remove the if case in prod to remove the hardcoded resposne
-      // // If usage limit (403) is returned by the edge function, provide a simple mock response for testing.
-      // if (edgeResponse.status === 403) {
-      //   // Original error return preserved below for later re-enable if needed:
-      //   // return createCorsResponse(
-      //   //   {
-      //   //     error: 'ENHANCEMENT_FAILED',
-      //   //     message: (errorData as any).message || (errorData as any).error || 'Enhancement service unavailable',
-      //   //     provider: (errorData as any).provider,
-      //   //     provider_status: (errorData as any).provider_status,
-      //   //     provider_status_text: (errorData as any).provider_status_text,
-      //   //     provider_response: (errorData as any).provider_response,
-      //   //   },
-      //   //   edgeResponse.status,
-      //   //   request
-      //   // );
-
-      //   const mockEnhancedText = `Refined Prompt\n\nPlease improve the following prompt to be clear, specific, and ready to run. Keep the original intent.\n\nOriginal:\n"""\n${sanitizedPrompt}\n"""\n\nReturn the final improved prompt only.`;
-
-      //   const mockStructured = {
-      //     enhanced_prompt: `Improve the prompt for clarity and specificity.\n\nOriginal:\n"""\n${sanitizedPrompt}\n"""\n\nReturn a single finalized prompt line.`,
-      //     display_excerpt: 'Mock: simple refinement with minimal options.',
-      //     assumption_groups: [
-      //       {
-      //         group_id: 'S1',
-      //         title: 'Tone',
-      //         description: 'Select a tone',
-      //         input_type: 'radio',
-      //         options: [
-      //           { option_id: 'S1_O1', label: 'Professional', short: 'Neutral, business-like', append_snippet: 'Use a professional, neutral tone.' },
-      //           { option_id: 'S1_O2', label: 'Friendly', short: 'Approachable', append_snippet: 'Use a friendly, approachable tone.' }
-      //         ]
-      //       },
-      //       {
-      //         group_id: 'S2',
-      //         title: 'Format',
-      //         description: 'Choose output style',
-      //         input_type: 'radio',
-      //         options: [
-      //           { option_id: 'S2_O1', label: 'Bullets', short: 'Headings + bullets', append_snippet: 'Structure with brief headings and bullet points.' },
-      //           { option_id: 'S2_O2', label: 'Single paragraph', short: 'Compact text', append_snippet: 'Provide a single concise paragraph.' }
-      //         ]
-      //       }
-      //     ],
-      //     combination_snippets: []
-      //   };
-
-      //   return createCorsResponse({
-      //     success: true,
-      //     enhancedPrompt: mockEnhancedText.trim(),
-      //     structuredData: mockStructured,
-      //     // usageCount unknown from edge in this path; omit or set to undefined
-      //     mock: true,
-      //     note: 'Mock response returned due to edge 403 (testing mode)'
-      //   }, 200, request);
-      // }
-
+    if (!openrouterResponse.ok) {
+      const errorData = await openrouterResponse.json().catch(() => ({}));
+      console.error('[extension/enhance] OpenRouter API error:', errorData);
+      // Mark session failed (best effort)
+      try {
+        if (sessionId) {
+          const responseTime = Math.max(0, Date.now() - t0);
+          await admin
+            .from('prompt_sessions')
+            .update({ status: 'failed', response_time_ms: responseTime, chat_url: chatUrlLabel })
+            .eq('id', sessionId);
+        }
+      } catch {}
       return createCorsResponse(
         {
           error: 'ENHANCEMENT_FAILED',
@@ -256,22 +339,100 @@ export async function POST(request: NextRequest) {
           provider_status_text: errorData.provider_status_text,
           provider_response: errorData.provider_response,
         },
-        edgeResponse.status,
+        openrouterResponse.status,
         request
       );
     }
 
-    const result = await edgeResponse.json();
+    // Success path: parse and finalize
+    const openrouterData = await openrouterResponse.json();
+    const enhancedText: string | undefined = openrouterData.choices?.[0]?.message?.content;
+
+    if (!enhancedText) {
+      try {
+        if (sessionId) {
+          const responseTime = Math.max(0, Date.now() - t0);
+          await admin
+            .from('prompt_sessions')
+            .update({ status: 'failed', response_time_ms: responseTime })
+            .eq('id', sessionId);
+        }
+      } catch {}
+      return createCorsResponse(
+        { error: 'Invalid response from OpenRouter API' },
+        500,
+        request
+      );
+    }
+
+    // Try to parse fenced JSON from the model output
+    let structuredResponse: unknown = null;
+    try {
+      const jsonMatch = (enhancedText as string).match(/```json\s*([\s\S]*?)```/i);
+      if (jsonMatch) {
+        structuredResponse = JSON.parse(jsonMatch[1].trim());
+      }
+    } catch {
+      console.log('[extension/enhance] Could not parse structured response, using simple format');
+    }
+
+    // Atomically increment usage via RPC
+    const { data: incData, error: rpcError } = await admin
+      .rpc('increment_usage_if_allowed', { p_user_id: userId, p_increment: 1 });
+    if (rpcError) {
+      console.error('[extension/enhance] Error in increment_usage_if_allowed RPC:', rpcError);
+      // continue; respect incRow.allowed if present
+    }
+    const incRow = Array.isArray(incData) ? (incData as any)[0] : null;
+    if (incRow && incRow.allowed === false) {
+      try {
+        if (sessionId) {
+          const responseTime = Math.max(0, Date.now() - t0);
+          await admin
+            .from('prompt_sessions')
+            .update({ status: 'failed', response_time_ms: responseTime })
+            .eq('id', sessionId);
+        }
+      } catch {}
+      return createCorsResponse(
+        {
+          error: 'Usage limit reached. Please upgrade your plan.',
+          usage: incRow.new_usage ?? userProfile.usage_count,
+          limit: incRow.quota,
+        },
+        403,
+        request
+      );
+    }
+
+    // Mark session completed
+    const totalResponseTime = Math.max(0, Date.now() - t0);
+    try {
+      if (sessionId) {
+        await admin
+          .from('prompt_sessions')
+          .update({
+            base_enhanced_prompt: (enhancedText as string).trim(),
+            status: 'completed',
+            response_time_ms: totalResponseTime,
+          })
+          .eq('id', sessionId);
+      }
+    } catch (e) {
+      console.warn('[extension/enhance] Could not update completed session', e);
+    }
 
     return createCorsResponse({
       success: true,
-      enhancedPrompt: result.enhancedPrompt,
-      structuredData: result.structuredData,
-      usageCount: result.usageCount,
-      sessionId: result.sessionId,
-      responseTimeMs: result.responseTimeMs,
-      site: result.site,
-      chatUrl: result.chatUrl,
+      enhancedPrompt: (enhancedText as string).trim(),
+      structuredData: structuredResponse,
+      usageCount: (incRow && typeof incRow.new_usage === 'number')
+        ? incRow.new_usage
+        : (userProfile.usage_count + 1),
+      sessionId,
+      responseTimeMs: totalResponseTime,
+      site: siteLabel,
+      chatUrl: chatUrlLabel,
     }, 200, request);
 
   } catch (error) {
