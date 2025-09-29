@@ -3643,10 +3643,15 @@ minimizeChatGPTOverlay(panel) {
   updateDynamicUI(panel, parsedData) {
     // Update for new format only
     if (!parsedData.questions || !parsedData.selection_updates) {
+      console.log('[PromptOK] Skipping dynamic UI - old format or missing data');
       return; // Old format doesn't support dynamic updates
     }
     
-    console.log('[PromptOK] Updating dynamic UI');
+    console.log('[PromptOK] Updating dynamic UI', {
+      questionsCount: parsedData.questions.length,
+      selectionUpdatesCount: parsedData.selection_updates.length,
+      panelClass: panel.className
+    });
     
     // 1. Show/hide dependent questions based on selection
     this.updateDependentQuestions(panel, parsedData);
@@ -3658,22 +3663,30 @@ minimizeChatGPTOverlay(panel) {
   updateDependentQuestions(panel, parsedData) {
     const questions = parsedData.questions || [];
     
+    console.log('[PromptOK] Updating dependent questions for', questions.length, 'questions');
+    
     questions.forEach(question => {
       const questionGroup = panel.querySelector(`[data-group-id="${question.id}"]`);
-      if (!questionGroup) return;
+      if (!questionGroup) {
+        console.warn(`[PromptOK] Question group not found for: ${question.id}`);
+        return;
+      }
       
       // Check if this question has dependencies
       if (!question.depends_on || question.depends_on.length === 0) {
         // No dependencies - always visible
         questionGroup.style.display = '';
+        console.log(`[PromptOK] Question ${question.id} has no dependencies - always visible`);
         return;
       }
       
+      console.log(`[PromptOK] Checking dependencies for ${question.id}:`, question.depends_on);
+      
       // Check if all dependencies are satisfied
       const allDependenciesMet = question.depends_on.every(dep => {
-        const parentInput = panel.querySelector(
-          `input[data-group="${dep.question_id}"][value="${dep.option}"]:checked`
-        );
+        const selector = `input[data-group="${dep.question_id}"][value="${dep.option}"]:checked`;
+        const parentInput = panel.querySelector(selector);
+        console.log(`[PromptOK] Checking dependency: ${selector} - found:`, !!parentInput);
         return !!parentInput;
       });
       
@@ -3688,6 +3701,7 @@ minimizeChatGPTOverlay(panel) {
           if (input.checked) {
             input.checked = false;
             this.selectedOptions.delete(input.value);
+            console.log(`[PromptOK] Cleared selection from hidden question: ${input.value}`);
           }
         });
         console.log(`[PromptOK] Hiding dependent question: ${question.id}`);
@@ -3696,8 +3710,18 @@ minimizeChatGPTOverlay(panel) {
   }
   
   updatePromptPreview(panel, parsedData) {
-    const previewText = panel.querySelector('.enhanced-prompt-preview .prompt-text');
-    if (!previewText) return;
+    // Try multiple selectors for different panel types
+    let previewText = panel.querySelector('.enhanced-prompt-preview .prompt-text');
+    if (!previewText) {
+      previewText = panel.querySelector('.prompt-text');
+    }
+    
+    if (!previewText) {
+      console.warn('[PromptOK] Could not find prompt preview element in panel');
+      return;
+    }
+    
+    console.log('[PromptOK] Found preview element, updating...');
     
     // Build current selection path
     const questions = parsedData.questions || [];
@@ -3706,43 +3730,65 @@ minimizeChatGPTOverlay(panel) {
     questions.forEach(question => {
       // Only include visible questions
       const questionGroup = panel.querySelector(`[data-group-id="${question.id}"]`);
-      if (!questionGroup || questionGroup.style.display === 'none') return;
+      if (!questionGroup || questionGroup.style.display === 'none') {
+        console.log(`[PromptOK] Question ${question.id} not visible, skipping`);
+        return;
+      }
       
       const checkedInput = panel.querySelector(
         `input[data-group="${question.id}"]:checked`
       );
       
       if (checkedInput) {
+        console.log(`[PromptOK] Question ${question.id} selected: ${checkedInput.value}`);
         selectionPath.push({
           question_id: question.id,
           option: checkedInput.value
         });
+      } else {
+        console.log(`[PromptOK] Question ${question.id} has no selection`);
       }
     });
     
-    console.log('[PromptOK] Current selection path:', selectionPath);
+    console.log('[PromptOK] Built selection path:', JSON.stringify(selectionPath));
+    console.log('[PromptOK] Available selection_updates:', parsedData.selection_updates.length);
     
     // Find matching selection_update
     if (selectionPath.length > 0) {
+      // Try to find exact match
       const matchingUpdate = parsedData.selection_updates.find(update => {
-        if (update.selection_path.length !== selectionPath.length) return false;
+        console.log('[PromptOK] Checking update with path:', JSON.stringify(update.selection_path));
         
-        return update.selection_path.every((pathItem, idx) => {
-          return pathItem.question_id === selectionPath[idx].question_id &&
-                 pathItem.option === selectionPath[idx].option;
+        if (update.selection_path.length !== selectionPath.length) {
+          console.log('[PromptOK] Length mismatch:', update.selection_path.length, 'vs', selectionPath.length);
+          return false;
+        }
+        
+        const matches = update.selection_path.every((pathItem, idx) => {
+          const currentItem = selectionPath[idx];
+          const questionMatch = pathItem.question_id === currentItem.question_id;
+          const optionMatch = pathItem.option === currentItem.option;
+          console.log('[PromptOK] Comparing:', pathItem, 'vs', currentItem, '- match:', questionMatch && optionMatch);
+          return questionMatch && optionMatch;
         });
+        
+        return matches;
       });
       
       if (matchingUpdate) {
-        console.log('[PromptOK] Found matching update, updating preview');
+        console.log('[PromptOK] Found matching update! Updating preview to:', matchingUpdate.base_prompt.substring(0, 100) + '...');
         previewText.textContent = matchingUpdate.base_prompt;
         previewText.style.fontStyle = 'normal';
         return;
+      } else {
+        console.warn('[PromptOK] No matching update found for selection path');
       }
+    } else {
+      console.log('[PromptOK] No selections made yet');
     }
     
     // Fallback to base_prompt
-    console.log('[PromptOK] No matching update, showing base_prompt');
+    console.log('[PromptOK] Using base_prompt as fallback');
     previewText.textContent = parsedData.base_prompt;
     previewText.style.fontStyle = 'normal';
   }

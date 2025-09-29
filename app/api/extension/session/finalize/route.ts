@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       .single()
     
     if (profileError) {
-      console.error('[extension/session/finalize] Profile fetch failed:', {
+      console.error('[extension/session/finalize] Profile fetch failed (non-fatal):', {
         error: profileError,
         code: profileError.code,
         message: profileError.message,
@@ -67,14 +67,7 @@ export async function POST(request: NextRequest) {
         hint: profileError.hint,
         userId: payload.userId
       })
-      
-      // If profile not found but session exists, allow finalization without validation
-      // This handles edge cases where profile is missing but enhancement succeeded
-      if (profileError.code === 'PGRST116') {
-        console.warn('[extension/session/finalize] Profile not found, proceeding without validation')
-      } else {
-        return createCorsResponse({ error: 'PROFILE_ERROR', message: 'Failed to validate account' }, 500, request)
-      }
+      // Proceed without profile validation to avoid breaking UX; update will still enforce user_id ownership
     }
     
     if (profile && !profile) {
