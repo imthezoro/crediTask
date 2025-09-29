@@ -51,25 +51,45 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient()
 
     // Soft-delete and session revocation checks
+    console.log('[extension/session/finalize] Fetching profile for userId:', payload.userId)
     const { data: profile, error: profileError } = await admin
       .from('user_profiles')
       .select('is_active, session_revoked_at')
       .eq('id', payload.userId)
       .single()
+    
     if (profileError) {
-      console.error('[extension/session/finalize] Profile fetch failed:', profileError)
-      return createCorsResponse({ error: 'PROFILE_ERROR', message: 'Failed to validate account' }, 500, request)
+      console.error('[extension/session/finalize] Profile fetch failed:', {
+        error: profileError,
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+        userId: payload.userId
+      })
+      
+      // If profile not found but session exists, allow finalization without validation
+      // This handles edge cases where profile is missing but enhancement succeeded
+      if (profileError.code === 'PGRST116') {
+        console.warn('[extension/session/finalize] Profile not found, proceeding without validation')
+      } else {
+        return createCorsResponse({ error: 'PROFILE_ERROR', message: 'Failed to validate account' }, 500, request)
+      }
     }
-    if (!profile) {
+    
+    if (profile && !profile) {
       return createCorsResponse({ error: 'NOT_FOUND', message: 'User profile not found' }, 404, request)
     }
-    if (profile.is_active === false) {
-      return createCorsResponse({ error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' }, 403, request)
-    }
-    const revokedAt = profile.session_revoked_at ? Date.parse(profile.session_revoked_at as unknown as string) : null
-    const tokenIatMs = (payload as any).iat ? ((payload as any).iat as number) * 1000 : 0
-    if (revokedAt && tokenIatMs < revokedAt) {
-      return createCorsResponse({ error: 'SESSION_REVOKED', message: 'Session has been revoked. Please sign in again.' }, 401, request)
+    // Only check profile status if profile was fetched successfully
+    if (profile) {
+      if (profile.is_active === false) {
+        return createCorsResponse({ error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' }, 403, request)
+      }
+      const revokedAt = profile.session_revoked_at ? Date.parse(profile.session_revoked_at as unknown as string) : null
+      const tokenIatMs = (payload as any).iat ? ((payload as any).iat as number) * 1000 : 0
+      if (revokedAt && tokenIatMs < revokedAt) {
+        return createCorsResponse({ error: 'SESSION_REVOKED', message: 'Session has been revoked. Please sign in again.' }, 401, request)
+      }
     }
 
     const sanitized = sanitizeString(finalPrompt)

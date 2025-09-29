@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
 import { createAdminClient } from '@/lib/supabase-server';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 // Define a type for the usage increment RPC response row
 type UsageIncrementRow = {
@@ -91,6 +93,13 @@ export async function POST(request: NextRequest) {
         prompt: z.string().min(1).max(10000),
         site: z.string().min(1).max(64).optional(),
         chatUrl: z.string().min(1).max(2048).optional(),
+        metadata: z.object({
+          target_model: z.string().optional(),
+          user_settings: z.object({
+            verbosity: z.enum(['concise', 'balanced', 'verbose']).optional(),
+          }).optional(),
+          user_advice: z.string().optional(),
+        }).optional(),
       }),
       body
     );
@@ -103,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt, site, chatUrl } = validation.data!;
+    const { prompt, site, chatUrl, metadata } = validation.data!;
     const sanitizedPrompt = sanitizeString(prompt);
 
     // Validate environment configuration
@@ -125,40 +134,48 @@ export async function POST(request: NextRequest) {
     const llmMock = process.env.LLM_MOCK === 'true';
     
     if (llmMock) {
-      // Return mock response for testing
-      const mockEnhancedText = `Refined Prompt\n\nPlease improve the following prompt to be clear, specific, and ready to run. Keep the original intent.\n\nOriginal:\n"""\n${sanitizedPrompt}\n"""\n\nReturn the final improved prompt only.`;
-
+      // Return mock response for testing with new format
       const mockStructured = {
-        enhanced_prompt: `Improve the prompt for clarity and specificity.\n\nOriginal:\n"""\n${sanitizedPrompt}\n"""\n\nReturn a single finalized prompt line.`,
-        display_excerpt: 'Mock: simple refinement with minimal options.',
-        assumption_groups: [
+        base_prompt: `Write a comprehensive guide about ${sanitizedPrompt}. Include practical examples, clear explanations, and actionable steps.`,
+        questions: [
           {
-            group_id: 'S1',
-            title: 'Tone',
-            description: 'Select a tone',
-            input_type: 'radio',
-            options: [
-              { option_id: 'S1_O1', label: 'Professional', short: 'Neutral, business-like', append_snippet: 'Use a professional, neutral tone.' },
-              { option_id: 'S1_O2', label: 'Friendly', short: 'Approachable', append_snippet: 'Use a friendly, approachable tone.' }
-            ]
+            id: 'Q1',
+            text: 'Target audience',
+            options: ['General', 'Technical', 'Expert'],
+            required: true,
+            depends_on: [],
+            meta: { hint: 'Who will read the output?' }
           },
           {
-            group_id: 'S2',
-            title: 'Format',
-            description: 'Choose output style',
-            input_type: 'radio',
-            options: [
-              { option_id: 'S2_O1', label: 'Bullets', short: 'Headings + bullets', append_snippet: 'Structure with brief headings and bullet points.' },
-              { option_id: 'S2_O2', label: 'Single paragraph', short: 'Compact text', append_snippet: 'Provide a single concise paragraph.' }
-            ]
+            id: 'Q2',
+            text: 'Desired length',
+            options: ['Short (250 words)', 'Medium (500 words)', 'Long (1200 words)'],
+            required: true,
+            depends_on: [],
+            meta: {}
           }
         ],
-        combination_snippets: []
+        selection_updates: [
+          {
+            selection_path: [{ question_id: 'Q1', option: 'General' }, { question_id: 'Q2', option: 'Medium (500 words)' }],
+            base_prompt: `Write a 500-word guide about ${sanitizedPrompt} for a general audience. Use clear language and practical examples.`
+          },
+          {
+            selection_path: [{ question_id: 'Q1', option: 'Technical' }, { question_id: 'Q2', option: 'Long (1200 words)' }],
+            base_prompt: `Write a comprehensive 1200-word technical guide about ${sanitizedPrompt}. Include code examples, best practices, and detailed explanations.`
+          }
+        ],
+        final_prompt: '',
+        change_log: [
+          'Added explicit audience and length constraints',
+          'Improved clarity and structure',
+          'Mock response for testing (LLM_MOCK=true)'
+        ],
+        security_warnings: []
       };
 
       return createCorsResponse({
         success: true,
-        enhancedPrompt: mockEnhancedText.trim(),
         structuredData: mockStructured,
         mock: true,
         note: 'Mock response returned (LLM_MOCK=true)'
@@ -244,75 +261,50 @@ export async function POST(request: NextRequest) {
       console.warn('[extension/enhance] Could not insert pending session', e);
     }
 
-    // System prompt copied from Edge Function for parity
-    const SYSTEM_PROMPT = `You are a Prompt-Enhancement Engine. When given an input user prompt (the "original prompt"), you must transform it into a high-quality, production-ready "enhanced prompt" and produce machine-readable output so a client UI can:
-
-1. Present the top assumptions the LLM has to make to run the prompt, as *selectable options* (the user will choose among them).
-2. Present additional configurable option groups (tone, audience, length, format, domain constraints, persona, output type, examples, constraints, locale/timeframe etc.) as choices the user can select.
-
-CRITICAL: The "enhanced_prompt" field must be a complete, standalone prompt that works perfectly without any placeholders or brackets like [audience level], [specific aspects], etc. It should be immediately usable by any LLM.
-
-The append_snippets are ONLY for adding extra context when options are selected. The base enhanced_prompt should never contain placeholder text.
-
-Format your response as follows:
-
-**Enhanced Prompt**
-[Your enhanced version of the prompt - complete and usable without placeholders]
-
----
-
-\`\`\`json
-{
-  "enhanced_prompt": "[Complete enhanced prompt with NO placeholders or brackets]",
-  "display_excerpt": "[Brief 1-line summary]",
-  "assumption_groups": [
-    {
-      "group_id": "A1",
-      "title": "[Category Name]",
-      "description": "[What this group helps clarify]",
-      "input_type": "radio",
-      "options": [
-        {
-          "option_id": "A1_O1",
-          "label": "[Option Name]",
-          "short": "[Brief description]",
-          "append_snippet": "[Text to append to prompt if selected]"
-        }
-      ]
+    // Read system prompt from SYSTEMPROMPT.md file
+    let SYSTEM_PROMPT: string;
+    try {
+      const systemPromptPath = join(process.cwd(), 'SYSTEMPROMPT.md');
+      SYSTEM_PROMPT = readFileSync(systemPromptPath, 'utf-8');
+    } catch (error) {
+      console.error('[extension/enhance] Failed to read SYSTEMPROMPT.md:', error);
+      return createCorsResponse(
+        { error: 'CONFIGURATION_ERROR', message: 'System prompt configuration error' },
+        500,
+        request
+      );
     }
-  ],
-  "combination_snippets": [
-    {
-      "combo": ["A1_O1", "A2_O1"],
-      "append_snippet": "[Special text when these options are combined]"
-    }
-  ]
-}
-\`\`\`
 
-Guidelines:
-- The enhanced_prompt must be complete and functional without any placeholders
-- Never use bracket notation like [audience level] or [specific aspects] in enhanced_prompt
-- Make reasonable assumptions for the enhanced_prompt base version
-- Provide 2-4 assumption groups with 2-4 options each
-- append_snippets should add specific context when options are selected
-- Set "input_type" to "radio" for mutually exclusive options or "checkbox" for multiple selections
-- Use "radio" for categories like audience level, format type, or focus area where only one choice makes sense
-- Use "checkbox" for features, topics, or elements that can be combined together
-- Each append_snippet should be short (one or two sentences) and written so that simply appending it to the enhanced_prompt results in a clear, enforceable instruction for any downstream LLM.
-- Only produce up to 6 option groups, and within each group up to 6 options. Prefer 3–5 options per useful group.
-- Be conservative about making assumptions. If a critical missing detail would dramatically change the prompt, include a followup question and mark it as REQUIRED.
-- Avoid hallucinations. When the original prompt references facts that are plausibly time-sensitive or ambiguous, do not invent specifics.
+    // Prepare input for AI according to new schema
+    const aiInput = {
+      original_prompt: sanitizedPrompt,
+      metadata: metadata || {}
+    };
 
-Behavior and tone:
-- Produce safe, factual, and helpful guidance.
-- When improving style, make minimal but high-impact edits. The enhanced prompt should remain faithful to the user's intent.
-- When possible, normalize ambiguous units, formats and scopes.
-- When producing append_snippets, use imperative, LLM-friendly phrasing. Keep it short.
-
-Now, when you are given the user prompt, do the above.`;
+    console.log('[extension/enhance] DEBUG: Sending to AI:', {
+      promptLength: sanitizedPrompt.length,
+      hasMetadata: !!metadata,
+      metadata: metadata
+    });
 
     // Call OpenRouter API
+    // Note: Send as JSON string because system prompt expects JSON input format
+    const requestBody = {
+      model: 'nvidia/nemotron-nano-9b-v2:free',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: JSON.stringify(aiInput, null, 2) },
+      ],
+      max_tokens: 4000,
+      temperature: 0.2,
+    };
+
+    console.log('[extension/enhance] DEBUG: OpenRouter request:', {
+      model: requestBody.model,
+      systemPromptLength: SYSTEM_PROMPT.length,
+      userContentLength: requestBody.messages[1].content.length
+    });
+
     const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -321,15 +313,7 @@ Now, when you are given the user prompt, do the above.`;
         'HTTP-Referer': 'https://promptok.app',
         'X-Title': 'PromptOK',
       },
-      body: JSON.stringify({
-        model: 'nvidia/nemotron-nano-9b-v2:free',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: sanitizedPrompt },
-        ],
-        max_tokens: 3500,
-        temperature: 0.2,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!openrouterResponse.ok) {
@@ -363,6 +347,14 @@ Now, when you are given the user prompt, do the above.`;
     const openrouterData = await openrouterResponse.json();
     const enhancedText: string | undefined = openrouterData.choices?.[0]?.message?.content;
 
+    console.log('[extension/enhance] DEBUG: OpenRouter response:', {
+      hasChoices: !!openrouterData.choices,
+      choicesLength: openrouterData.choices?.length,
+      hasContent: !!enhancedText,
+      contentLength: enhancedText?.length,
+      contentPreview: enhancedText?.substring(0, 200)
+    });
+
     if (!enhancedText) {
       try {
         if (sessionId) {
@@ -380,15 +372,63 @@ Now, when you are given the user prompt, do the above.`;
       );
     }
 
-    // Try to parse fenced JSON from the model output
+    // Parse JSON response according to new schema
     let structuredResponse: unknown = null;
+    let parseMethod = 'none';
+
+    console.log('[extension/enhance] DEBUG: Starting JSON parse...');
+    
     try {
-      const jsonMatch = (enhancedText as string).match(/```json\s*([\s\S]*?)```/i);
-      if (jsonMatch) {
-        structuredResponse = JSON.parse(jsonMatch[1].trim());
+      // Try direct JSON parse first (new format returns pure JSON)
+      structuredResponse = JSON.parse(enhancedText as string);
+      parseMethod = 'direct';
+      console.log('[extension/enhance] DEBUG: Direct JSON parse successful');
+    } catch (directError) {
+      console.log('[extension/enhance] DEBUG: Direct parse failed:', (directError as Error).message);
+      
+      // Fallback: try to extract JSON from markdown code block
+      try {
+        const jsonMatch = (enhancedText as string).match(/```json\s*([\s\S]*?)```/i);
+        if (jsonMatch) {
+          console.log('[extension/enhance] DEBUG: Found JSON in code block, length:', jsonMatch[1].length);
+          structuredResponse = JSON.parse(jsonMatch[1].trim());
+          parseMethod = 'markdown';
+          console.log('[extension/enhance] DEBUG: Markdown JSON parse successful');
+        } else {
+          console.log('[extension/enhance] DEBUG: No JSON code block found in response');
+        }
+      } catch (markdownError) {
+        console.log('[extension/enhance] DEBUG: Markdown parse failed:', (markdownError as Error).message);
       }
-    } catch {
-      console.log('[extension/enhance] Could not parse structured response, using simple format');
+    }
+
+    // Validate new schema structure
+    if (structuredResponse && typeof structuredResponse === 'object') {
+      const response = structuredResponse as any;
+      
+      console.log('[extension/enhance] DEBUG: Validating schema structure:', {
+        hasBasePrompt: !!response.base_prompt,
+        basePromptType: typeof response.base_prompt,
+        hasQuestions: !!response.questions,
+        questionsIsArray: Array.isArray(response.questions),
+        questionsLength: response.questions?.length,
+        hasSelectionUpdates: !!response.selection_updates,
+        selectionUpdatesIsArray: Array.isArray(response.selection_updates),
+        selectionUpdatesLength: response.selection_updates?.length,
+        hasFinalPrompt: 'final_prompt' in response,
+        hasChangeLog: !!response.change_log,
+        hasSecurityWarnings: !!response.security_warnings,
+        allKeys: Object.keys(response)
+      });
+
+      if (!response.base_prompt || !Array.isArray(response.questions) || !Array.isArray(response.selection_updates)) {
+        console.warn('[extension/enhance] Response missing required fields, marking as invalid');
+        structuredResponse = null;
+      } else {
+        console.log('[extension/enhance] DEBUG: Schema validation passed!');
+      }
+    } else {
+      console.log('[extension/enhance] DEBUG: structuredResponse is not an object:', typeof structuredResponse);
     }
 
     // Atomically increment usage via RPC
@@ -439,15 +479,26 @@ Now, when you are given the user prompt, do the above.`;
       console.warn('[extension/enhance] Could not update completed session', e);
     }
 
+    console.log('[extension/enhance] DEBUG: Final response being sent:', {
+      hasStructuredData: !!structuredResponse,
+      parseMethod,
+      hasRawResponse: !structuredResponse && !!enhancedText,
+      usageCount: (incRow && typeof incRow.new_usage === 'number') ? incRow.new_usage : undefined
+    });
+
     return createCorsResponse({
       success: true,
-      enhancedPrompt: (enhancedText as string).trim(),
       structuredData: structuredResponse,
+      rawResponse: structuredResponse ? undefined : (enhancedText as string).trim(),
       usageCount: (incRow && typeof incRow.new_usage === 'number') ? incRow.new_usage : undefined,
       sessionId,
       responseTimeMs: totalResponseTime,
       site: siteLabel,
       chatUrl: chatUrlLabel,
+      debug: {
+        parseMethod,
+        hadStructuredData: !!structuredResponse
+      }
     }, 200, request);
 
   } catch (error) {

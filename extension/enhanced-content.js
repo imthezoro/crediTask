@@ -196,7 +196,7 @@ class AdvancedPromptEnhancer {
         ${items.map(it => {
           const raw = (it.final_prompt && String(it.final_prompt)) || (it.base_enhanced_prompt && String(it.base_enhanced_prompt)) || '';
           const cleaned = this.formatHistoryPrompt(raw);
-          const safe = cleaned.replace(/</g,'&lt;');
+          const safe = cleaned.replace(/</g,'&lt;').substring(0, 200) + (cleaned.length > 200 ? '...' : '');
           const when = (()=>{ try { return new Date(it.created_at).toLocaleString(); } catch(_) { return ''; } })();
           return `
             <div class="promptok-history-item" style="padding:10px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:rgba(255,255,255,0.04); cursor:pointer" data-item="${encodeURIComponent(JSON.stringify(it))}">
@@ -254,7 +254,7 @@ class AdvancedPromptEnhancer {
             item = JSON.parse(decodeURIComponent(raw));
           } catch(_) { item = {}; }
           const parsedData = await this.buildParsedDataFromHistoryItem(item);
-          if (!parsedData || !parsedData.enhanced_prompt) {
+          if (!parsedData || (!parsedData.enhanced_prompt && !parsedData.base_prompt)) {
             this.showError('Could not parse history entry.');
             return;
           }
@@ -1086,21 +1086,20 @@ class AdvancedPromptEnhancer {
       // Persist session right after data arrives
       this.saveSessionState().catch(() => {});
       
-      // Check if we have structured data from the Edge Function
-      if (enhancementData.structuredData) {
-        console.log('Using structured data from Edge Function');
-        this.showEnhancementOptions(enhancementData.structuredData);
+      // Prefer structuredData if available (new format), otherwise parse rawResponse
+      let parsedData = enhancementData.structuredData || null;
+      
+      if (!parsedData && enhancementData.rawResponse) {
+        console.log('[PromptOK] No structuredData, attempting to parse rawResponse');
+        parsedData = this.parseEnhancementResponse(enhancementData.rawResponse);
+      } 
+      
+      if (parsedData) {
+        this.showEnhancementOptions(parsedData);
       } else {
-        // Try to parse JSON from raw response
-        const parsedData = this.parseEnhancementResponse(enhancementData.rawResponse);
-        
-        if (parsedData) {
-          this.showEnhancementOptions(parsedData);
-        } else {
-          // Fallback to simple enhancement
-          console.log('Using fallback: applying simple enhancement');
-          this.applySimpleEnhancement(enhancementData.rawResponse);
-        }
+        // Fallback to simple enhancement
+        console.log('Using fallback: applying simple enhancement');
+        this.applySimpleEnhancement(enhancementData.rawResponse);
       }
     } catch (error) {
       // Handle specific error types with better logging
@@ -1133,9 +1132,18 @@ class AdvancedPromptEnhancer {
 
     const response = await this.makeApiRequest(prompt, jwtData.jwt);
     const data = await this.handleApiResponse(response);
+    
+    console.log('[PromptOK] API response structure:', {
+      hasStructuredData: !!data.structuredData,
+      hasRawResponse: !!data.rawResponse,
+      hasEnhancedPrompt: !!data.enhancedPrompt,
+      structuredDataKeys: data.structuredData ? Object.keys(data.structuredData) : []
+    });
+    
     return {
-      rawResponse: data.enhancedPrompt,
-      structuredData: data.structuredData,
+      // New API returns structuredData directly, rawResponse only if parsing failed
+      rawResponse: data.rawResponse || data.enhancedPrompt || null,
+      structuredData: data.structuredData || null,
       sessionId: data.sessionId || null,
       responseTimeMs: data.responseTimeMs || null,
       site: data.site || null,
@@ -1303,9 +1311,15 @@ class AdvancedPromptEnhancer {
   }
 
   extractJsonFromResponse(responseText) {
+    // Safety check - ensure responseText is a string
+    if (!responseText || typeof responseText !== 'string') {
+      console.warn('[PromptOK] extractJsonFromResponse called with invalid input:', typeof responseText);
+      return null;
+    }
+    
     // 1) Try to parse entire response as JSON
     try {
-      const trimmed = (responseText || '').trim();
+      const trimmed = responseText.trim();
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
         JSON.parse(trimmed);
         return trimmed;
@@ -1384,14 +1398,17 @@ class AdvancedPromptEnhancer {
   }
 
   validateParsedData(parsed) {
-    const requiredFields = ['enhanced_prompt', 'assumption_groups'];
-    const isValid = requiredFields.every(field => parsed[field]);
+    // Support both old and new format
+    const hasOldFormat = parsed.enhanced_prompt && parsed.assumption_groups;
+    const hasNewFormat = parsed.base_prompt && parsed.questions;
     
-    if (!isValid) {
-      console.warn('Invalid JSON structure - missing required fields:', requiredFields);
+    if (!hasOldFormat && !hasNewFormat) {
+      console.warn('Invalid JSON structure - missing required fields. Expected either (enhanced_prompt, assumption_groups) or (base_prompt, questions)', parsed);
+      return false;
     }
     
-    return isValid;
+    console.log('[PromptOK] Data format detected:', hasNewFormat ? 'NEW (base_prompt, questions)' : 'OLD (enhanced_prompt, assumption_groups)');
+    return true;
   }
 
   isChatGPT() {
@@ -1550,7 +1567,7 @@ class AdvancedPromptEnhancer {
       <div class="promptok-chatgpt-content">
         <div class="enhanced-prompt-preview">
           <h5>Base Enhanced Prompt:</h5>
-          <div class="prompt-text">${this.escapeHtml(parsedData.enhanced_prompt)}</div>
+          <div class="prompt-text">${this.escapeHtml(parsedData.base_prompt || parsedData.enhanced_prompt)}</div>
         </div>
 
         <div class="options-section">
@@ -1610,6 +1627,14 @@ class AdvancedPromptEnhancer {
     try {
       // 1) If server already stored structured fields
       if (item && typeof item === 'object') {
+        // Check for new format first
+        if (item.parsed_data && item.parsed_data.base_prompt && item.parsed_data.questions) {
+          return item.parsed_data;
+        }
+        if (item.base_prompt && item.questions) {
+          return { base_prompt: String(item.base_prompt), questions: item.questions, selection_updates: item.selection_updates || [] };
+        }
+        // Then check for old format
         if (item.parsed_data && item.parsed_data.enhanced_prompt && item.parsed_data.assumption_groups) {
           return item.parsed_data;
         }
@@ -1624,6 +1649,11 @@ class AdvancedPromptEnhancer {
           const jsonText = this.extractJsonFromResponse(raw);
           if (jsonText) {
             const parsed = JSON.parse(jsonText);
+            // Check new format
+            if (parsed && parsed.base_prompt && parsed.questions) {
+              return parsed;
+            }
+            // Check old format
             if (parsed && parsed.enhanced_prompt && parsed.assumption_groups) {
               return parsed;
             }
@@ -2562,6 +2592,9 @@ class AdvancedPromptEnhancer {
             this.selectedOptions.delete(e.target.value);
           }
         }
+        
+        // NEW: Dynamic UI updates
+        this.updateDynamicUI(panel, parsedData);
         this.updateChatGPTButtonText(panel);
         this.updateMinimizedButtonCount();
         // Persist session on selection changes
@@ -3051,30 +3084,76 @@ minimizeChatGPTOverlay(panel) {
   }
 
   buildOptionsHTML(parsedData) {
-    return (parsedData.assumption_groups || [])
-      .map(group => this.buildGroupHTML(group))
+    // Support new format (questions) and old format (assumption_groups)
+    const groups = parsedData.questions || parsedData.assumption_groups || [];
+    
+    console.log('[PromptOK] Building options HTML for', groups.length, 'groups/questions');
+    
+    return groups
+      .map(group => this.buildGroupHTML(group, parsedData))
       .join('');
   }
 
-  buildGroupHTML(group) {
-    const groupId = this.escapeHtml(group.group_id || '');
-    const title = this.escapeHtml(group.title || '');
-    const description = this.escapeHtml(group.description || '');
-    const inputType = group.input_type || 'checkbox';
-    const optionsHTML = (group.options || [])
-      .map(option => this.buildOptionHTML(option, groupId, inputType))
-      .join('');
+  buildGroupHTML(group, parsedData) {
+    // Support new format (questions) and old format (assumption_groups)
+    const isNewFormat = parsedData.questions && !parsedData.assumption_groups;
+    
+    if (isNewFormat) {
+      // New format: questions
+      const questionId = this.escapeHtml(group.id || '');
+      const title = this.escapeHtml(group.text || '');
+      const hint = this.escapeHtml(group.meta?.hint || '');
+      const required = group.required ? ' <span class="required-badge">Required</span>' : '';
+      const inputType = 'radio'; // Questions use radio by default
+      
+      const optionsHTML = (group.options || [])
+        .map(optionString => this.buildOptionHTMLNew(optionString, questionId, inputType))
+        .join('');
+
+      return `
+        <div class="option-group" data-group-id="${questionId}">
+          <h6>${title}${required}</h6>
+          ${hint ? `<p class="group-description">${hint}</p>` : ''}
+          <div class="options">${optionsHTML}</div>
+        </div>
+      `;
+    } else {
+      // Old format: assumption_groups
+      const groupId = this.escapeHtml(group.group_id || '');
+      const title = this.escapeHtml(group.title || '');
+      const description = this.escapeHtml(group.description || '');
+      const inputType = group.input_type || 'checkbox';
+      const optionsHTML = (group.options || [])
+        .map(option => this.buildOptionHTML(option, groupId, inputType))
+        .join('');
+
+      return `
+        <div class="option-group" data-group-id="${groupId}">
+          <h6>${title}</h6>
+          <p class="group-description">${description}</p>
+          <div class="options">${optionsHTML}</div>
+        </div>
+      `;
+    }
+  }
+
+  buildOptionHTMLNew(optionString, questionId, inputType = 'radio') {
+    // New format: options are plain strings
+    const optionValue = this.escapeHtml(optionString);
+    const name = inputType === 'radio' ? `group-${questionId}` : 'option';
 
     return `
-      <div class="option-group" data-group-id="${groupId}">
-        <h6>${title}</h6>
-        <p class="group-description">${description}</p>
-        <div class="options">${optionsHTML}</div>
-      </div>
+      <label class="option-item">
+        <input type="${inputType}" name="${name}" value="${optionValue}" data-group="${questionId}">
+        <div class="option-content">
+          <span class="option-label">${optionValue}</span>
+        </div>
+      </label>
     `;
   }
 
   buildOptionHTML(option, groupId, inputType = 'checkbox') {
+    // Old format: options are objects
     const optionId = this.escapeHtml(option.option_id || '');
     const label = this.escapeHtml(option.label || '');
     const short = this.escapeHtml(option.short || '');
@@ -3172,7 +3251,10 @@ minimizeChatGPTOverlay(panel) {
             this.selectedOptions.delete(e.target.value);
           }
         }
+        // NEW: Dynamic UI updates
+        this.updateDynamicUI(overlay, parsedData);
         this.updateButtonText(overlay);
+        this.updateDynamicUI(overlay, parsedData);
         this.updateMinimizedButtonCount();
         // Persist session on selection changes
         this.saveSessionState().catch(() => {});
@@ -3558,7 +3640,172 @@ minimizeChatGPTOverlay(panel) {
     }
   }
 
+  updateDynamicUI(panel, parsedData) {
+    // Update for new format only
+    if (!parsedData.questions || !parsedData.selection_updates) {
+      return; // Old format doesn't support dynamic updates
+    }
+    
+    console.log('[PromptOK] Updating dynamic UI');
+    
+    // 1. Show/hide dependent questions based on selection
+    this.updateDependentQuestions(panel, parsedData);
+    
+    // 2. Update prompt preview with matching selection_update
+    this.updatePromptPreview(panel, parsedData);
+  }
+  
+  updateDependentQuestions(panel, parsedData) {
+    const questions = parsedData.questions || [];
+    
+    questions.forEach(question => {
+      const questionGroup = panel.querySelector(`[data-group-id="${question.id}"]`);
+      if (!questionGroup) return;
+      
+      // Check if this question has dependencies
+      if (!question.depends_on || question.depends_on.length === 0) {
+        // No dependencies - always visible
+        questionGroup.style.display = '';
+        return;
+      }
+      
+      // Check if all dependencies are satisfied
+      const allDependenciesMet = question.depends_on.every(dep => {
+        const parentInput = panel.querySelector(
+          `input[data-group="${dep.question_id}"][value="${dep.option}"]:checked`
+        );
+        return !!parentInput;
+      });
+      
+      if (allDependenciesMet) {
+        questionGroup.style.display = '';
+        console.log(`[PromptOK] Showing dependent question: ${question.id}`);
+      } else {
+        questionGroup.style.display = 'none';
+        // Clear selections from hidden questions
+        const inputs = questionGroup.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+        inputs.forEach(input => {
+          if (input.checked) {
+            input.checked = false;
+            this.selectedOptions.delete(input.value);
+          }
+        });
+        console.log(`[PromptOK] Hiding dependent question: ${question.id}`);
+      }
+    });
+  }
+  
+  updatePromptPreview(panel, parsedData) {
+    const previewText = panel.querySelector('.enhanced-prompt-preview .prompt-text');
+    if (!previewText) return;
+    
+    // Build current selection path
+    const questions = parsedData.questions || [];
+    const selectionPath = [];
+    
+    questions.forEach(question => {
+      // Only include visible questions
+      const questionGroup = panel.querySelector(`[data-group-id="${question.id}"]`);
+      if (!questionGroup || questionGroup.style.display === 'none') return;
+      
+      const checkedInput = panel.querySelector(
+        `input[data-group="${question.id}"]:checked`
+      );
+      
+      if (checkedInput) {
+        selectionPath.push({
+          question_id: question.id,
+          option: checkedInput.value
+        });
+      }
+    });
+    
+    console.log('[PromptOK] Current selection path:', selectionPath);
+    
+    // Find matching selection_update
+    if (selectionPath.length > 0) {
+      const matchingUpdate = parsedData.selection_updates.find(update => {
+        if (update.selection_path.length !== selectionPath.length) return false;
+        
+        return update.selection_path.every((pathItem, idx) => {
+          return pathItem.question_id === selectionPath[idx].question_id &&
+                 pathItem.option === selectionPath[idx].option;
+        });
+      });
+      
+      if (matchingUpdate) {
+        console.log('[PromptOK] Found matching update, updating preview');
+        previewText.textContent = matchingUpdate.base_prompt;
+        previewText.style.fontStyle = 'normal';
+        return;
+      }
+    }
+    
+    // Fallback to base_prompt
+    console.log('[PromptOK] No matching update, showing base_prompt');
+    previewText.textContent = parsedData.base_prompt;
+    previewText.style.fontStyle = 'normal';
+  }
+
+  buildFinalPromptNew(parsedData, selectedOptionIds) {
+    // New format: use selection_updates to find the matching prompt variant
+    const questions = parsedData.questions || [];
+    const selectionUpdates = parsedData.selection_updates || [];
+    
+    console.log('[PromptOK] Building final prompt - selected options:', selectedOptionIds);
+    console.log('[PromptOK] Available selection updates:', selectionUpdates.length);
+    
+    // Build selection path from selected options
+    const selectionPath = [];
+    questions.forEach(question => {
+      const selectedOption = selectedOptionIds.find(opt => {
+        // Selected options in new format are the actual option strings
+        const inputElem = document.querySelector(`input[data-group="${question.id}"][value="${opt}"]`);
+        return inputElem && inputElem.checked;
+      });
+      
+      if (selectedOption) {
+        selectionPath.push({
+          question_id: question.id,
+          option: selectedOption
+        });
+      }
+    });
+    
+    console.log('[PromptOK] Built selection path:', selectionPath);
+    
+    // Find matching selection_update
+    if (selectionPath.length > 0) {
+      const matchingUpdate = selectionUpdates.find(update => {
+        if (update.selection_path.length !== selectionPath.length) return false;
+        
+        return update.selection_path.every((pathItem, idx) => {
+          return pathItem.question_id === selectionPath[idx].question_id &&
+                 pathItem.option === selectionPath[idx].option;
+        });
+      });
+      
+      if (matchingUpdate) {
+        console.log('[PromptOK] Found matching selection update');
+        return matchingUpdate.base_prompt;
+      }
+    }
+    
+    // Fallback to base_prompt if no selections or no match
+    console.log('[PromptOK] No matching selection update, using base_prompt');
+    return parsedData.base_prompt || '';
+  }
+
   buildFinalPrompt(parsedData, selectedOptionIds) {
+    // Support new format (base_prompt + selection_updates) and old format
+    const isNewFormat = parsedData.base_prompt && parsedData.selection_updates;
+    
+    if (isNewFormat) {
+      console.log('[PromptOK] Building final prompt with NEW format');
+      return this.buildFinalPromptNew(parsedData, selectedOptionIds);
+    }
+    
+    console.log('[PromptOK] Building final prompt with OLD format');
     const optionMap = this.createOptionMap(parsedData.assumption_groups || []);
     const appendParts = this.getSelectedSnippets(optionMap, selectedOptionIds);
     const comboSnippets = this.getCombinationSnippets(parsedData.combination_snippets || [], selectedOptionIds);
