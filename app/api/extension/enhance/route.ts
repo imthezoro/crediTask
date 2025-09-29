@@ -18,6 +18,35 @@ type UsageIncrementRow = {
   quota?: number;
 };
 
+// Define types for the structured enhancement response
+type SelectionPathItem = { question_id: string; option: string };
+type Question = {
+  id: string;
+  text: string;
+  options: string[];
+  required: boolean;
+  depends_on: SelectionPathItem[];
+  meta?: Record<string, unknown>;
+};
+type SelectionUpdate = { selection_path: SelectionPathItem[]; base_prompt: string };
+interface EnhancedStructuredResponse {
+  base_prompt: string;
+  questions: Question[];
+  selection_updates: SelectionUpdate[];
+  final_prompt?: string;
+  change_log?: string[];
+  security_warnings?: string[];
+}
+
+function isEnhancedStructuredResponse(x: unknown): x is EnhancedStructuredResponse {
+  if (!x || typeof x !== 'object') return false;
+  const obj = x as Record<string, unknown>;
+  if (typeof obj.base_prompt !== 'string') return false;
+  if (!Array.isArray(obj.questions)) return false;
+  if (!Array.isArray(obj.selection_updates)) return false;
+  return true;
+}
+
 // Handle preflight OPTIONS requests
 export async function OPTIONS(request: NextRequest) {
   return corsEmpty(200, request);
@@ -68,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enforce token version for forward compatibility
-    if ((payload as any).token_version !== 1) {
+    if (payload.token_version !== 1) {
       return createCorsResponse(
         { error: 'UNAUTHORIZED', message: 'Unsupported token version' },
         401,
@@ -231,7 +260,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Soft-delete enforcement
-    if (userProfile && (userProfile as any).is_active === false) {
+    if (userProfile && userProfile.is_active === false) {
       return createCorsResponse(
         { error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' },
         403,
@@ -403,9 +432,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate new schema structure
-    if (structuredResponse && typeof structuredResponse === 'object') {
-      const response = structuredResponse as any;
-      
+    if (isEnhancedStructuredResponse(structuredResponse)) {
+      const response = structuredResponse;
       console.log('[extension/enhance] DEBUG: Validating schema structure:', {
         hasBasePrompt: !!response.base_prompt,
         basePromptType: typeof response.base_prompt,
@@ -418,15 +446,14 @@ export async function POST(request: NextRequest) {
         hasFinalPrompt: 'final_prompt' in response,
         hasChangeLog: !!response.change_log,
         hasSecurityWarnings: !!response.security_warnings,
-        allKeys: Object.keys(response)
+        // List keys for debugging
+        allKeys: Object.keys(response as unknown as Record<string, unknown>)
       });
-
-      if (!response.base_prompt || !Array.isArray(response.questions) || !Array.isArray(response.selection_updates)) {
-        console.warn('[extension/enhance] Response missing required fields, marking as invalid');
-        structuredResponse = null;
-      } else {
-        console.log('[extension/enhance] DEBUG: Schema validation passed!');
-      }
+      console.log('[extension/enhance] DEBUG: Schema validation passed!');
+    } else if (structuredResponse && typeof structuredResponse === 'object') {
+      console.warn('[extension/enhance] Response missing required fields, marking as invalid');
+      console.log('[extension/enhance] DEBUG: structuredResponse keys:', Object.keys(structuredResponse as Record<string, unknown>));
+      structuredResponse = null;
     } else {
       console.log('[extension/enhance] DEBUG: structuredResponse is not an object:', typeof structuredResponse);
     }

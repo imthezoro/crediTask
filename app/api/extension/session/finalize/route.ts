@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { verifyExtensionJWT } from '@/lib/jwt-utils'
+import { verifyExtensionJWT, ExtensionJWTPayload } from '@/lib/jwt-utils'
 import { createAdminClient } from '@/lib/supabase-server'
 import { createCorsResponse, corsEmpty } from '@/lib/cors'
 import { sanitizeString } from '@/lib/validation'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Extension token required' }, 401, request)
     }
 
-    let payload
+    let payload: ExtensionJWTPayload
     try {
       payload = await verifyExtensionJWT(token)
     } catch {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enforce token version parity
-    if ((payload as any).token_version !== 1) {
+    if (payload.token_version !== 1) {
       return createCorsResponse({ error: 'UNAUTHORIZED', message: 'Unsupported token version' }, 401, request)
     }
 
@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
       if (profile.is_active === false) {
         return createCorsResponse({ error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' }, 403, request)
       }
-      const revokedAt = profile.session_revoked_at ? Date.parse(profile.session_revoked_at as unknown as string) : null
-      const tokenIatMs = (payload as any).iat ? ((payload as any).iat as number) * 1000 : 0
+      const revokedAt = profile.session_revoked_at ? Date.parse(String(profile.session_revoked_at)) : null
+      const tokenIatMs = payload.iat ? payload.iat * 1000 : 0
       if (revokedAt && tokenIatMs < revokedAt) {
         return createCorsResponse({ error: 'SESSION_REVOKED', message: 'Session has been revoked. Please sign in again.' }, 401, request)
       }
