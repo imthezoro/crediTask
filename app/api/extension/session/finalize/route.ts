@@ -50,11 +50,11 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    // Soft-delete and session revocation checks
+    // Soft-delete check (matching other API routes like /api/extension-token and /api/user/profile)
     console.log('[extension/session/finalize] Fetching profile for userId:', payload.userId)
     const { data: profile, error: profileError } = await admin
       .from('user_profiles')
-      .select('is_active, session_revoked_at')
+      .select('is_active, deleted_at')
       .eq('id', payload.userId)
       .single()
     
@@ -75,13 +75,8 @@ export async function POST(request: NextRequest) {
     }
     // Only check profile status if profile was fetched successfully
     if (profile) {
-      if (profile.is_active === false) {
+      if (!profile.is_active || profile.deleted_at) {
         return createCorsResponse({ error: 'ACCOUNT_DEACTIVATED', message: 'This account has been deactivated.' }, 403, request)
-      }
-      const revokedAt = profile.session_revoked_at ? Date.parse(String(profile.session_revoked_at)) : null
-      const tokenIatMs = payload.iat ? payload.iat * 1000 : 0
-      if (revokedAt && tokenIatMs < revokedAt) {
-        return createCorsResponse({ error: 'SESSION_REVOKED', message: 'Session has been revoked. Please sign in again.' }, 401, request)
       }
     }
 
