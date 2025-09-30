@@ -1080,7 +1080,7 @@ class AdvancedPromptEnhancer {
 
     // Use button animation instead of full-screen overlay during loading
     try {
-      // Get enhanced prompt data from API
+      // Get enhanced prompt data from API (API handles LLM_MOCK internally)
       const enhancementData = await this.getEnhancementData(prompt);
       this.currentEnhancementData = enhancementData;
       // Persist session right after data arrives
@@ -2120,6 +2120,62 @@ class AdvancedPromptEnhancer {
         border-radius: 12px !important;
         border: 1px solid rgba(56, 189, 248, 0.18) !important;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      }
+
+      /* Hidden state for conditional questions - higher specificity to ensure override */
+      .option-group.promptok-hidden,
+      .promptok-hidden {
+        opacity: 0 !important;
+        transform: translateY(-12px) scale(0.95) !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        visibility: hidden !important;
+        transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s 0.2s !important;
+      }
+
+      /* Slide-in animation for conditional questions */
+      .promptok-slide-in {
+        animation: slideInDown 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        will-change: opacity, transform !important;
+      }
+
+      /* Fade-out animation for conditional questions being hidden */
+      .promptok-fade-out {
+        animation: fadeOutUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        will-change: opacity, transform !important;
+      }
+
+      /* Visible state - ensure smooth transitions */
+      .option-group:not(.promptok-hidden):not(.promptok-fade-out) {
+        opacity: 1 !important;
+        transform: translateY(0) scale(1) !important;
+        pointer-events: auto !important;
+        position: relative !important;
+        visibility: visible !important;
+        transition: opacity 0.25s ease, transform 0.25s ease !important;
+      }
+
+      @keyframes slideInDown {
+        from {
+          opacity: 0;
+          transform: translateY(-12px) scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes fadeOutUp {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-12px) scale(0.95);
+        }
       }
 
       .option-group h6 {
@@ -2659,43 +2715,71 @@ class AdvancedPromptEnhancer {
         input.checked = true;
       }
 
-      // Allow radio deselection: click same radio to clear selection
+      // Find the parent option-item for this input
+      const optionItem = input.closest('.option-item');
+      if (!optionItem) return;
+
+      // Track previous checked state for radio buttons (before browser changes it)
+      let wasCheckedBeforeClick = false;
+      
+      // Capture state on mousedown before any click events fire
+      optionItem.addEventListener('mousedown', (e) => {
+        if (input.type === 'radio') {
+          wasCheckedBeforeClick = input.checked;
+        }
+      }, true); // Use capture phase
+      
+      // Prevent the input from receiving direct clicks (we'll handle via label)
       input.addEventListener('click', (e) => {
-        if (e.target.type === 'radio') {
-          const wasChecked = this.selectedOptions.has(e.target.value);
-          
-          if (wasChecked) {
-            // Deselect by unchecking
-            e.target.checked = false;
-            this.selectedOptions.delete(e.target.value);
-            e.preventDefault();
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+      
+      // Allow radio deselection: click anywhere in option-item to toggle
+      optionItem.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (input.type === 'radio') {
+          if (wasCheckedBeforeClick) {
+            // Was already checked before this click - deselect it
+            input.checked = false;
+            this.selectedOptions.delete(input.value);
           } else {
-            // Clear other options in same group and select this one
-            const groupId = e.target.dataset.group;
+            // Was not checked - select it and clear others in group
+            input.checked = true;
+            const groupId = input.dataset.group;
             const groupInputs = panel.querySelectorAll(`input[data-group="${groupId}"]`);
             groupInputs.forEach(groupInput => {
               this.selectedOptions.delete(groupInput.value);
             });
-            this.selectedOptions.add(e.target.value);
+            this.selectedOptions.add(input.value);
           }
+          wasCheckedBeforeClick = false; // Reset for next click
         } else {
-          // Checkbox behavior
-          if (e.target.checked) {
-            this.selectedOptions.add(e.target.value);
+          // Checkbox behavior - toggle on click
+          input.checked = !input.checked;
+          if (input.checked) {
+            this.selectedOptions.add(input.value);
           } else {
-            this.selectedOptions.delete(e.target.value);
+            this.selectedOptions.delete(input.value);
           }
         }
         
         this.updateChatGPTButtonText(panel);
         this.updateMinimizedButtonCount();
+        // Update conditional questions based on new selections
+        this.updateConditionalQuestions(panel, parsedData);
         // Persist session on selection changes
         this.saveSessionState().catch(() => {});
-      });
+      }, true); // Use capture phase
     });
 
     // Update button text based on current selections
     this.updateChatGPTButtonText(panel);
+    
+    // Initial evaluation of conditional questions visibility
+    this.updateConditionalQuestions(panel, parsedData);
 
     // Minimize on Escape key
     const escHandler = (e) => {
@@ -2705,6 +2789,99 @@ class AdvancedPromptEnhancer {
       }
     };
     document.addEventListener('keydown', escHandler, { once: true });
+  }
+
+  // Evaluate and update visibility of conditional questions based on current selections
+  updateConditionalQuestions(container, parsedData) {
+    try {
+      const conditionalQuestions = container.querySelectorAll('.promptok-conditional-question');
+      
+      this.debugLog(`[Conditional] Found ${conditionalQuestions.length} conditional questions`);
+      
+      conditionalQuestions.forEach(questionEl => {
+        const questionId = questionEl.getAttribute('data-group-id');
+        const dependsOnJson = questionEl.getAttribute('data-depends-on');
+        
+        if (!dependsOnJson) return;
+        
+        let dependsOn = [];
+        try {
+          dependsOn = JSON.parse(dependsOnJson);
+        } catch (e) {
+          console.error('[PromptOK] Failed to parse depends_on:', e);
+          return;
+        }
+        
+        this.debugLog(`[Conditional] Evaluating question "${questionId}" with dependencies:`, dependsOn);
+        
+        // Check if ANY dependency is satisfied (OR logic)
+        const isSatisfied = dependsOn.some(dep => {
+          const depQuestionId = dep.question_id;
+          const depOption = dep.option;
+          
+          this.debugLog(`[Conditional]   Checking dependency: question_id="${depQuestionId}", option="${depOption}"`);
+          
+          // Find the selected option for the dependency question
+          const selectedInput = container.querySelector(`input[data-group="${depQuestionId}"]:checked`);
+          
+          if (!selectedInput) {
+            this.debugLog(`[Conditional]   No selection found for question "${depQuestionId}"`);
+            return false;
+          }
+          
+          const selectedValue = selectedInput.value;
+          const matches = selectedValue === depOption;
+          
+          this.debugLog(`[Conditional]   Selected value: "${selectedValue}", Required: "${depOption}", Matches: ${matches}`);
+          
+          // Check if the selected value matches the required option
+          return matches;
+        });
+        
+        // Show or hide the question based on dependency satisfaction
+        if (isSatisfied && questionEl.classList.contains('promptok-hidden')) {
+          // Show with slide-in animation (slight delay to allow hide animations to complete)
+          setTimeout(() => {
+            questionEl.classList.remove('promptok-hidden');
+            // Use requestAnimationFrame for smoother animation start
+            requestAnimationFrame(() => {
+              questionEl.classList.add('promptok-slide-in');
+              
+              // Remove animation class after animation completes
+              setTimeout(() => {
+                questionEl.classList.remove('promptok-slide-in');
+              }, 250); // Match slideInDown duration
+            });
+          }, 100); // Reduced stagger for smoother transition
+          
+          console.log(`[PromptOK] Showing conditional question: ${questionId}`);
+        } else if (!isSatisfied && !questionEl.classList.contains('promptok-hidden')) {
+          // Clear selections from hidden questions immediately
+          const inputs = questionEl.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+          inputs.forEach(input => {
+            if (input.checked) {
+              input.checked = false;
+              this.selectedOptions.delete(input.value);
+            }
+          });
+          
+          // Add fade-out animation before hiding
+          requestAnimationFrame(() => {
+            questionEl.classList.add('promptok-fade-out');
+            
+            // Hide after fade-out completes
+            setTimeout(() => {
+              questionEl.classList.remove('promptok-fade-out');
+              questionEl.classList.add('promptok-hidden');
+            }, 200); // Match fadeOutUp duration
+          });
+          
+          console.log(`[PromptOK] Hiding conditional question: ${questionId}`);
+        }
+      });
+    } catch (err) {
+      console.error('[PromptOK] Error updating conditional questions:', err);
+    }
   }
 
   updateChatGPTButtonText(panel) {
@@ -3206,10 +3383,15 @@ minimizeChatGPTOverlay(panel) {
     const inputType = 'radio'; // Questions use radio buttons
     
     const options = question.options || [];
+    const dependsOn = question.depends_on || [];
+    const isConditional = dependsOn.length > 0;
+    
     console.log(`[PromptOK] Building HTML for question "${questionId}":`, {
       text: question.text,
       optionsCount: options.length,
-      optionsArray: options
+      optionsArray: options,
+      isConditional,
+      dependsOn
     });
     
     const optionsHTML = options
@@ -3218,8 +3400,12 @@ minimizeChatGPTOverlay(panel) {
     
     console.log(`[PromptOK] Generated optionsHTML length for "${questionId}":`, optionsHTML.length);
 
+    // Build data-depends-on attribute for conditional questions
+    const dependsOnAttr = isConditional ? ` data-depends-on='${JSON.stringify(dependsOn)}'` : '';
+    const conditionalClass = isConditional ? ' promptok-conditional-question promptok-hidden' : '';
+
     return `
-      <div class="option-group" data-group-id="${questionId}">
+      <div class="option-group${conditionalClass}" data-group-id="${questionId}"${dependsOnAttr}>
         <h6>${text}</h6>
         <div class="options">${optionsHTML}</div>
       </div>
@@ -3318,39 +3504,64 @@ minimizeChatGPTOverlay(panel) {
         input.checked = true;
       }
 
-      // Allow radio deselection: click same radio to clear selection
+      // Find the parent option-item for this input
+      const optionItem = input.closest('.option-item');
+      if (!optionItem) return;
+
+      // Track previous checked state for radio buttons (before browser changes it)
+      let wasCheckedBeforeClick = false;
+      
+      // Capture state on mousedown before any click events fire
+      optionItem.addEventListener('mousedown', (e) => {
+        if (input.type === 'radio') {
+          wasCheckedBeforeClick = input.checked;
+        }
+      }, true); // Use capture phase
+      
+      // Prevent the input from receiving direct clicks (we'll handle via label)
       input.addEventListener('click', (e) => {
-        if (e.target.type === 'radio') {
-          const wasChecked = this.selectedOptions.has(e.target.value);
-          
-          if (wasChecked) {
-            // Deselect by unchecking
-            e.target.checked = false;
-            this.selectedOptions.delete(e.target.value);
-            e.preventDefault();
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+      
+      // Allow radio deselection: click anywhere in option-item to toggle
+      optionItem.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (input.type === 'radio') {
+          if (wasCheckedBeforeClick) {
+            // Was already checked before this click - deselect it
+            input.checked = false;
+            this.selectedOptions.delete(input.value);
           } else {
-            // Clear other options in same group and select this one
-            const groupId = e.target.dataset.group;
+            // Was not checked - select it and clear others in group
+            input.checked = true;
+            const groupId = input.dataset.group;
             const groupInputs = overlay.querySelectorAll(`input[data-group="${groupId}"]`);
             groupInputs.forEach(groupInput => {
               this.selectedOptions.delete(groupInput.value);
             });
-            this.selectedOptions.add(e.target.value);
+            this.selectedOptions.add(input.value);
           }
+          wasCheckedBeforeClick = false; // Reset for next click
         } else {
-          // Checkbox behavior
-          if (e.target.checked) {
-            this.selectedOptions.add(e.target.value);
+          // Checkbox behavior - toggle on click
+          input.checked = !input.checked;
+          if (input.checked) {
+            this.selectedOptions.add(input.value);
           } else {
-            this.selectedOptions.delete(e.target.value);
+            this.selectedOptions.delete(input.value);
           }
         }
         
         this.updateButtonText(overlay);
         this.updateMinimizedButtonCount();
+        // Update conditional questions based on new selections
+        this.updateConditionalQuestions(overlay, parsedData);
         // Persist session on selection changes
         this.saveSessionState().catch(() => {});
-      });
+      }, true); // Use capture phase
     });
 
     // Update button text based on current selections

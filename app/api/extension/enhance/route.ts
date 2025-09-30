@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
       metadata: metadata
     });
 
-    // Call OpenRouter API
+    // Call OpenRouter API with retry logic (retry once on failure)
     // Note: Send as JSON string because system prompt expects JSON input format
     const requestBody = {
       model: 'nvidia/nemotron-nano-9b-v2:free',
@@ -334,20 +334,123 @@ export async function POST(request: NextRequest) {
       userContentLength: requestBody.messages[1].content.length
     });
 
-    const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openrouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://promptok.app',
-        'X-Title': 'PromptOK',
-      },
-      body: JSON.stringify(requestBody),
-    });
+    let openrouterResponse: Response | null = null;
+    let enhancedText: string | undefined;
+    let structuredResponse: unknown = null;
+    let parseMethod = 'none';
+    let attemptCount = 0;
+    const maxAttempts = 2; // Initial attempt + 1 retry
 
+    // Retry loop for OpenRouter API call with JSON validation
+    while (attemptCount < maxAttempts) {
+      attemptCount++;
+      console.log(`[extension/enhance] Attempt ${attemptCount}/${maxAttempts}`);
+
+      openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openrouterApiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://promptok.app',
+          'X-Title': 'PromptOK',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      // Check if response is OK
+      if (!openrouterResponse.ok) {
+        if (attemptCount < maxAttempts) {
+          console.log('[extension/enhance] API call failed, retrying in 500ms...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        break; // Exit loop on last attempt
+      }
+
+      // Parse response
+      const openrouterData = await openrouterResponse.json();
+      enhancedText = openrouterData.choices?.[0]?.message?.content;
+
+      console.log('[extension/enhance] DEBUG: OpenRouter response:', {
+        attempt: attemptCount,
+        hasChoices: !!openrouterData.choices,
+        choicesLength: openrouterData.choices?.length,
+        hasContent: !!enhancedText,
+        contentLength: enhancedText?.length,
+        contentPreview: enhancedText?.substring(0, 200)
+      });
+
+      if (!enhancedText) {
+        console.log('[extension/enhance] No content in response');
+        if (attemptCount < maxAttempts) {
+          console.log('[extension/enhance] Retrying in 500ms...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        break; // Exit loop on last attempt
+      }
+
+      // Try to parse JSON
+      console.log('[extension/enhance] DEBUG: Starting JSON parse...');
+      structuredResponse = null;
+      
+      try {
+        // Try direct JSON parse first
+        structuredResponse = JSON.parse(enhancedText as string);
+        parseMethod = 'direct';
+        console.log('[extension/enhance] DEBUG: Direct JSON parse successful');
+      } catch (directError) {
+        console.log('[extension/enhance] DEBUG: Direct parse failed:', (directError as Error).message);
+        
+        // Fallback: try to extract JSON from markdown code block
+        try {
+          const jsonMatch = (enhancedText as string).match(/```json\s*([\s\S]*?)```/i);
+          if (jsonMatch) {
+            console.log('[extension/enhance] DEBUG: Found JSON in code block, length:', jsonMatch[1].length);
+            structuredResponse = JSON.parse(jsonMatch[1].trim());
+            parseMethod = 'markdown';
+            console.log('[extension/enhance] DEBUG: Markdown JSON parse successful');
+          } else {
+            console.log('[extension/enhance] DEBUG: No JSON code block found in response');
+          }
+        } catch (markdownError) {
+          console.log('[extension/enhance] DEBUG: Markdown parse failed:', (markdownError as Error).message);
+        }
+      }
+
+      // Validate schema structure
+      if (isEnhancedStructuredResponse(structuredResponse)) {
+        console.log('[extension/enhance] DEBUG: Schema validation passed!');
+        break; // Success! Exit retry loop
+      } else if (structuredResponse && typeof structuredResponse === 'object') {
+        console.warn('[extension/enhance] Response missing required fields');
+        console.log('[extension/enhance] DEBUG: structuredResponse keys:', Object.keys(structuredResponse as Record<string, unknown>));
+      } else {
+        console.log('[extension/enhance] DEBUG: structuredResponse is not an object:', typeof structuredResponse);
+      }
+
+      // If we get here and it's not the last attempt, retry
+      if (attemptCount < maxAttempts) {
+        console.log('[extension/enhance] Invalid JSON or schema, retrying in 500ms...');
+        structuredResponse = null;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    // Safety check: ensure response exists
+    if (!openrouterResponse) {
+      console.error('[extension/enhance] No response received from OpenRouter after retries');
+      return createCorsResponse(
+        { error: 'ENHANCEMENT_FAILED', message: 'Failed to get response from AI service' },
+        500,
+        request
+      );
+    }
+
+    // Check final response status after retry loop
     if (!openrouterResponse.ok) {
       const errorData = await openrouterResponse.json().catch(() => ({}));
-      console.error('[extension/enhance] OpenRouter API error:', errorData);
+      console.error('[extension/enhance] OpenRouter API error after retries:', errorData);
       // Mark session failed (best effort)
       try {
         if (sessionId) {
@@ -372,19 +475,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Success path: parse and finalize
-    const openrouterData = await openrouterResponse.json();
-    const enhancedText: string | undefined = openrouterData.choices?.[0]?.message?.content;
-
-    console.log('[extension/enhance] DEBUG: OpenRouter response:', {
-      hasChoices: !!openrouterData.choices,
-      choicesLength: openrouterData.choices?.length,
-      hasContent: !!enhancedText,
-      contentLength: enhancedText?.length,
-      contentPreview: enhancedText?.substring(0, 200)
-    });
-
+    // Check if we got valid content after retries
     if (!enhancedText) {
+      console.error('[extension/enhance] No valid content after retries');
       try {
         if (sessionId) {
           const responseTime = Math.max(0, Date.now() - t0);
@@ -401,61 +494,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse JSON response according to new schema
-    let structuredResponse: unknown = null;
-    let parseMethod = 'none';
-
-    console.log('[extension/enhance] DEBUG: Starting JSON parse...');
-    
-    try {
-      // Try direct JSON parse first (new format returns pure JSON)
-      structuredResponse = JSON.parse(enhancedText as string);
-      parseMethod = 'direct';
-      console.log('[extension/enhance] DEBUG: Direct JSON parse successful');
-    } catch (directError) {
-      console.log('[extension/enhance] DEBUG: Direct parse failed:', (directError as Error).message);
-      
-      // Fallback: try to extract JSON from markdown code block
-      try {
-        const jsonMatch = (enhancedText as string).match(/```json\s*([\s\S]*?)```/i);
-        if (jsonMatch) {
-          console.log('[extension/enhance] DEBUG: Found JSON in code block, length:', jsonMatch[1].length);
-          structuredResponse = JSON.parse(jsonMatch[1].trim());
-          parseMethod = 'markdown';
-          console.log('[extension/enhance] DEBUG: Markdown JSON parse successful');
-        } else {
-          console.log('[extension/enhance] DEBUG: No JSON code block found in response');
-        }
-      } catch (markdownError) {
-        console.log('[extension/enhance] DEBUG: Markdown parse failed:', (markdownError as Error).message);
+    // Check if we got valid structured response after retries
+    if (!isEnhancedStructuredResponse(structuredResponse)) {
+      console.error('[extension/enhance] No valid structured response after retries');
+      if (structuredResponse && typeof structuredResponse === 'object') {
+        console.log('[extension/enhance] DEBUG: structuredResponse keys:', Object.keys(structuredResponse as Record<string, unknown>));
       }
-    }
-
-    // Validate new schema structure
-    if (isEnhancedStructuredResponse(structuredResponse)) {
-      const response = structuredResponse;
-      console.log('[extension/enhance] DEBUG: Validating schema structure:', {
-        hasBasePrompt: !!response.base_prompt,
-        basePromptType: typeof response.base_prompt,
-        hasQuestions: !!response.questions,
-        questionsIsArray: Array.isArray(response.questions),
-        questionsLength: response.questions?.length,
-        hasSelectionUpdates: !!response.selection_updates,
-        selectionUpdatesIsArray: Array.isArray(response.selection_updates),
-        selectionUpdatesLength: response.selection_updates?.length,
-        hasFinalPrompt: 'final_prompt' in response,
-        hasChangeLog: !!response.change_log,
-        hasSecurityWarnings: !!response.security_warnings,
-        // List keys for debugging
-        allKeys: Object.keys(response as unknown as Record<string, unknown>)
-      });
-      console.log('[extension/enhance] DEBUG: Schema validation passed!');
-    } else if (structuredResponse && typeof structuredResponse === 'object') {
-      console.warn('[extension/enhance] Response missing required fields, marking as invalid');
-      console.log('[extension/enhance] DEBUG: structuredResponse keys:', Object.keys(structuredResponse as Record<string, unknown>));
+      // Mark as invalid but don't fail completely - return raw response as fallback
+      console.log('[extension/enhance] Returning raw response as fallback');
       structuredResponse = null;
-    } else {
-      console.log('[extension/enhance] DEBUG: structuredResponse is not an object:', typeof structuredResponse);
     }
 
     // Atomically increment usage via RPC
