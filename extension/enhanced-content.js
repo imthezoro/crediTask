@@ -3380,10 +3380,21 @@ minimizeChatGPTOverlay(panel) {
     // Use 'id' for new format, fallback to 'question_id' for backward compatibility
     const questionId = this.escapeHtml(question.id || question.question_id || '');
     const text = this.escapeHtml(question.text || '');
-    const inputType = 'radio'; // Questions use radio buttons
+    // Respect the type field from system prompt: 'radio' for single selection, 'checkbox' for multiple
+    const inputType = question.type === 'checkbox' ? 'checkbox' : 'radio';
     
     const options = question.options || [];
-    const dependsOn = question.depends_on || [];
+    
+    // Handle both 'trigger' (from system prompt) and 'depends_on' (legacy format)
+    // Convert trigger object to depends_on array for consistency
+    let dependsOn = question.depends_on || [];
+    if (question.trigger && !dependsOn.length) {
+      // System prompt uses 'trigger' with question_id and answer fields
+      dependsOn = [{
+        question_id: question.trigger.question_id,
+        option: question.trigger.answer
+      }];
+    }
     const isConditional = dependsOn.length > 0;
     
     console.log(`[PromptOK] Building HTML for question "${questionId}":`, {

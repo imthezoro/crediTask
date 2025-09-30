@@ -163,44 +163,119 @@ export async function POST(request: NextRequest) {
     const llmMock = process.env.LLM_MOCK === 'true';
     
     if (llmMock) {
-      // Return mock response for testing with new format
+      // Sophisticated mock response for testing all features
       const mockStructured = {
-        base_prompt: `Write a comprehensive guide about ${sanitizedPrompt}. Include practical examples, clear explanations, and actionable steps.`,
+        enhanced_prompt: `You are a professional content creator specializing in ${sanitizedPrompt}. Create comprehensive, well-structured content that:
+
+1. **Analyzes the target audience** and adapts tone/complexity accordingly
+2. **Follows the specified format** with appropriate structure
+3. **Incorporates requested elements** (examples, case studies, visuals, etc.)
+4. **Maintains proper length** as specified
+5. **Addresses specific focus areas** selected by the user
+
+Always begin with a compelling introduction and end with actionable takeaways.`,
         questions: [
           {
             id: 'Q1',
-            text: 'Target audience',
-            options: ['General', 'Technical', 'Expert'],
-            required: true,
-            depends_on: [],
-            meta: { hint: 'Who will read the output?' }
+            text: 'What is your primary goal for this content?',
+            type: 'radio',
+            options: ['Educational', 'Marketing', 'Technical Documentation', 'Entertainment']
           },
           {
             id: 'Q2',
-            text: 'Desired length',
-            options: ['Short (250 words)', 'Medium (500 words)', 'Long (1200 words)'],
-            required: true,
-            depends_on: [],
-            meta: {}
-          }
-        ],
-        selection_updates: [
-          {
-            selection_path: [{ question_id: 'Q1', option: 'General' }, { question_id: 'Q2', option: 'Medium (500 words)' }],
-            base_prompt: `Write a 500-word guide about ${sanitizedPrompt} for a general audience. Use clear language and practical examples.`
+            text: 'Who is your target audience?',
+            type: 'radio',
+            options: ['Beginners', 'Intermediate', 'Advanced Professionals', 'General Public']
           },
           {
-            selection_path: [{ question_id: 'Q1', option: 'Technical' }, { question_id: 'Q2', option: 'Long (1200 words)' }],
-            base_prompt: `Write a comprehensive 1200-word technical guide about ${sanitizedPrompt}. Include code examples, best practices, and detailed explanations.`
+            id: 'Q3',
+            text: 'What tone would you like?',
+            type: 'radio',
+            options: ['Professional', 'Casual/Friendly', 'Academic', 'Conversational'],
+            trigger: {
+              question_id: 'Q1',
+              answer: 'Educational'
+            }
+          },
+          {
+            id: 'Q4',
+            text: 'Which marketing channels will this content be used for?',
+            type: 'checkbox',
+            options: ['Social Media', 'Email Campaign', 'Website/Blog', 'Print Materials', 'Video Script'],
+            trigger: {
+              question_id: 'Q1',
+              answer: 'Marketing'
+            }
+          },
+          {
+            id: 'Q5',
+            text: 'What programming languages or technologies should be covered?',
+            type: 'checkbox',
+            options: ['JavaScript/TypeScript', 'Python', 'Java', 'C++', 'Go', 'Rust', 'SQL'],
+            trigger: {
+              question_id: 'Q1',
+              answer: 'Technical Documentation'
+            }
+          },
+          {
+            id: 'Q6',
+            text: 'Should code examples be included?',
+            type: 'radio',
+            options: ['Yes, with detailed explanations', 'Yes, brief snippets only', 'No, theory only'],
+            trigger: {
+              question_id: 'Q1',
+              answer: 'Technical Documentation'
+            }
+          },
+          {
+            id: 'Q7',
+            text: 'What is your desired content length?',
+            type: 'radio',
+            options: ['Short (300-500 words)', 'Medium (800-1200 words)', 'Long (2000+ words)', 'No preference']
+          },
+          {
+            id: 'Q8',
+            text: 'Which elements should be included?',
+            type: 'checkbox',
+            options: ['Real-world examples', 'Case studies', 'Statistics/data', 'Step-by-step tutorials', 'Visual descriptions', 'Comparison tables']
+          },
+          {
+            id: 'Q9',
+            text: 'What format would you like?',
+            type: 'radio',
+            options: ['Article/Essay', 'Listicle', 'How-to Guide', 'Q&A Format', 'Problem-Solution']
+          },
+          {
+            id: 'Q10',
+            text: 'Should the guide include beginner prerequisites?',
+            type: 'radio',
+            options: ['Yes, detailed prerequisites', 'Brief mention only', 'No, assume knowledge'],
+            trigger: {
+              question_id: 'Q2',
+              answer: 'Advanced Professionals'
+            }
+          },
+          {
+            id: 'Q11',
+            text: 'Which storytelling elements should be emphasized?',
+            type: 'checkbox',
+            options: ['Personal anecdotes', 'Humor', 'Emotional appeal', 'Plot-driven narrative', 'Character development'],
+            trigger: {
+              question_id: 'Q1',
+              answer: 'Entertainment'
+            }
+          },
+          {
+            id: 'Q12',
+            text: 'What call-to-action would you like?',
+            type: 'radio',
+            options: ['Purchase/Subscribe', 'Download resource', 'Contact us', 'Share content', 'No CTA'],
+            trigger: {
+              question_id: 'Q1',
+              answer: 'Marketing'
+            }
           }
-        ],
-        final_prompt: '',
-        change_log: [
-          'Added explicit audience and length constraints',
-          'Improved clarity and structure',
-          'Mock response for testing (LLM_MOCK=true)'
-        ],
-        security_warnings: []
+        ]
       };
 
       return createCorsResponse({
