@@ -1638,7 +1638,7 @@ class AdvancedPromptEnhancer {
       <div class="promptok-chatgpt-content">
         <div class="enhanced-prompt-preview">
           <h5>Enhanced Prompt:</h5>
-          <div class="prompt-text">${this.escapeHtml(parsedData.enhanced_prompt || '')}</div>
+          <div class="prompt-text">${this.escapeHtml(parsedData.base_prompt || parsedData.enhanced_prompt || '')}</div>
         </div>
 
         <div class="options-section">
@@ -2621,29 +2621,17 @@ class AdvancedPromptEnhancer {
     if (decBtn) decBtn.addEventListener('click', () => this.adjustFontScale(-0.1));
     if (incBtn) incBtn.addEventListener('click', () => this.adjustFontScale(0.1));
 
-    // Apply prompt (with optional 2nd LLM call)
+    // Apply prompt (build final prompt with selected options appended)
     const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
     applyBtn.addEventListener('click', async () => {
       try {
         this.debugLog('Apply button clicked');
         applyBtn.disabled = true;
-        applyBtn.textContent = 'Processing...';
+        applyBtn.textContent = 'Applying...';
         
-        let finalPrompt;
-        
-        if (this.selectedOptions.size > 0) {
-          // User selected options - make 2nd LLM call
-          this.debugLog('User selected options, making 2nd LLM call');
-          const questionsAndAnswers = this.buildQuestionsAndAnswersText(parsedData, Array.from(this.selectedOptions));
-          this.debugLog('Questions and answers:', questionsAndAnswers);
-          
-          finalPrompt = await this.getFinalEnhancedPrompt(parsedData.enhanced_prompt, questionsAndAnswers);
-          this.debugLog('Final prompt from 2nd LLM:', finalPrompt);
-        } else {
-          // No options selected - use enhanced_prompt directly
-          this.debugLog('No options selected, using enhanced_prompt directly');
-          finalPrompt = parsedData.enhanced_prompt;
-        }
+        // Build final prompt with base_prompt + selected Q&A appended
+        const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+        this.debugLog('Final prompt built:', finalPrompt);
         
         await this.applyPromptToInput(finalPrompt);
         // Best-effort: finalize session with final prompt
@@ -3212,7 +3200,8 @@ minimizeChatGPTOverlay(panel) {
 
   buildQuestionHTML(question) {
     // New simplified format: questions with string array options
-    const questionId = this.escapeHtml(question.question_id || '');
+    // Use 'id' for new format, fallback to 'question_id' for backward compatibility
+    const questionId = this.escapeHtml(question.id || question.question_id || '');
     const text = this.escapeHtml(question.text || '');
     const inputType = 'radio'; // Questions use radio buttons
     
@@ -3291,29 +3280,17 @@ minimizeChatGPTOverlay(panel) {
     if (decBtn) decBtn.addEventListener('click', () => this.adjustFontScale(-0.1));
     if (incBtn) incBtn.addEventListener('click', () => this.adjustFontScale(0.1));
 
-    // Apply prompt (with optional 2nd LLM call)
+    // Apply prompt (build final prompt with selected options appended)
     const applyBtn = overlay.querySelector('#promptok-apply');
     applyBtn.addEventListener('click', async () => {
       try {
         this.debugLog('Apply button clicked');
         applyBtn.disabled = true;
-        applyBtn.textContent = 'Processing...';
+        applyBtn.textContent = 'Applying...';
         
-        let finalPrompt;
-        
-        if (this.selectedOptions.size > 0) {
-          // User selected options - make 2nd LLM call
-          this.debugLog('User selected options, making 2nd LLM call');
-          const questionsAndAnswers = this.buildQuestionsAndAnswersText(parsedData, Array.from(this.selectedOptions));
-          this.debugLog('Questions and answers:', questionsAndAnswers);
-          
-          finalPrompt = await this.getFinalEnhancedPrompt(parsedData.enhanced_prompt, questionsAndAnswers);
-          this.debugLog('Final prompt from 2nd LLM:', finalPrompt);
-        } else {
-          // No options selected - use enhanced_prompt directly
-          this.debugLog('No options selected, using enhanced_prompt directly');
-          finalPrompt = parsedData.enhanced_prompt;
-        }
+        // Build final prompt with base_prompt + selected Q&A appended
+        const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
+        this.debugLog('Final prompt built:', finalPrompt);
         
         await this.applyPromptToInput(finalPrompt);
         // Best-effort: finalize session with final prompt
@@ -3756,10 +3733,52 @@ minimizeChatGPTOverlay(panel) {
   }
 
   buildFinalPrompt(parsedData, selectedOptionIds) {
-    // New simplified format: just return enhanced_prompt for display
-    // Actual final prompt will come from 2nd LLM call
+    // Build final prompt: base_prompt + selected Q&A appended
     console.log('[PromptOK] Building prompt with selected options:', selectedOptionIds);
-    return parsedData.enhanced_prompt || '';
+    
+    // Use base_prompt from new format, fallback to enhanced_prompt for backward compatibility
+    const basePrompt = parsedData.base_prompt || parsedData.enhanced_prompt || '';
+    
+    // If no options selected, return base prompt as-is
+    if (!selectedOptionIds || selectedOptionIds.length === 0) {
+      return basePrompt;
+    }
+    
+    // Build questions and answers text from selections
+    const questions = parsedData.questions || [];
+    const selectedParts = [];
+    
+    questions.forEach(question => {
+      const questionId = question.id || question.question_id;
+      const questionText = question.text;
+      
+      // Find selected options for this question
+      const selectedForQuestion = selectedOptionIds.filter(optId => {
+        // Check if this option belongs to this question
+        const inputs = document.querySelectorAll(`input[data-group="${questionId}"]`);
+        for (const input of inputs) {
+          if (input.value === optId && input.checked) {
+            return true;
+          }
+        }
+        return false;
+      });
+      
+      // Add question and selected answer(s) to output
+      if (selectedForQuestion.length > 0) {
+        selectedForQuestion.forEach(answer => {
+          selectedParts.push(`${questionText}: ${answer}`);
+        });
+      }
+    });
+    
+    // If we have selections, append them to the base prompt
+    if (selectedParts.length > 0) {
+      const appendedText = '\n\n' + selectedParts.join('\n');
+      return basePrompt + appendedText;
+    }
+    
+    return basePrompt;
   }
 
   buildQuestionsAndAnswersText(parsedData, selectedOptionIds) {
