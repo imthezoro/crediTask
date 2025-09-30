@@ -1215,6 +1215,75 @@ class AdvancedPromptEnhancer {
     return `${baseUrl}/api/extension/enhance`;
   }
 
+  async getFinalEnhancedPrompt(enhancedPrompt, questionsAndAnswers) {
+    // Make 2nd LLM call with enhanced_prompt + selected Q&A
+    const jwtData = await this.getExtensionJWT();
+    if (!jwtData.jwt) {
+      throw new Error('AUTH_ERROR');
+    }
+
+    const apiEndpoint = await this.getApiEndpoint();
+    const combinedPrompt = `${enhancedPrompt}\n\nUser's answers to clarifying questions:\n${questionsAndAnswers}`;
+    
+    console.log('[PromptOK] Making 2nd LLM call with combined prompt:', combinedPrompt);
+
+    // Derive site and chatUrl
+    let site = 'unknown';
+    try {
+      if (window.PromptOK_Config && typeof window.PromptOK_Config.getSiteName === 'function') {
+        site = window.PromptOK_Config.getSiteName(window.location && window.location.hostname);
+      }
+    } catch (_) { /* ignore */ }
+    
+    let chatUrl = null;
+    try {
+      chatUrl = (window.location && window.location.href) || null;
+    } catch (_) { /* ignore */ }
+
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${jwtData.jwt}`
+      },
+      body: JSON.stringify({ prompt: combinedPrompt, site, chatUrl })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+      throw new Error(errorData.error || 'Failed to get final enhanced prompt');
+    }
+
+    const data = await response.json();
+    
+    // Extract enhanced_prompt from response
+    // Try structuredData first, then parse rawResponse
+    if (data.structuredData && data.structuredData.enhanced_prompt) {
+      return data.structuredData.enhanced_prompt;
+    }
+    
+    if (data.rawResponse || data.enhancedPrompt) {
+      const rawText = data.rawResponse || data.enhancedPrompt;
+      const jsonData = this.extractJsonFromResponse(rawText);
+      
+      if (jsonData) {
+        try {
+          const parsed = JSON.parse(jsonData);
+          if (parsed.enhanced_prompt) {
+            return parsed.enhanced_prompt;
+          }
+        } catch (e) {
+          console.warn('[PromptOK] Failed to parse 2nd LLM response:', e);
+        }
+      }
+      
+      // Fallback: return raw text
+      return rawText;
+    }
+    
+    throw new Error('No enhanced_prompt found in 2nd LLM response');
+  }
+
   async handleApiResponse(response) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Network error' }));
@@ -1398,16 +1467,18 @@ class AdvancedPromptEnhancer {
   }
 
   validateParsedData(parsed) {
-    // Support both old and new format
-    const hasOldFormat = parsed.enhanced_prompt && parsed.assumption_groups;
-    const hasNewFormat = parsed.base_prompt && parsed.questions;
-    
-    if (!hasOldFormat && !hasNewFormat) {
-      console.warn('Invalid JSON structure - missing required fields. Expected either (enhanced_prompt, assumption_groups) or (base_prompt, questions)', parsed);
+    // Only support new format: enhanced_prompt + questions
+    if (!parsed.enhanced_prompt || !parsed.questions) {
+      console.warn('Invalid JSON structure - missing required fields. Expected: enhanced_prompt, questions', parsed);
       return false;
     }
     
-    console.log('[PromptOK] Data format detected:', hasNewFormat ? 'NEW (base_prompt, questions)' : 'OLD (enhanced_prompt, assumption_groups)');
+    if (!Array.isArray(parsed.questions)) {
+      console.warn('Invalid JSON structure - questions must be an array', parsed);
+      return false;
+    }
+    
+    console.log('[PromptOK] Valid data format detected: enhanced_prompt + questions');
     return true;
   }
 
@@ -1566,8 +1637,8 @@ class AdvancedPromptEnhancer {
 
       <div class="promptok-chatgpt-content">
         <div class="enhanced-prompt-preview">
-          <h5>Base Enhanced Prompt:</h5>
-          <div class="prompt-text">${this.escapeHtml(parsedData.base_prompt || parsedData.enhanced_prompt)}</div>
+          <h5>Enhanced Prompt:</h5>
+          <div class="prompt-text">${this.escapeHtml(parsedData.enhanced_prompt || '')}</div>
         </div>
 
         <div class="options-section">
@@ -2550,15 +2621,39 @@ class AdvancedPromptEnhancer {
     if (decBtn) decBtn.addEventListener('click', () => this.adjustFontScale(-0.1));
     if (incBtn) incBtn.addEventListener('click', () => this.adjustFontScale(0.1));
 
-    // Apply prompt (base + selected options)
+    // Apply prompt (with optional 2nd LLM call)
     const applyBtn = panel.querySelector('#promptok-chatgpt-apply');
     applyBtn.addEventListener('click', async () => {
-      this.debugLog('Apply button clicked');
-      const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
-      this.debugLog('Final prompt built:', finalPrompt);
-      await this.applyPromptToInput(finalPrompt);
-      // Best-effort: finalize session with final prompt
-      this.finalizeSession(finalPrompt).catch(() => {});
+      try {
+        this.debugLog('Apply button clicked');
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Processing...';
+        
+        let finalPrompt;
+        
+        if (this.selectedOptions.size > 0) {
+          // User selected options - make 2nd LLM call
+          this.debugLog('User selected options, making 2nd LLM call');
+          const questionsAndAnswers = this.buildQuestionsAndAnswersText(parsedData, Array.from(this.selectedOptions));
+          this.debugLog('Questions and answers:', questionsAndAnswers);
+          
+          finalPrompt = await this.getFinalEnhancedPrompt(parsedData.enhanced_prompt, questionsAndAnswers);
+          this.debugLog('Final prompt from 2nd LLM:', finalPrompt);
+        } else {
+          // No options selected - use enhanced_prompt directly
+          this.debugLog('No options selected, using enhanced_prompt directly');
+          finalPrompt = parsedData.enhanced_prompt;
+        }
+        
+        await this.applyPromptToInput(finalPrompt);
+        // Best-effort: finalize session with final prompt
+        this.finalizeSession(finalPrompt).catch(() => {});
+      } catch (error) {
+        console.error('[PromptOK] Failed to apply prompt:', error);
+        this.showError('Failed to apply prompt. Please try again.');
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply';
+      }
     });
 
     // Copy to clipboard
@@ -2576,16 +2671,27 @@ class AdvancedPromptEnhancer {
         input.checked = true;
       }
 
-      input.addEventListener('change', (e) => {
+      // Allow radio deselection: click same radio to clear selection
+      input.addEventListener('click', (e) => {
         if (e.target.type === 'radio') {
-          // For radio buttons, remove other options from same group
-          const groupId = e.target.dataset.group;
-          const groupInputs = panel.querySelectorAll(`input[data-group="${groupId}"]`);
-          groupInputs.forEach(groupInput => {
-            this.selectedOptions.delete(groupInput.value);
-          });
-          this.selectedOptions.add(e.target.value);
+          const wasChecked = this.selectedOptions.has(e.target.value);
+          
+          if (wasChecked) {
+            // Deselect by unchecking
+            e.target.checked = false;
+            this.selectedOptions.delete(e.target.value);
+            e.preventDefault();
+          } else {
+            // Clear other options in same group and select this one
+            const groupId = e.target.dataset.group;
+            const groupInputs = panel.querySelectorAll(`input[data-group="${groupId}"]`);
+            groupInputs.forEach(groupInput => {
+              this.selectedOptions.delete(groupInput.value);
+            });
+            this.selectedOptions.add(e.target.value);
+          }
         } else {
+          // Checkbox behavior
           if (e.target.checked) {
             this.selectedOptions.add(e.target.value);
           } else {
@@ -2593,8 +2699,6 @@ class AdvancedPromptEnhancer {
           }
         }
         
-        // NEW: Dynamic UI updates
-        this.updateDynamicUI(panel, parsedData);
         this.updateChatGPTButtonText(panel);
         this.updateMinimizedButtonCount();
         // Persist session on selection changes
@@ -3084,60 +3188,56 @@ minimizeChatGPTOverlay(panel) {
   }
 
   buildOptionsHTML(parsedData) {
-    // Support new format (questions) and old format (assumption_groups)
-    const groups = parsedData.questions || parsedData.assumption_groups || [];
+    // Only support new format: questions
+    const questions = parsedData.questions || [];
     
-    console.log('[PromptOK] Building options HTML for', groups.length, 'groups/questions');
+    console.log('[PromptOK] Building options HTML for', questions.length, 'questions');
+    console.log('[PromptOK] Full parsedData:', JSON.stringify(parsedData, null, 2));
     
-    return groups
-      .map(group => this.buildGroupHTML(group, parsedData))
+    // Debug each question
+    questions.forEach((q, idx) => {
+      console.log(`[PromptOK] Question ${idx}:`, {
+        question_id: q.question_id,
+        text: q.text,
+        options: q.options,
+        optionsLength: q.options ? q.options.length : 0,
+        optionsType: Array.isArray(q.options) ? 'array' : typeof q.options
+      });
+    });
+    
+    return questions
+      .map(question => this.buildQuestionHTML(question))
       .join('');
   }
 
-  buildGroupHTML(group, parsedData) {
-    // Support new format (questions) and old format (assumption_groups)
-    const isNewFormat = parsedData.questions && !parsedData.assumption_groups;
+  buildQuestionHTML(question) {
+    // New simplified format: questions with string array options
+    const questionId = this.escapeHtml(question.question_id || '');
+    const text = this.escapeHtml(question.text || '');
+    const inputType = 'radio'; // Questions use radio buttons
     
-    if (isNewFormat) {
-      // New format: questions
-      const questionId = this.escapeHtml(group.id || '');
-      const title = this.escapeHtml(group.text || '');
-      const hint = this.escapeHtml(group.meta?.hint || '');
-      const required = group.required ? ' <span class="required-badge">Required</span>' : '';
-      const inputType = 'radio'; // Questions use radio by default
-      
-      const optionsHTML = (group.options || [])
-        .map(optionString => this.buildOptionHTMLNew(optionString, questionId, inputType))
-        .join('');
+    const options = question.options || [];
+    console.log(`[PromptOK] Building HTML for question "${questionId}":`, {
+      text: question.text,
+      optionsCount: options.length,
+      optionsArray: options
+    });
+    
+    const optionsHTML = options
+      .map(optionString => this.buildOptionHTML(optionString, questionId, inputType))
+      .join('');
+    
+    console.log(`[PromptOK] Generated optionsHTML length for "${questionId}":`, optionsHTML.length);
 
-      return `
-        <div class="option-group" data-group-id="${questionId}">
-          <h6>${title}${required}</h6>
-          ${hint ? `<p class="group-description">${hint}</p>` : ''}
-          <div class="options">${optionsHTML}</div>
-        </div>
-      `;
-    } else {
-      // Old format: assumption_groups
-      const groupId = this.escapeHtml(group.group_id || '');
-      const title = this.escapeHtml(group.title || '');
-      const description = this.escapeHtml(group.description || '');
-      const inputType = group.input_type || 'checkbox';
-      const optionsHTML = (group.options || [])
-        .map(option => this.buildOptionHTML(option, groupId, inputType))
-        .join('');
-
-      return `
-        <div class="option-group" data-group-id="${groupId}">
-          <h6>${title}</h6>
-          <p class="group-description">${description}</p>
-          <div class="options">${optionsHTML}</div>
-        </div>
-      `;
-    }
+    return `
+      <div class="option-group" data-group-id="${questionId}">
+        <h6>${text}</h6>
+        <div class="options">${optionsHTML}</div>
+      </div>
+    `;
   }
 
-  buildOptionHTMLNew(optionString, questionId, inputType = 'radio') {
+  buildOptionHTML(optionString, questionId, inputType = 'radio') {
     // New format: options are plain strings
     const optionValue = this.escapeHtml(optionString);
     const name = inputType === 'radio' ? `group-${questionId}` : 'option';
@@ -3147,24 +3247,6 @@ minimizeChatGPTOverlay(panel) {
         <input type="${inputType}" name="${name}" value="${optionValue}" data-group="${questionId}">
         <div class="option-content">
           <span class="option-label">${optionValue}</span>
-        </div>
-      </label>
-    `;
-  }
-
-  buildOptionHTML(option, groupId, inputType = 'checkbox') {
-    // Old format: options are objects
-    const optionId = this.escapeHtml(option.option_id || '');
-    const label = this.escapeHtml(option.label || '');
-    const short = this.escapeHtml(option.short || '');
-    const name = inputType === 'radio' ? `group-${groupId}` : 'option';
-
-    return `
-      <label class="option-item">
-        <input type="${inputType}" name="${name}" value="${optionId}" data-group="${groupId}">
-        <div class="option-content">
-          <span class="option-label">${label}</span>
-          <span class="option-short">${short}</span>
         </div>
       </label>
     `;
@@ -3209,15 +3291,39 @@ minimizeChatGPTOverlay(panel) {
     if (decBtn) decBtn.addEventListener('click', () => this.adjustFontScale(-0.1));
     if (incBtn) incBtn.addEventListener('click', () => this.adjustFontScale(0.1));
 
-    // Apply prompt (base + selected options)
+    // Apply prompt (with optional 2nd LLM call)
     const applyBtn = overlay.querySelector('#promptok-apply');
     applyBtn.addEventListener('click', async () => {
-      this.debugLog('Apply button clicked');
-      const finalPrompt = this.buildFinalPrompt(parsedData, Array.from(this.selectedOptions));
-      this.debugLog('Final prompt built:', finalPrompt);
-      await this.applyPromptToInput(finalPrompt);
-      // Best-effort: finalize session with final prompt
-      this.finalizeSession(finalPrompt).catch(() => {});
+      try {
+        this.debugLog('Apply button clicked');
+        applyBtn.disabled = true;
+        applyBtn.textContent = 'Processing...';
+        
+        let finalPrompt;
+        
+        if (this.selectedOptions.size > 0) {
+          // User selected options - make 2nd LLM call
+          this.debugLog('User selected options, making 2nd LLM call');
+          const questionsAndAnswers = this.buildQuestionsAndAnswersText(parsedData, Array.from(this.selectedOptions));
+          this.debugLog('Questions and answers:', questionsAndAnswers);
+          
+          finalPrompt = await this.getFinalEnhancedPrompt(parsedData.enhanced_prompt, questionsAndAnswers);
+          this.debugLog('Final prompt from 2nd LLM:', finalPrompt);
+        } else {
+          // No options selected - use enhanced_prompt directly
+          this.debugLog('No options selected, using enhanced_prompt directly');
+          finalPrompt = parsedData.enhanced_prompt;
+        }
+        
+        await this.applyPromptToInput(finalPrompt);
+        // Best-effort: finalize session with final prompt
+        this.finalizeSession(finalPrompt).catch(() => {});
+      } catch (error) {
+        console.error('[PromptOK] Failed to apply prompt:', error);
+        this.showError('Failed to apply prompt. Please try again.');
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply';
+      }
     });
 
     // Copy to clipboard
@@ -3235,26 +3341,35 @@ minimizeChatGPTOverlay(panel) {
         input.checked = true;
       }
 
-      input.addEventListener('change', (e) => {
+      // Allow radio deselection: click same radio to clear selection
+      input.addEventListener('click', (e) => {
         if (e.target.type === 'radio') {
-          // For radio buttons, remove other options from same group
-          const groupId = e.target.dataset.group;
-          const groupInputs = overlay.querySelectorAll(`input[data-group="${groupId}"]`);
-          groupInputs.forEach(groupInput => {
-            this.selectedOptions.delete(groupInput.value);
-          });
-          this.selectedOptions.add(e.target.value);
+          const wasChecked = this.selectedOptions.has(e.target.value);
+          
+          if (wasChecked) {
+            // Deselect by unchecking
+            e.target.checked = false;
+            this.selectedOptions.delete(e.target.value);
+            e.preventDefault();
+          } else {
+            // Clear other options in same group and select this one
+            const groupId = e.target.dataset.group;
+            const groupInputs = overlay.querySelectorAll(`input[data-group="${groupId}"]`);
+            groupInputs.forEach(groupInput => {
+              this.selectedOptions.delete(groupInput.value);
+            });
+            this.selectedOptions.add(e.target.value);
+          }
         } else {
+          // Checkbox behavior
           if (e.target.checked) {
             this.selectedOptions.add(e.target.value);
           } else {
             this.selectedOptions.delete(e.target.value);
           }
         }
-        // NEW: Dynamic UI updates
-        this.updateDynamicUI(overlay, parsedData);
+        
         this.updateButtonText(overlay);
-        this.updateDynamicUI(overlay, parsedData);
         this.updateMinimizedButtonCount();
         // Persist session on selection changes
         this.saveSessionState().catch(() => {});
@@ -3640,260 +3755,34 @@ minimizeChatGPTOverlay(panel) {
     }
   }
 
-  updateDynamicUI(panel, parsedData) {
-    // Update for new format only
-    if (!parsedData.questions || !parsedData.selection_updates) {
-      console.log('[PromptOK] Skipping dynamic UI - old format or missing data');
-      return; // Old format doesn't support dynamic updates
-    }
-    
-    console.log('[PromptOK] Updating dynamic UI', {
-      questionsCount: parsedData.questions.length,
-      selectionUpdatesCount: parsedData.selection_updates.length,
-      panelClass: panel.className
-    });
-    
-    // 1. Show/hide dependent questions based on selection
-    this.updateDependentQuestions(panel, parsedData);
-    
-    // 2. Update prompt preview with matching selection_update
-    this.updatePromptPreview(panel, parsedData);
-  }
-  
-  updateDependentQuestions(panel, parsedData) {
-    const questions = parsedData.questions || [];
-    
-    console.log('[PromptOK] Updating dependent questions for', questions.length, 'questions');
-    
-    questions.forEach(question => {
-      const questionGroup = panel.querySelector(`[data-group-id="${question.id}"]`);
-      if (!questionGroup) {
-        console.warn(`[PromptOK] Question group not found for: ${question.id}`);
-        return;
-      }
-      
-      // Check if this question has dependencies
-      if (!question.depends_on || question.depends_on.length === 0) {
-        // No dependencies - always visible
-        questionGroup.style.display = '';
-        console.log(`[PromptOK] Question ${question.id} has no dependencies - always visible`);
-        return;
-      }
-      
-      console.log(`[PromptOK] Checking dependencies for ${question.id}:`, question.depends_on);
-      
-      // Check if all dependencies are satisfied
-      const allDependenciesMet = question.depends_on.every(dep => {
-        const selector = `input[data-group="${dep.question_id}"][value="${dep.option}"]:checked`;
-        const parentInput = panel.querySelector(selector);
-        console.log(`[PromptOK] Checking dependency: ${selector} - found:`, !!parentInput);
-        return !!parentInput;
-      });
-      
-      if (allDependenciesMet) {
-        questionGroup.style.display = '';
-        console.log(`[PromptOK] Showing dependent question: ${question.id}`);
-      } else {
-        questionGroup.style.display = 'none';
-        // Clear selections from hidden questions
-        const inputs = questionGroup.querySelectorAll('input[type="radio"], input[type="checkbox"]');
-        inputs.forEach(input => {
-          if (input.checked) {
-            input.checked = false;
-            this.selectedOptions.delete(input.value);
-            console.log(`[PromptOK] Cleared selection from hidden question: ${input.value}`);
-          }
-        });
-        console.log(`[PromptOK] Hiding dependent question: ${question.id}`);
-      }
-    });
-  }
-  
-  updatePromptPreview(panel, parsedData) {
-    // Try multiple selectors for different panel types
-    let previewText = panel.querySelector('.enhanced-prompt-preview .prompt-text');
-    if (!previewText) {
-      previewText = panel.querySelector('.prompt-text');
-    }
-    
-    if (!previewText) {
-      console.warn('[PromptOK] Could not find prompt preview element in panel');
-      return;
-    }
-    
-    console.log('[PromptOK] Found preview element, updating...');
-    
-    // Build current selection path
-    const questions = parsedData.questions || [];
-    const selectionPath = [];
-    
-    questions.forEach(question => {
-      // Only include visible questions
-      const questionGroup = panel.querySelector(`[data-group-id="${question.id}"]`);
-      if (!questionGroup || questionGroup.style.display === 'none') {
-        console.log(`[PromptOK] Question ${question.id} not visible, skipping`);
-        return;
-      }
-      
-      const checkedInput = panel.querySelector(
-        `input[data-group="${question.id}"]:checked`
-      );
-      
-      if (checkedInput) {
-        console.log(`[PromptOK] Question ${question.id} selected: ${checkedInput.value}`);
-        selectionPath.push({
-          question_id: question.id,
-          option: checkedInput.value
-        });
-      } else {
-        console.log(`[PromptOK] Question ${question.id} has no selection`);
-      }
-    });
-    
-    console.log('[PromptOK] Built selection path:', JSON.stringify(selectionPath));
-    console.log('[PromptOK] Available selection_updates:', parsedData.selection_updates.length);
-    
-    // Find matching selection_update
-    if (selectionPath.length > 0) {
-      // Try to find exact match
-      const matchingUpdate = parsedData.selection_updates.find(update => {
-        console.log('[PromptOK] Checking update with path:', JSON.stringify(update.selection_path));
-        
-        if (update.selection_path.length !== selectionPath.length) {
-          console.log('[PromptOK] Length mismatch:', update.selection_path.length, 'vs', selectionPath.length);
-          return false;
-        }
-        
-        const matches = update.selection_path.every((pathItem, idx) => {
-          const currentItem = selectionPath[idx];
-          const questionMatch = pathItem.question_id === currentItem.question_id;
-          const optionMatch = pathItem.option === currentItem.option;
-          console.log('[PromptOK] Comparing:', pathItem, 'vs', currentItem, '- match:', questionMatch && optionMatch);
-          return questionMatch && optionMatch;
-        });
-        
-        return matches;
-      });
-      
-      if (matchingUpdate) {
-        console.log('[PromptOK] Found matching update! Updating preview to:', matchingUpdate.base_prompt.substring(0, 100) + '...');
-        previewText.textContent = matchingUpdate.base_prompt;
-        previewText.style.fontStyle = 'normal';
-        return;
-      } else {
-        console.warn('[PromptOK] No matching update found for selection path');
-      }
-    } else {
-      console.log('[PromptOK] No selections made yet');
-    }
-    
-    // Fallback to base_prompt
-    console.log('[PromptOK] Using base_prompt as fallback');
-    previewText.textContent = parsedData.base_prompt;
-    previewText.style.fontStyle = 'normal';
+  buildFinalPrompt(parsedData, selectedOptionIds) {
+    // New simplified format: just return enhanced_prompt for display
+    // Actual final prompt will come from 2nd LLM call
+    console.log('[PromptOK] Building prompt with selected options:', selectedOptionIds);
+    return parsedData.enhanced_prompt || '';
   }
 
-  buildFinalPromptNew(parsedData, selectedOptionIds) {
-    // New format: use selection_updates to find the matching prompt variant
+  buildQuestionsAndAnswersText(parsedData, selectedOptionIds) {
+    // Format questions and selected answers for 2nd LLM call
     const questions = parsedData.questions || [];
-    const selectionUpdates = parsedData.selection_updates || [];
+    const parts = [];
     
-    console.log('[PromptOK] Building final prompt - selected options:', selectedOptionIds);
-    console.log('[PromptOK] Available selection updates:', selectionUpdates.length);
-    
-    // Build selection path from selected options
-    const selectionPath = [];
     questions.forEach(question => {
+      const questionId = question.question_id;
+      const questionText = question.text;
+      
+      // Find selected option for this question
       const selectedOption = selectedOptionIds.find(opt => {
-        // Selected options in new format are the actual option strings
-        const inputElem = document.querySelector(`input[data-group="${question.id}"][value="${opt}"]`);
+        const inputElem = document.querySelector(`input[data-group="${questionId}"][value="${opt}"]`);
         return inputElem && inputElem.checked;
       });
       
       if (selectedOption) {
-        selectionPath.push({
-          question_id: question.id,
-          option: selectedOption
-        });
+        parts.push(`${questionText}: ${selectedOption}`);
       }
     });
     
-    console.log('[PromptOK] Built selection path:', selectionPath);
-    
-    // Find matching selection_update
-    if (selectionPath.length > 0) {
-      const matchingUpdate = selectionUpdates.find(update => {
-        if (update.selection_path.length !== selectionPath.length) return false;
-        
-        return update.selection_path.every((pathItem, idx) => {
-          return pathItem.question_id === selectionPath[idx].question_id &&
-                 pathItem.option === selectionPath[idx].option;
-        });
-      });
-      
-      if (matchingUpdate) {
-        console.log('[PromptOK] Found matching selection update');
-        return matchingUpdate.base_prompt;
-      }
-    }
-    
-    // Fallback to base_prompt if no selections or no match
-    console.log('[PromptOK] No matching selection update, using base_prompt');
-    return parsedData.base_prompt || '';
-  }
-
-  buildFinalPrompt(parsedData, selectedOptionIds) {
-    // Support new format (base_prompt + selection_updates) and old format
-    const isNewFormat = parsedData.base_prompt && parsedData.selection_updates;
-    
-    if (isNewFormat) {
-      console.log('[PromptOK] Building final prompt with NEW format');
-      return this.buildFinalPromptNew(parsedData, selectedOptionIds);
-    }
-    
-    console.log('[PromptOK] Building final prompt with OLD format');
-    const optionMap = this.createOptionMap(parsedData.assumption_groups || []);
-    const appendParts = this.getSelectedSnippets(optionMap, selectedOptionIds);
-    const comboSnippets = this.getCombinationSnippets(parsedData.combination_snippets || [], selectedOptionIds);
-    
-    const allSnippets = [...appendParts, ...comboSnippets].filter(Boolean);
-    
-    return allSnippets.length > 0 
-      ? `${parsedData.enhanced_prompt}\n\n${allSnippets.join('\n')}`
-      : parsedData.enhanced_prompt;
-  }
-
-  createOptionMap(assumptionGroups) {
-    const optionMap = new Map();
-    for (const group of assumptionGroups) {
-      for (const option of group.options || []) {
-        if (option.option_id && option.append_snippet) {
-          optionMap.set(option.option_id, option.append_snippet);
-        }
-      }
-    }
-    return optionMap;
-  }
-
-  getSelectedSnippets(optionMap, selectedOptionIds) {
-    return selectedOptionIds
-      .map(id => optionMap.get(id))
-      .filter(Boolean);
-  }
-
-  getCombinationSnippets(combinationSnippets, selectedOptionIds) {
-    const selectedSet = new Set(selectedOptionIds);
-    return combinationSnippets
-      .filter(combo => {
-        const comboSet = new Set(combo.combo || []);
-        return this.isSubset(comboSet, selectedSet);
-      })
-      .map(combo => combo.append_snippet)
-      .filter(Boolean);
-  }
-
-  isSubset(subset, superset) {
-    return [...subset].every(item => superset.has(item));
+    return parts.length > 0 ? parts.join('\n') : '';
   }
 
   applySimpleEnhancement(enhancedText) {
