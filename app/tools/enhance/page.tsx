@@ -27,10 +27,12 @@ export default async function EnhancePromptPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
       <Header user={user} isAdmin={isAdmin} pageTitle="Prompt Enhancer" />
-      <div className="container mx-auto px-4 py-8 pt-24 max-w-5xl">
-        <EnhancePromptClient />
+      <div className="flex-1 overflow-y-auto relative">
+        <div className="container mx-auto px-4 h-full max-w-5xl pt-24 md:pt-28">
+          <EnhancePromptClient />
+        </div>
       </div>
     </div>
   )

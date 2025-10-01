@@ -262,31 +262,33 @@ export default function EnhancePromptClient() {
   const visibleQuestions = getVisibleQuestions()
 
   return (
-    <>
-      {/* Header Section - Refined */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <div className="p-2 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl">
-            <Sparkles className="w-7 h-7 text-blue-600" />
+    <div className="h-full flex flex-col relative">
+      {/* Header Section - Refined (hidden after first enhancement) */}
+      {!enhancedPrompt && (
+        <div className="text-center py-6 flex-shrink-0 px-4 bg-white/50 backdrop-blur-sm">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="p-2 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl">
+              <Sparkles className="w-7 h-7 text-blue-600" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
+              Prompt Enhancer
+            </h1>
           </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Prompt Enhancer
-          </h1>
+          <p className="text-gray-600 text-base max-w-2xl mx-auto">
+            Transform your prompts into powerful, structured instructions with AI
+          </p>
+          {usageCount !== null && (
+            <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 bg-blue-50 rounded-full">
+              <span className="text-sm text-gray-600">Enhancements used:</span>
+              <span className="font-semibold text-blue-600">{usageCount}</span>
+            </div>
+          )}
         </div>
-        <p className="text-gray-600 text-base max-w-2xl mx-auto">
-          Transform your prompts into powerful, structured instructions with AI
-        </p>
-        {usageCount !== null && (
-          <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 bg-blue-50 rounded-full">
-            <span className="text-sm text-gray-600">Enhancements used:</span>
-            <span className="font-semibold text-blue-600">{usageCount}</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Error Display */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
+        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg flex-shrink-0">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
@@ -299,10 +301,10 @@ export default function EnhancePromptClient() {
 
       {/* Split Layout: Questions (Left) | Results (Right) */}
       {enhancedPrompt && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 overflow-hidden min-h-0 pb-40">
           {/* Left Column - Questions (Scrollable) */}
           {visibleQuestions.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-purple-100 overflow-hidden flex flex-col">
+            <div className="bg-white rounded-2xl shadow-sm border border-purple-100 overflow-hidden flex flex-col h-full min-h-0">
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 px-6 py-4 border-b border-purple-100">
                 <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
                   <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
@@ -312,7 +314,7 @@ export default function EnhancePromptClient() {
                   Select options to refine the final prompt
                 </p>
               </div>
-              <div className="overflow-y-auto flex-1 p-6 space-y-4 max-h-[calc(100vh-320px)]" style={{scrollbarWidth: 'thin'}}>
+              <div className="overflow-y-auto flex-1 p-6 pb-24 space-y-4 min-h-0" style={{scrollbarWidth: 'thin'}}>
                 {visibleQuestions.map((question) => (
                   <div key={question.id} className="p-4 bg-gradient-to-br from-purple-50 to-white rounded-xl border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
                     <h4 className="font-semibold text-gray-900 mb-3 text-sm">{question.text}</h4>
@@ -366,60 +368,22 @@ export default function EnhancePromptClient() {
           )}
 
           {/* Right Column - Prompts (Scrollable) */}
-          <div className={`space-y-5 ${visibleQuestions.length === 0 ? 'lg:col-span-2' : ''}`}>
-            {/* Base Enhanced Prompt */}
-            <div className="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-blue-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                      Base Enhanced Prompt
-                    </h2>
-                    <p className="text-xs text-blue-700 mt-1">
-                      Your optimized starting point
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => handleCopy(false)}
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 hover:bg-blue-100 hover:border-blue-400 transition-colors"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="mr-1.5 h-3.5 w-3.5 text-blue-600" />
-                        <span className="text-xs font-medium">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="mr-1.5 h-3.5 w-3.5" />
-                        <span className="text-xs font-medium">Copy</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-800 max-h-[320px] overflow-y-auto" style={{scrollbarWidth: 'thin'}}>
-                  {enhancedPrompt}
-                </div>
-              </div>
-            </div>
-
-            {/* Final Prompt with Selected Options - Always show when selections exist */}
-            {Object.keys(selectedAnswers).length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden animate-in fade-in duration-300">
+          <div className={`flex flex-col h-full min-h-0 ${visibleQuestions.length === 0 ? 'lg:col-span-2' : ''}`}>
+            {/* Final Customized Prompt - Always visible */}
+            {enhancedPrompt && (
+              <div className="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden flex flex-col h-full min-h-0">
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-green-100">
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-lg font-semibold text-green-900 flex items-center gap-2">
                         <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Final Customized Prompt
-                        <span className="text-xs bg-green-200 text-green-800 px-2.5 py-0.5 rounded-full font-medium">Live</span>
+                        Enhanced Prompt
+                        {Object.keys(selectedAnswers).length > 0 && (
+                          <span className="text-xs bg-green-200 text-green-800 px-2.5 py-0.5 rounded-full font-medium">Live</span>
+                        )}
                       </h2>
                       <p className="text-xs text-green-700 mt-1">
-                        Updated with your selections
+                        {Object.keys(selectedAnswers).length > 0 ? 'Updated with your selections' : 'Your optimized prompt'}
                       </p>
                     </div>
                     <Button
@@ -442,8 +406,8 @@ export default function EnhancePromptClient() {
                     </Button>
                   </div>
                 </div>
-                <div className="p-6">
-                  <div className="bg-gradient-to-br from-green-50 to-white p-5 rounded-xl border border-green-200 whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-800 max-h-[320px] overflow-y-auto" style={{scrollbarWidth: 'thin'}}>
+                <div className="p-6 flex-1 overflow-hidden flex flex-col min-h-0">
+                  <div className="bg-gradient-to-br from-green-50 to-white p-5 rounded-xl border border-green-200 whitespace-pre-wrap font-mono text-xs leading-relaxed text-gray-800 overflow-y-auto flex-1 pb-24 min-h-0" style={{scrollbarWidth: 'thin'}}>
                     {buildPromptWithQuestions()}
                   </div>
                 </div>
@@ -455,24 +419,23 @@ export default function EnhancePromptClient() {
 
       {/* Empty State - Only show if no enhancement yet */}
       {!enhancedPrompt && !loading && !error && (
-        <div className="mb-8 py-16 text-center">
-          <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
-            <Sparkles className="w-14 h-14 text-blue-600" />
+        <div className="flex-1 flex items-center justify-center pb-32">
+          <div className="text-center">
+            <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
+              <Sparkles className="w-14 h-14 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+              Ready to Enhance Your Prompts
+            </h3>
+            <p className="text-gray-600 max-w-md mx-auto">
+              Type your prompt in the input box below and click "Enhance" to transform it into a powerful, structured instruction
+            </p>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">
-            Ready to Enhance Your Prompts
-          </h3>
-          <p className="text-gray-600 max-w-md mx-auto">
-            Type your prompt in the input box below and click "Enhance" to transform it into a powerful, structured instruction
-          </p>
         </div>
       )}
 
-      {/* Spacer for fixed input box */}
-      <div className="h-36"></div>
-
       {/* Input Section - Fixed at Bottom (Simpler Style) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-20">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
         <div className="container mx-auto px-4 py-4 max-w-5xl">
           <div className="flex items-center gap-4">
             <textarea
@@ -510,6 +473,6 @@ export default function EnhancePromptClient() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
