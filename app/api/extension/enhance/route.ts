@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       z.object({
         prompt: z.string().min(1).max(10000),
         site: z.string().min(1).max(64).optional(),
-        chatUrl: z.string().min(1).max(2048).optional(),
+        chatUrl: z.string().min(1).max(2048).nullable().optional(),
         metadata: z.object({
           target_model: z.string().optional(),
           user_settings: z.object({

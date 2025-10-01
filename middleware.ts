@@ -97,7 +97,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Handle auth routes - redirect authenticated active users to dashboard
+  // Handle auth routes - redirect authenticated active users to enhance page
   // Exception: Allow access to reset-password-confirm for password reset flow
   if (user && request.nextUrl.pathname.startsWith('/auth/')) {
     // Skip profile check for callback and reset pages (they handle their own validation)
@@ -109,7 +109,7 @@ export async function middleware(request: NextRequest) {
     const { isActive } = await checkUserProfile(supabase, user.id)
 
     if (isActive) {
-      const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+      const redirectResponse = NextResponse.redirect(new URL('/tools/enhance', request.url))
       // Copy cookies to redirect response
       response.cookies.getAll().forEach((cookie) => {
         redirectResponse.cookies.set(cookie.name, cookie.value, cookie)

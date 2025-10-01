@@ -58,7 +58,7 @@ export default function AuthCallbackPage() {
             return
           }
 
-          router.push('/dashboard')
+          router.push('/tools/enhance')
         } else {
           router.push('/auth/signin')
         }

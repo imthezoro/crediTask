@@ -73,7 +73,7 @@ export function LoginForm() {
       }
 
       if (result.user) {
-        router.push('/dashboard')
+        router.push('/tools/enhance')
         router.refresh()
       }
     } catch {
@@ -125,7 +125,7 @@ export function LoginForm() {
         return
       }
 
-      router.push('/dashboard')
+      router.push('/tools/enhance')
       router.refresh()
     } catch {
       const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')

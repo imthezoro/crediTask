@@ -19,6 +19,7 @@ interface HeaderProps {
 }
 
 const userNavItems = [
+  { href: '/tools/enhance', label: 'Enhance Prompts' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/billing', label: 'Billing' },
   { href: '/settings', label: 'Settings' },
