@@ -49,6 +49,119 @@ export default function EnhancePromptClient() {
   const [copiedFinal, setCopiedFinal] = useState(false)
   const [usageCount, setUsageCount] = useState<number | null>(null)
 
+  // Robust JSON extraction from AI response (mirroring extension logic)
+  const extractJsonFromResponse = (responseText: string): string | null => {
+    if (!responseText || typeof responseText !== 'string') {
+      console.warn('[EnhanceClient] extractJsonFromResponse called with invalid input:', typeof responseText)
+      return null
+    }
+
+    // 1) Try to parse entire response as JSON
+    try {
+      const trimmed = responseText.trim()
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        JSON.parse(trimmed)
+        return trimmed
+      }
+    } catch (_) { /* ignore */ }
+
+    // 2) Try to find fenced ```json blocks
+    let jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i)
+    if (jsonMatch && jsonMatch[1]) {
+      return jsonMatch[1].trim()
+    }
+
+    // 3) Try any fenced ``` block and see if it parses
+    let genericMatch = responseText.match(/```\s*([\s\S]*?)```/i)
+    if (genericMatch && genericMatch[1]) {
+      const candidate = genericMatch[1].trim()
+      try {
+        JSON.parse(candidate)
+        return candidate
+      } catch (_) { /* ignore */ }
+    }
+
+    // 4) Heuristic: take substring from first '{' to last '}' and try parse
+    try {
+      const first = responseText.indexOf('{')
+      const last = responseText.lastIndexOf('}')
+      if (first !== -1 && last !== -1 && last > first) {
+        const candidate = responseText.substring(first, last + 1).trim()
+        JSON.parse(candidate)
+        return candidate
+      }
+    } catch (_) { /* ignore */ }
+
+    // 5) Truncated fenced json (no closing backticks)
+    const truncMatch = responseText.match(/```json\s*([\s\S]*?)$/i)
+    if (truncMatch && truncMatch[1]) {
+      const jsonText = truncMatch[1].trim()
+      const lastCompleteObject = findLastCompleteJson(jsonText)
+      if (lastCompleteObject) return lastCompleteObject
+    }
+
+    // Nothing structured found
+    return null
+  }
+
+  const findLastCompleteJson = (jsonText: string): string | null => {
+    try {
+      // Try parsing as-is first
+      JSON.parse(jsonText)
+      return jsonText
+    } catch (e) {
+      // Try to find the last complete structure
+      let braceCount = 0
+      let lastValidIndex = -1
+
+      for (let i = 0; i < jsonText.length; i++) {
+        if (jsonText[i] === '{') {
+          braceCount++
+        } else if (jsonText[i] === '}') {
+          braceCount--
+          if (braceCount === 0) {
+            lastValidIndex = i
+          }
+        }
+      }
+
+      if (lastValidIndex > 0) {
+        const truncated = jsonText.substring(0, lastValidIndex + 1)
+        try {
+          JSON.parse(truncated)
+          return truncated
+        } catch (e) {
+          console.warn('Could not repair truncated JSON')
+        }
+      }
+    }
+
+    return null
+  }
+
+  const validateParsedData = (parsed: any): boolean => {
+    // Support new format: base_prompt OR enhanced_prompt + questions
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn('Invalid JSON structure - not an object', parsed)
+      return false
+    }
+
+    // Check for base_prompt (new format) or enhanced_prompt (also acceptable)
+    const hasPrompt = parsed.base_prompt || parsed.enhanced_prompt
+    if (!hasPrompt || typeof hasPrompt !== 'string') {
+      console.warn('Invalid JSON structure - missing prompt field', parsed)
+      return false
+    }
+
+    if (!Array.isArray(parsed.questions)) {
+      console.warn('Invalid JSON structure - questions must be an array', parsed)
+      return false
+    }
+
+    console.log('[EnhanceClient] Valid data format detected')
+    return true
+  }
+
   const handleEnhance = async () => {
     if (!prompt.trim()) {
       setError('Please enter a prompt to enhance')
@@ -94,13 +207,46 @@ export default function EnhancePromptClient() {
         throw new Error(data.message || 'Enhancement failed')
       }
 
+      console.log('[EnhanceClient] Response received:', {
+        hasStructuredData: !!data.structuredData,
+        hasRawResponse: !!data.rawResponse
+      })
+
+      // Try to use structuredData if available
       if (data.structuredData) {
-        const enhanced = data.structuredData.enhanced_prompt || data.structuredData.base_prompt
+        const enhanced = data.structuredData.base_prompt || data.structuredData.enhanced_prompt
         setEnhancedPrompt(enhanced || null)
         setQuestions(data.structuredData.questions || [])
         setSelectionUpdates(data.structuredData.selection_updates || [])
       } else if (data.rawResponse) {
-        setEnhancedPrompt(data.rawResponse)
+        // Fallback: Try to extract JSON from raw response using robust parsing
+        console.log('[EnhanceClient] Attempting to parse rawResponse...')
+        const jsonText = extractJsonFromResponse(data.rawResponse)
+        
+        if (jsonText) {
+          try {
+            const parsed = JSON.parse(jsonText)
+            console.log('[EnhanceClient] Successfully parsed JSON from rawResponse')
+            
+            if (validateParsedData(parsed)) {
+              const enhanced = parsed.base_prompt || parsed.enhanced_prompt
+              setEnhancedPrompt(enhanced || null)
+              setQuestions(parsed.questions || [])
+              setSelectionUpdates(parsed.selection_updates || [])
+            } else {
+              // Invalid structure, use raw text
+              console.warn('[EnhanceClient] Parsed data failed validation, using raw text')
+              setEnhancedPrompt(data.rawResponse)
+            }
+          } catch (parseError) {
+            console.error('[EnhanceClient] Failed to parse extracted JSON:', parseError)
+            setEnhancedPrompt(data.rawResponse)
+          }
+        } else {
+          // No JSON found, use raw response as-is
+          console.log('[EnhanceClient] No JSON found in rawResponse, using as plain text')
+          setEnhancedPrompt(data.rawResponse)
+        }
       }
 
       if (typeof data.usageCount === 'number') {
@@ -299,8 +445,20 @@ export default function EnhancePromptClient() {
         </div>
       )}
 
+      {/* Loading State - Robust, accessible spinner; hide other sections while enhancing */}
+      {loading && (
+        <div className="flex-1 flex items-center justify-center pb-40" role="status" aria-live="polite" aria-busy="true">
+          <div className="flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="h-12 w-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
+            </div>
+            <p className="text-sm text-gray-600">Enhancing your prompt...</p>
+          </div>
+        </div>
+      )}
+
       {/* Split Layout: Questions (Left) | Results (Right) */}
-      {enhancedPrompt && (
+      {enhancedPrompt && !loading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 overflow-hidden min-h-0 pb-40">
           {/* Left Column - Questions (Scrollable) */}
           {visibleQuestions.length > 0 && (
