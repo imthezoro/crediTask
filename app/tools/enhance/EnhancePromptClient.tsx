@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,7 +36,12 @@ interface EnhancedResponse {
   message?: string
 }
 
-export default function EnhancePromptClient() {
+interface EnhancePromptClientProps {
+  loadedPrompt?: { original: string; enhanced: string } | null
+  onPromptLoaded?: () => void
+}
+
+export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoaded }: EnhancePromptClientProps = {}) {
   const router = useRouter()
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
@@ -49,10 +54,46 @@ export default function EnhancePromptClient() {
   const [copiedFinal, setCopiedFinal] = useState(false)
   const [usageCount, setUsageCount] = useState<number | null>(null)
 
-  // Robust JSON extraction from AI response (mirroring extension logic)
+  // Load prompt from history when clicked
+  useEffect(() => {
+    if (loadedPrompt) {
+      setPrompt(loadedPrompt.original)
+      setError(null)
+      
+      // Use the same parsing logic as live enhancement
+      const jsonText = extractJsonFromResponse(loadedPrompt.enhanced)
+      
+      if (jsonText) {
+        try {
+          const parsed = JSON.parse(jsonText)
+          
+          // Validate the parsed data structure
+          if (validateParsedData(parsed)) {
+            const enhanced = parsed.base_prompt || parsed.enhanced_prompt
+            setEnhancedPrompt(enhanced || null)
+            setQuestions(parsed.questions || [])
+            setSelectionUpdates(parsed.selection_updates || [])
+            setSelectedAnswers({})
+            onPromptLoaded?.()
+            return
+          }
+        } catch (parseError) {
+          console.error('[EnhanceClient] Failed to parse history JSON:', parseError)
+        }
+      }
+      
+      // Fallback: use as plain text
+      setEnhancedPrompt(loadedPrompt.enhanced)
+      setQuestions([])
+      setSelectionUpdates([])
+      setSelectedAnswers({})
+      onPromptLoaded?.()
+    }
+  }, [loadedPrompt, onPromptLoaded])
+
+  // Robust JSON extraction from AI response
   const extractJsonFromResponse = (responseText: string): string | null => {
     if (!responseText || typeof responseText !== 'string') {
-      console.warn('[EnhanceClient] extractJsonFromResponse called with invalid input:', typeof responseText)
       return null
     }
 
@@ -207,11 +248,6 @@ export default function EnhancePromptClient() {
         throw new Error(data.message || 'Enhancement failed')
       }
 
-      console.log('[EnhanceClient] Response received:', {
-        hasStructuredData: !!data.structuredData,
-        hasRawResponse: !!data.rawResponse
-      })
-
       // Try to use structuredData if available
       if (data.structuredData) {
         const enhanced = data.structuredData.base_prompt || data.structuredData.enhanced_prompt
@@ -219,14 +255,12 @@ export default function EnhancePromptClient() {
         setQuestions(data.structuredData.questions || [])
         setSelectionUpdates(data.structuredData.selection_updates || [])
       } else if (data.rawResponse) {
-        // Fallback: Try to extract JSON from raw response using robust parsing
-        console.log('[EnhanceClient] Attempting to parse rawResponse...')
+        // Fallback: Try to extract JSON from raw response
         const jsonText = extractJsonFromResponse(data.rawResponse)
         
         if (jsonText) {
           try {
             const parsed = JSON.parse(jsonText)
-            console.log('[EnhanceClient] Successfully parsed JSON from rawResponse')
             
             if (validateParsedData(parsed)) {
               const enhanced = parsed.base_prompt || parsed.enhanced_prompt
@@ -234,23 +268,27 @@ export default function EnhancePromptClient() {
               setQuestions(parsed.questions || [])
               setSelectionUpdates(parsed.selection_updates || [])
             } else {
-              // Invalid structure, use raw text
-              console.warn('[EnhanceClient] Parsed data failed validation, using raw text')
               setEnhancedPrompt(data.rawResponse)
             }
           } catch (parseError) {
-            console.error('[EnhanceClient] Failed to parse extracted JSON:', parseError)
+            console.error('[EnhanceClient] Failed to parse JSON:', parseError)
             setEnhancedPrompt(data.rawResponse)
           }
         } else {
-          // No JSON found, use raw response as-is
-          console.log('[EnhanceClient] No JSON found in rawResponse, using as plain text')
           setEnhancedPrompt(data.rawResponse)
         }
       }
 
       if (typeof data.usageCount === 'number') {
         setUsageCount(data.usageCount)
+      }
+
+      // History is automatically saved to database by the API
+      // Refresh the sidebar history after successful enhancement
+      if (typeof window !== 'undefined' && (window as any).refreshPromptHistory) {
+        setTimeout(() => {
+          (window as any).refreshPromptHistory()
+        }, 500)
       }
 
     } catch (err) {
@@ -593,7 +631,7 @@ export default function EnhancePromptClient() {
       )}
 
       {/* Input Section - Fixed at Bottom (Simpler Style) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+      <div className="fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 transition-all duration-200" style={{ left: 'var(--sidebar-current-width, 0px)' }}>
         <div className="container mx-auto px-4 py-4 max-w-5xl">
           <div className="flex items-center gap-4">
             <textarea

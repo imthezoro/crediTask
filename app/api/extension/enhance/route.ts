@@ -615,6 +615,8 @@ Always begin with a compelling introduction and end with actionable takeaways.`,
     const totalResponseTime = Math.max(0, Date.now() - t0);
     try {
       if (sessionId) {
+        // Store the full enhanced text (which may be JSON or plain text)
+        // This preserves the structured data for history replay
         await admin
           .from('prompt_sessions')
           .update({

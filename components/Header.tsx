@@ -16,6 +16,7 @@ interface HeaderProps {
   pageTitle?: string
   showNavigation?: boolean
   forcePublicNav?: boolean
+  offsetWithSidebar?: boolean
 }
 
 const userNavItems = [
@@ -33,7 +34,7 @@ const adminNavItems = [
   { href: '/admin/alerts', label: 'Alerts' },
 ]
 
-export default function Header({ user, isAdmin, pageTitle, showNavigation = true, forcePublicNav = false }: HeaderProps) {
+export default function Header({ user, isAdmin, pageTitle, showNavigation = true, forcePublicNav = false, offsetWithSidebar = false }: HeaderProps) {
   const pathname = usePathname()
   const { isScrolled } = useScrollPosition()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -42,11 +43,12 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
   const isLandingPage = pathname === '/'
   const isAuthPage = pathname?.startsWith('/auth')
   const shouldShowNav = showNavigation && !isAuthPage && user
+  const leftClass = offsetWithSidebar ? 'left-[var(--sidebar-current-width)]' : 'left-0'
 
   // Early return for forcePublicNav
   if (forcePublicNav) {
     return (
-      <header className={`fixed top-0 left-0 right-0 z-[999] transition-all duration-300 ${
+      <header className={`fixed top-0 ${leftClass} right-0 z-[999] transition-all duration-300 ${
         isLandingPage
           ? isScrolled
             ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
@@ -119,7 +121,7 @@ export default function Header({ user, isAdmin, pageTitle, showNavigation = true
   }
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-[999] transition-all duration-300 ${
+    <header className={`fixed top-0 ${leftClass} right-0 z-[999] transition-all duration-300 ${
       isLandingPage
         ? isScrolled
           ? 'bg-white/70 backdrop-blur-md backdrop-saturate-150 border-b border-blue-200/40'
