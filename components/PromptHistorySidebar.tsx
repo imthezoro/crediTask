@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDown, ChevronRight, Menu, Search, Clock, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Search, Clock, Trash2 } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +12,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
@@ -76,16 +75,15 @@ interface PromptHistoryItem {
 }
 
 interface PromptHistorySidebarProps {
-  defaultOpen?: boolean
   onHistoryItemClick?: (item: PromptHistoryItem) => void
 }
 
-export function PromptHistorySidebar({ defaultOpen = false, onHistoryItemClick }: PromptHistorySidebarProps) {
+export function PromptHistorySidebar({ onHistoryItemClick }: PromptHistorySidebarProps) {
   return <PromptHistorySidebarContent onHistoryItemClick={onHistoryItemClick} />
 }
 
 function PromptHistorySidebarContent({ onHistoryItemClick }: { onHistoryItemClick?: (item: PromptHistoryItem) => void }) {
-  const { state, open, setOpen } = useSidebar()
+  const { state, setOpen } = useSidebar()
   const [expandedLLMs, setExpandedLLMs] = React.useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = React.useState("")
   const [historyData, setHistoryData] = React.useState<Record<string, PromptHistoryItem[]>>({})
@@ -112,7 +110,13 @@ function PromptHistorySidebarContent({ onHistoryItemClick }: { onHistoryItemClic
         // Convert timestamp strings back to Date objects
         const converted: Record<string, PromptHistoryItem[]> = {}
         Object.keys(data.history).forEach((key) => {
-          converted[key] = data.history[key].map((item: any) => ({
+          converted[key] = data.history[key].map((item: {
+            id: string
+            original: string
+            enhanced: string
+            timestamp: string
+            llmPlatform: string
+          }) => ({
             ...item,
             timestamp: new Date(item.timestamp),
           }))
@@ -126,16 +130,16 @@ function PromptHistorySidebarContent({ onHistoryItemClick }: { onHistoryItemClic
 
   React.useEffect(() => {
     fetchHistory()
-  }, [])
+  }, [fetchHistory])
 
   // Expose refresh function globally for triggering after enhancement
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).refreshPromptHistory = fetchHistory
+      ;(window as Window & { refreshPromptHistory?: () => void }).refreshPromptHistory = fetchHistory
     }
     return () => {
       if (typeof window !== 'undefined') {
-        delete (window as any).refreshPromptHistory
+        delete (window as Window & { refreshPromptHistory?: () => void }).refreshPromptHistory
       }
     }
   }, [fetchHistory])

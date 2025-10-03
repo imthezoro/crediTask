@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
-import Header from '@/components/Header'
 import EnhancePromptClientWrapper from './EnhancePromptClientWrapper'
 import { SidebarProvider } from '@/components/ui/sidebar'
 

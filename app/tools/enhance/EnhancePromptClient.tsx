@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, Sparkles, Copy, Check, AlertCircle } from 'lucide-react'
 
@@ -49,8 +48,6 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
   const [enhancedPrompt, setEnhancedPrompt] = useState<string | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string | string[]>>({})
-  const [selectionUpdates, setSelectionUpdates] = useState<SelectionUpdate[]>([])
-  const [copied, setCopied] = useState(false)
   const [copiedFinal, setCopiedFinal] = useState(false)
   const [usageCount, setUsageCount] = useState<number | null>(null)
 
@@ -72,7 +69,6 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
             const enhanced = parsed.base_prompt || parsed.enhanced_prompt
             setEnhancedPrompt(enhanced || null)
             setQuestions(parsed.questions || [])
-            setSelectionUpdates(parsed.selection_updates || [])
             setSelectedAnswers({})
             onPromptLoaded?.()
             return
@@ -85,10 +81,10 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
       // Fallback: use as plain text
       setEnhancedPrompt(loadedPrompt.enhanced)
       setQuestions([])
-      setSelectionUpdates([])
       setSelectedAnswers({})
       onPromptLoaded?.()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedPrompt, onPromptLoaded])
 
   // Robust JSON extraction from AI response
@@ -104,22 +100,22 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
         JSON.parse(trimmed)
         return trimmed
       }
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
 
     // 2) Try to find fenced ```json blocks
-    let jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i)
+    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/i)
     if (jsonMatch && jsonMatch[1]) {
       return jsonMatch[1].trim()
     }
 
     // 3) Try any fenced ``` block and see if it parses
-    let genericMatch = responseText.match(/```\s*([\s\S]*?)```/i)
+    const genericMatch = responseText.match(/```\s*([\s\S]*?)```/i)
     if (genericMatch && genericMatch[1]) {
       const candidate = genericMatch[1].trim()
       try {
         JSON.parse(candidate)
         return candidate
-      } catch (_) { /* ignore */ }
+      } catch { /* ignore */ }
     }
 
     // 4) Heuristic: take substring from first '{' to last '}' and try parse
@@ -131,7 +127,7 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
         JSON.parse(candidate)
         return candidate
       }
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
 
     // 5) Truncated fenced json (no closing backticks)
     const truncMatch = responseText.match(/```json\s*([\s\S]*?)$/i)
@@ -150,7 +146,7 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
       // Try parsing as-is first
       JSON.parse(jsonText)
       return jsonText
-    } catch (e) {
+    } catch {
       // Try to find the last complete structure
       let braceCount = 0
       let lastValidIndex = -1
@@ -171,7 +167,7 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
         try {
           JSON.parse(truncated)
           return truncated
-        } catch (e) {
+        } catch {
           console.warn('Could not repair truncated JSON')
         }
       }
@@ -180,7 +176,7 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
     return null
   }
 
-  const validateParsedData = (parsed: any): boolean => {
+  const validateParsedData = (parsed: unknown): boolean => {
     // Support new format: base_prompt OR enhanced_prompt + questions
     if (!parsed || typeof parsed !== 'object') {
       console.warn('Invalid JSON structure - not an object', parsed)
@@ -188,13 +184,15 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
     }
 
     // Check for base_prompt (new format) or enhanced_prompt (also acceptable)
-    const hasPrompt = parsed.base_prompt || parsed.enhanced_prompt
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hasPrompt = (parsed as any).base_prompt || (parsed as any).enhanced_prompt
     if (!hasPrompt || typeof hasPrompt !== 'string') {
       console.warn('Invalid JSON structure - missing prompt field', parsed)
       return false
     }
 
-    if (!Array.isArray(parsed.questions)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!Array.isArray((parsed as any).questions)) {
       console.warn('Invalid JSON structure - questions must be an array', parsed)
       return false
     }
@@ -253,7 +251,6 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
         const enhanced = data.structuredData.base_prompt || data.structuredData.enhanced_prompt
         setEnhancedPrompt(enhanced || null)
         setQuestions(data.structuredData.questions || [])
-        setSelectionUpdates(data.structuredData.selection_updates || [])
       } else if (data.rawResponse) {
         // Fallback: Try to extract JSON from raw response
         const jsonText = extractJsonFromResponse(data.rawResponse)
@@ -266,7 +263,6 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
               const enhanced = parsed.base_prompt || parsed.enhanced_prompt
               setEnhancedPrompt(enhanced || null)
               setQuestions(parsed.questions || [])
-              setSelectionUpdates(parsed.selection_updates || [])
             } else {
               setEnhancedPrompt(data.rawResponse)
             }
@@ -285,9 +281,9 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
 
       // History is automatically saved to database by the API
       // Refresh the sidebar history after successful enhancement
-      if (typeof window !== 'undefined' && (window as any).refreshPromptHistory) {
+      if (typeof window !== 'undefined' && (window as Window & { refreshPromptHistory?: () => void }).refreshPromptHistory) {
         setTimeout(() => {
-          (window as any).refreshPromptHistory()
+          (window as Window & { refreshPromptHistory?: () => void }).refreshPromptHistory?.()
         }, 500)
       }
 
@@ -344,9 +340,6 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
       if (isFinal) {
         setCopiedFinal(true)
         setTimeout(() => setCopiedFinal(false), 2000)
-      } else {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
       }
     } catch (err) {
       console.error('Failed to copy:', err)
@@ -375,61 +368,7 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
     }
   }
 
-  // Generate final prompt based on current selections
-  const generateFinalPrompt = (): string | null => {
-    if (!enhancedPrompt) return null
-    
-    // If no questions or no selection updates, return base prompt
-    if (questions.length === 0 || selectionUpdates.length === 0) {
-      return enhancedPrompt
-    }
-    
-    // Build current selection path from selectedAnswers
-    const currentPath: { question_id: string; option: string }[] = []
-    questions.forEach(q => {
-      const answer = selectedAnswers[q.id]
-      if (answer) {
-        if (Array.isArray(answer)) {
-          // For checkboxes, add each selected option
-          answer.forEach(opt => currentPath.push({ question_id: q.id, option: opt }))
-        } else {
-          // For radio buttons
-          currentPath.push({ question_id: q.id, option: answer })
-        }
-      }
-    })
-    
-    // If no selections made, return base prompt
-    if (currentPath.length === 0) {
-      return enhancedPrompt
-    }
-    
-    // Find matching selection_update
-    // Look for the most specific match (longest matching path)
-    let bestMatch: SelectionUpdate | null = null
-    let bestMatchLength = 0
-    
-    for (const update of selectionUpdates) {
-      // Check how many items in update.selection_path match currentPath
-      let matchCount = 0
-      for (const pathItem of update.selection_path) {
-        const matches = currentPath.some(
-          cp => cp.question_id === pathItem.question_id && cp.option === pathItem.option
-        )
-        if (matches) matchCount++
-      }
-      
-      // If all items in update.selection_path are matched, and it's more specific than previous best
-      if (matchCount === update.selection_path.length && matchCount > bestMatchLength) {
-        bestMatch = update
-        bestMatchLength = matchCount
-      }
-    }
-    
-    return bestMatch ? bestMatch.base_prompt : enhancedPrompt
-  }
-
-  const finalPrompt = generateFinalPrompt()
+  // Final prompt is derived on demand via buildPromptWithQuestions()
 
   const getVisibleQuestions = () => {
     return questions.filter(q => {
@@ -624,7 +563,7 @@ export default function EnhancePromptClient({ loadedPrompt = null, onPromptLoade
               Ready to Enhance Your Prompts
             </h3>
             <p className="text-gray-600 max-w-md mx-auto">
-              Type your prompt in the input box below and click "Enhance" to transform it into a powerful, structured instruction
+              Type your prompt in the input box below and click &quot;Enhance&quot; to transform it into a powerful, structured instruction
             </p>
           </div>
         </div>

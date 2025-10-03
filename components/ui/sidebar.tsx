@@ -15,7 +15,6 @@ const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 // Increased icon-only width so icons are fully visible when collapsed
 const SIDEBAR_WIDTH_ICON = "4.75rem"
-const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContext = {
   state: "expanded" | "collapsed"
@@ -114,6 +113,7 @@ const SidebarProvider = React.forwardRef<
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH,
+                "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
                 "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
                 "--sidebar-current-width": currentWidth,
                 ...style,
