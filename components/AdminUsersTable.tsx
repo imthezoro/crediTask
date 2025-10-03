@@ -266,8 +266,8 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
                 onChange={(e) => setEditPlan({ ...editPlan, plan: e.target.value })}
               >
                 <option value="free">free</option>
-                <option value="pro">pro</option>
-                <option value="enterprise">enterprise</option>
+                <option value="pro_weekly">pro_weekly</option>
+                <option value="pro_monthly">pro_monthly</option>
               </select>
             </div>
             <div className="flex justify-end gap-2">

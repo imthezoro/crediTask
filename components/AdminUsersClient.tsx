@@ -191,8 +191,8 @@ export default function AdminUsersClient() {
               <select name="plan" defaultValue={filters.plan} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All Plans</option>
                 <option value="free">Free</option>
-                <option value="pro">Pro</option>
-                <option value="enterprise">Enterprise</option>
+                <option value="pro_weekly">Pro Weekly</option>
+                <option value="pro_monthly">Pro Monthly</option>
               </select>
               <select name="status" defaultValue={filters.status} className="px-3 py-2 border border-gray-300 rounded-md text-sm">
                 <option value="">All Status</option>

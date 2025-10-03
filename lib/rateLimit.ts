@@ -31,7 +31,7 @@ export async function checkPlanQuota(userId: string): Promise<PlanQuotaResult> {
     throw new Error('User profile not found');
   }
 
-  const isPaidPlan = profile.plan !== 'free';
+  const isPaidPlan = profile.plan !== 'free' && profile.plan !== null;
   const isGuest = Boolean(profile.is_guest);
   const usage = profile.usage_count ?? 0;
   const limit: number | null = (profile as { prompt_limit?: number | null })?.prompt_limit ?? null;

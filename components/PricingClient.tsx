@@ -43,8 +43,8 @@ export default function PricingClient({ plans }: PricingClientProps) {
     
     if (user) {
       if (plan.name === 'Free') return 'Current Plan'
-      if (plan.name === 'Pro') return 'Upgrade to Pro'
-      if (plan.name === 'Enterprise') return 'Contact Sales'
+      if (plan.name === 'Pro Weekly') return 'Upgrade to Pro Weekly'
+      if (plan.name === 'Pro Monthly') return 'Upgrade to Pro Monthly'
     }
     
     return `Sign Up for ${plan.name}`

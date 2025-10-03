@@ -34,26 +34,25 @@ export default async function BillingPage() {
   const plans = [
     {
       name: 'Free',
-      price: '$0',
+      price: '₹0',
       period: '/week',
       features: [`${profile?.prompt_limit ?? '∞'} enhancements/week`, 'Basic analytics', 'Community support'],
       current: profile?.plan === 'free' || !profile?.plan
     },
-    // Commented out for now - will be needed later
-    // {
-    //   name: 'Pro',
-    //   price: '$19',
-    //   period: '/month',
-    //   features: ['1,000 enhancements/month', 'Advanced analytics', 'Priority support', 'API access'],
-    //   current: profile?.plan === 'pro'
-    // },
-    // {
-    //   name: 'Enterprise',
-    //   price: '$99',
-    //   period: '/month',
-    //   features: ['Unlimited enhancements', 'Team management', 'Custom integrations', 'SLA'],
-    //   current: profile?.plan === 'enterprise'
-    // }
+    {
+      name: 'Pro Weekly',
+      price: '₹250',
+      period: '/week',
+      features: ['Unlimited enhancements/week', 'Advanced analytics', 'Priority support', 'Custom templates', 'API access'],
+      current: profile?.plan === 'pro_weekly'
+    },
+    {
+      name: 'Pro Monthly',
+      price: '₹900',
+      period: '/month',
+      features: ['Unlimited enhancements/month', 'Advanced analytics', 'Priority support', 'Custom templates', 'API access', 'Best value - Save 10%'],
+      current: profile?.plan === 'pro_monthly'
+    }
   ]
 
   return (

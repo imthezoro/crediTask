@@ -8,17 +8,17 @@ export const revalidate = 86400 // 24 hours - pricing rarely changes
 export const metadata = {
   title: 'Pricing | PromptOK',
   description: 'Simple, transparent pricing for PromptOK. Choose the plan that fits your needs with our 14-day free trial.',
-  keywords: 'pricing, plans, subscription, free trial, pro, enterprise'
+  keywords: 'pricing, plans, subscription, free trial, pro weekly, pro monthly'
 }
 
 export default function PricingPage() {
   const plans = [
     {
       name: 'Free',
-      price: '$0',
-      period: '/month',
+      price: '₹0',
+      period: '/week',
       features: [
-        '100 prompt enhancements/month',
+        '10 prompt enhancements/week',
         'Basic analytics',
         'Chrome extension access',
         'Community support'
@@ -26,11 +26,11 @@ export default function PricingPage() {
       popular: false
     },
     {
-      name: 'Pro',
-      price: '$19',
-      period: '/month',
+      name: 'Pro Weekly',
+      price: '₹250',
+      period: '/week',
       features: [
-        '1,000 prompt enhancements/month',
+        'Unlimited prompt enhancements',
         'Advanced analytics',
         'Priority support',
         'Custom templates',
@@ -39,15 +39,16 @@ export default function PricingPage() {
       popular: true
     },
     {
-      name: 'Enterprise',
-      price: '$99',
+      name: 'Pro Monthly',
+      price: '₹900',
       period: '/month',
       features: [
         'Unlimited prompt enhancements',
-        'Team management',
-        'Custom integrations',
-        'Dedicated support',
-        'SLA guarantee'
+        'Advanced analytics',
+        'Priority support',
+        'Custom templates',
+        'API access',
+        'Best value - Save 10%'
       ],
       popular: false
     }

@@ -6,7 +6,7 @@ export interface PaymentData {
   amount_cents: number
   currency: string
   status: 'pending' | 'completed' | 'failed' | 'refunded'
-  plan: 'free' | 'pro' | 'enterprise'
+  plan: 'free' | 'pro_weekly' | 'pro_monthly'
   valid_from: string
   valid_to: string
   user_id: string
