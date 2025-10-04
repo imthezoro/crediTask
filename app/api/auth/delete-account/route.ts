@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { deleteAccountSchema, validateRequest } from '@/lib/validation'
-import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP } from '@/lib/security-middleware'
+import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP } from '@/lib/security'
 import { SecurityUtils } from '@/lib/security-utils'
 import { hardDeleteService } from '@/lib/hard-delete-service'
 

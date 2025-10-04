@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase-server';
 import { createExtensionJWT } from '@/lib/jwt-utils';
 import { validateRequest, sanitizeString } from '@/lib/validation';
 import { z } from 'zod';
-import { securityMiddleware, addSecurityHeaders } from '@/lib/security-middleware';
+import { securityMiddleware, addSecurityHeaders } from '@/lib/security';
 import { SecureAuthUtils } from '@/lib/secure-auth-utils';
 
 /**

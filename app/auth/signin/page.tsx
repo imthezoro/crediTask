@@ -1,4 +1,4 @@
-import { LoginForm } from '@/components/auth/login-form'
+import { LoginContainer } from '@/features/auth'
 import { Suspense } from 'react'
 
 // Auth pages need dynamic behavior for redirects and error handling
@@ -12,7 +12,7 @@ function SignInContent() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">PromptOK</h1>
           <p className="text-gray-600">Welcome back</p>
         </div>
-        <LoginForm />
+        <LoginContainer />
       </div>
     </div>
   )

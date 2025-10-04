@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
-import { securityMiddleware, addSecurityHeaders, getClientIP } from '@/lib/security-middleware'
+import { securityMiddleware, addSecurityHeaders, getClientIP } from '@/lib/security'
 import { validateRequest } from '@/lib/validation'
 import { z } from 'zod'
 

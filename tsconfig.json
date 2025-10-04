@@ -26,6 +26,9 @@
       ],
       "@/hooks/*": [
         "hooks/*"
+      ],
+      "@/features/*": [
+        "features/*"
       ]
     },
     "types": [

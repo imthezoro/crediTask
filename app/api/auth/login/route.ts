@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP } from '@/lib/security-middleware'
+import { securityMiddleware, addSecurityHeaders, getClientIP, rateLimiter, SecurityUtils } from '@/lib/security'
 import { loginSchema, validateRequest } from '@/lib/validation'
-import { SecurityUtils } from '@/lib/security-utils'
 import { SecureAuthUtils } from '@/lib/secure-auth-utils'
 
 export async function POST(request: NextRequest) {

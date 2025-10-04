@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createExtensionJWT, type ExtensionJWTResult } from '@/lib/jwt-utils';
-import { securityMiddleware } from '@/lib/security-middleware';
+import { securityMiddleware } from '@/lib/security';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
 
 // Handle preflight OPTIONS requests

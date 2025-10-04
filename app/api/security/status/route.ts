@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { rateLimiter, securityLogger } from '@/lib/security-middleware'
-import { addSecurityHeaders } from '@/lib/security-middleware'
+import { rateLimiter, securityLogger } from '@/lib/security'
+import { addSecurityHeaders } from '@/lib/security'
 
 // Use edge runtime for global performance
 export const runtime = 'edge'

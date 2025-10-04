@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Inter } from 'next/font/google';
 import Footer from '@/components/Footer';
+import { QueryProvider } from '@/components/providers/query-provider';
 
 // Configure Inter font with optimal settings
 const inter = Inter({ 
@@ -21,8 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.className}>
       <body>
-        {children}
-        <Footer />
+        <QueryProvider>
+          {children}
+          <Footer />
+        </QueryProvider>
         <Analytics />
         <SpeedInsights />
       </body>

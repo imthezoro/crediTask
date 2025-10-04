@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
-import { securityMiddleware, addSecurityHeaders, getClientIP } from '@/lib/security-middleware'
+import { securityMiddleware, addSecurityHeaders, getClientIP } from '@/lib/security'
 import { setPasswordSchema, validateRequest } from '@/lib/validation'
 import { SecureAuthUtils } from '@/lib/secure-auth-utils'
 

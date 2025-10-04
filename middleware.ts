@@ -1,9 +1,19 @@
 import { createServerClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { CsrfError, createCsrfProtect } from '@edge-csrf/nextjs'
 import { profileCache } from './lib/profile-cache'
 import { addSecurityHeaders } from './lib/security-middleware'
 import { AuthErrors, createErrorUrl } from './lib/auth-errors'
+import { appConfig } from './lib/config'
+
+const CSRF_SECRET_COOKIE = 'csrfSecret'
+const NEXT_ACTION_HEADER = 'next-action'
+
+// Helper to check if request is a server action
+function isServerAction(request: NextRequest): boolean {
+  return request.headers.has(NEXT_ACTION_HEADER)
+}
 
 // Helper function to check user profile status with caching
 async function checkUserProfile(supabase: SupabaseClient, userId: string) {
@@ -38,9 +48,37 @@ export async function middleware(request: NextRequest) {
     },
   })
 
+  // Apply CSRF protection for mutating requests
+  const csrfProtect = createCsrfProtect({
+    cookie: {
+      secure: appConfig.production,
+      name: CSRF_SECRET_COOKIE,
+    },
+    // Ignore CSRF errors for server actions since Next.js has built-in protection
+    // Always ignore GET, HEAD, and OPTIONS requests
+    ignoreMethods: isServerAction(request)
+      ? ['POST']
+      : ['GET', 'HEAD', 'OPTIONS'],
+  })
+
+  try {
+    await csrfProtect(request, response)
+  } catch (error) {
+    // If there is a CSRF error, return a 403 response
+    if (error instanceof CsrfError) {
+      console.error('CSRF token validation failed:', error.message)
+      return NextResponse.json(
+        { error: 'Invalid CSRF token. Please refresh the page and try again.' },
+        { status: 403 }
+      )
+    }
+    // Re-throw other errors
+    throw error
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    appConfig.supabase.url,
+    appConfig.supabase.anonKey,
     {
       cookies: {
         getAll() {
