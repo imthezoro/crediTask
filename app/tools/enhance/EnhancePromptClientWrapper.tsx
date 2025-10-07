@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Header from '@/components/Header'
 import EnhancePromptClient from './EnhancePromptClient'
 import { PromptHistorySidebar } from '@/components/PromptHistorySidebar'
+import { SidebarProvider } from '@/components/ui/sidebar'
 
 interface PromptHistoryItem {
   id: string
@@ -32,16 +33,18 @@ export default function EnhancePromptClientWrapper({ user, isAdmin }: EnhancePro
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <PromptHistorySidebar onHistoryItemClick={handleHistoryItemClick} />
-      <div className="flex-1 h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
-        <Header user={user} isAdmin={isAdmin} pageTitle="Prompt Enhancer" offsetWithSidebar={true} />
-        <div className="flex-1 overflow-y-auto relative">
-          <div className="container mx-auto px-4 h-full max-w-5xl pt-24 md:pt-28">
-            <EnhancePromptClient loadedPrompt={loadedPrompt} onPromptLoaded={() => setLoadedPrompt(null)} />
+    <SidebarProvider defaultOpen={false}>
+      <div className="flex h-screen w-full overflow-hidden">
+        <PromptHistorySidebar onHistoryItemClick={handleHistoryItemClick} />
+        <div className="flex-1 h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col">
+          <Header user={user} isAdmin={isAdmin} pageTitle="Prompt Enhancer" offsetWithSidebar={true} />
+          <div className="flex-1 overflow-y-auto relative">
+            <div className="container mx-auto px-4 h-full max-w-5xl pt-24 md:pt-28">
+              <EnhancePromptClient loadedPrompt={loadedPrompt} onPromptLoaded={() => setLoadedPrompt(null)} />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }

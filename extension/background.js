@@ -155,6 +155,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     return true;
   }
+
+  // Handle API requests from content scripts (avoids CORS issues)
+  if (message.type === 'MAKE_API_REQUEST') {
+    const { url, method, headers, body } = message;
+    
+    fetch(url, {
+      method: method || 'POST',
+      headers: headers || {},
+      body: body ? JSON.stringify(body) : undefined
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({ error: 'Failed to parse response' }));
+        sendResponse({
+          ok: response.ok,
+          status: response.status,
+          data: data
+        });
+      })
+      .catch(error => {
+        console.error('[PromptOK Background] API request failed:', error);
+        sendResponse({
+          ok: false,
+          status: 0,
+          data: { error: error.message || 'Network error' }
+        });
+      });
+    return true; // Keep channel open for async response
+  }
   
   // Legacy handlers removed - now using JWT-based authentication only
 });

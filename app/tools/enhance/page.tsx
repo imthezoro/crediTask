@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import EnhancePromptClientWrapper from './EnhancePromptClientWrapper'
-import { SidebarProvider } from '@/components/ui/sidebar'
 
 // User enhance page is personalized content
 export const dynamic = 'force-dynamic'
@@ -26,9 +25,5 @@ export default async function EnhancePromptPage() {
     redirect('/auth/signin?error=Account is not active')
   }
 
-  return (
-    <SidebarProvider defaultOpen={false}>
-      <EnhancePromptClientWrapper user={user} isAdmin={isAdmin} />
-    </SidebarProvider>
-  )
+  return <EnhancePromptClientWrapper user={user} isAdmin={isAdmin} />
 }

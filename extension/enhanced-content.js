@@ -1196,14 +1196,24 @@ class AdvancedPromptEnhancer {
       promptLength: prompt.length
     });
     
-    return fetch(apiEndpoint, {
+    // Use background script to make API request (avoids CORS issues)
+    const response = await chrome.runtime.sendMessage({
+      type: 'MAKE_API_REQUEST',
+      url: apiEndpoint,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwt}`
       },
-      body: JSON.stringify({ prompt, site, chatUrl })
+      body: { prompt, site, chatUrl }
     });
+    
+    // Convert background response to fetch-like Response object
+    return {
+      ok: response.ok,
+      status: response.status,
+      json: async () => response.data
+    };
   }
 
   async getApiEndpoint() {
@@ -1240,21 +1250,31 @@ class AdvancedPromptEnhancer {
       chatUrl = (window.location && window.location.href) || null;
     } catch (_) { /* ignore */ }
 
-    const response = await fetch(apiEndpoint, {
+    // Use background script to make API request (avoids CORS issues)
+    const response = await chrome.runtime.sendMessage({
+      type: 'MAKE_API_REQUEST',
+      url: apiEndpoint,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${jwtData.jwt}`
       },
-      body: JSON.stringify({ prompt: combinedPrompt, site, chatUrl })
+      body: { prompt: combinedPrompt, site, chatUrl }
     });
+    
+    // Convert to fetch-like response
+    const fetchLikeResponse = {
+      ok: response.ok,
+      status: response.status,
+      json: async () => response.data
+    };
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+    if (!fetchLikeResponse.ok) {
+      const errorData = await fetchLikeResponse.json().catch(() => ({ error: 'Network error' }));
       throw new Error(errorData.error || 'Failed to get final enhanced prompt');
     }
 
-    const data = await response.json();
+    const data = await fetchLikeResponse.json();
     
     // Extract enhanced_prompt from response
     // Try structuredData first, then parse rawResponse
@@ -1332,17 +1352,21 @@ class AdvancedPromptEnhancer {
       const jwtData = await this.getExtensionJWT();
       if (!jwtData.jwt) return;
       const baseUrl = await window.promptokEnvConfig.getApiBase();
-      const res = await fetch(`${baseUrl}/api/extension/session/finalize`, {
+      
+      // Use background script to make API request (avoids CORS issues)
+      const res = await chrome.runtime.sendMessage({
+        type: 'MAKE_API_REQUEST',
+        url: `${baseUrl}/api/extension/session/finalize`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${jwtData.jwt}`,
         },
-        body: JSON.stringify({ sessionId, finalPrompt, status: statusOverride || 'completed' })
+        body: { sessionId, finalPrompt, status: statusOverride || 'completed' }
       });
+      
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.warn('[PromptOK] finalizeSession failed', res.status, err);
+        console.warn('[PromptOK] finalizeSession failed', res.status, res.data);
       }
     } catch (e) {
       console.warn('[PromptOK] finalizeSession error', e);

@@ -91,7 +91,8 @@ export async function POST(request: NextRequest) {
     const jwtResult = await createExtensionJWT(user.id, ['enhance']);
 
     // Call internal extension enhance API
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    // IMPORTANT: Use localhost for internal server-to-server calls, not production URL
+    const baseUrl = 'http://localhost:3000';
     const enhanceApiUrl = `${baseUrl}/api/extension/enhance`;
 
     console.log('[enhance-proxy] Calling extension API for user:', user.id);
