@@ -96,10 +96,11 @@ export default function AdminUsersTable({ users }: AdminUsersTableProps) {
     setConfirmAction({ label: 'Reactivate this user account?', onConfirm: () => makeApiCall(row.id, 'reactivate') })
   }
 
-  const sortBy = searchParams.get('sortBy') || 'created_at'
-  const sortDir = (searchParams.get('sortDir') as 'asc' | 'desc') || 'desc'
+  const sp = searchParams ?? new URLSearchParams()
+  const sortBy = sp.get('sortBy') || 'created_at'
+  const sortDir = (sp.get('sortDir') as 'asc' | 'desc') || 'desc'
   const onSort = (key: string) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(sp.toString())
     const currentKey = params.get('sortBy') || 'created_at'
     const currentDir = (params.get('sortDir') as 'asc' | 'desc') || 'desc'
     const nextDir: 'asc' | 'desc' = currentKey === key && currentDir === 'asc' ? 'desc' : 'asc'

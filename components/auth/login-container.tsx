@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSignIn, useGuestLogin } from '@/lib/hooks'
-import { createClient } from '@/lib/supabase-client'
-import { getAuthErrorDetails } from '@/lib/auth-errors'
+import { createClient } from '@/lib/supabase/client'
+import { getAuthErrorDetails } from '@/features/auth'
 import { appConfig, pathsConfig } from '@/lib/config'
 import { PasswordSignInForm } from './password-sign-in-form'
 import { AuthErrorAlert } from './auth-error-alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
-import type { LoginFormData } from '@/lib/schemas/auth-schemas'
+import type { LoginFormData } from '@/features/auth'
 
 /**
  * Container component for login functionality
@@ -29,8 +29,9 @@ export function LoginContainer() {
 
   // Handle URL error parameters from redirects
   useEffect(() => {
-    const error = searchParams.get('error')
-    const customMessage = searchParams.get('message')
+    const sp = searchParams ?? new URLSearchParams()
+    const error = sp.get('error')
+    const customMessage = sp.get('message')
 
     if (error) {
       if (customMessage) {
@@ -76,7 +77,7 @@ export function LoginContainer() {
         setUrlError(error.message)
         setUrlErrorType('error')
       }
-    } catch (error) {
+    } catch {
       const errorDetails = getAuthErrorDetails('AUTHENTICATION_FAILED')
       setUrlError(errorDetails.message)
       setUrlErrorType(errorDetails.type)
@@ -90,7 +91,7 @@ export function LoginContainer() {
     setUrlError('')
     try {
       await guestLoginMutation.mutateAsync()
-    } catch (error) {
+    } catch {
       // Error handled by mutation
     }
   }
@@ -99,9 +100,10 @@ export function LoginContainer() {
 
   // Determine which error to show (URL error or mutation error)
   const displayError = urlError || signInMutation.error || guestLoginMutation.error
+  type MutationError = { errorType?: 'error' | 'warning' | 'RATE_LIMIT' }
   const displayErrorType = urlError
     ? urlErrorType
-    : (guestLoginMutation.error as any)?.errorType || 'error'
+    : ((guestLoginMutation.error as unknown as MutationError)?.errorType ?? 'error')
 
   return (
     <Card className="w-full max-w-md">

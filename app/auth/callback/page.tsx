@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { createClient } from '@/lib/supabase-client'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { AuthErrors, createErrorUrl } from '@/lib/auth-errors'
+import { AuthErrors, createErrorUrl } from '@/features/auth'
 
 export default function AuthCallbackPage() {
   const router = useRouter()

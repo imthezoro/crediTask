@@ -1,4 +1,4 @@
-import { createClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, isUserAdmin } from '@/lib/supabase/server'
 
 export interface HeaderData {
   user: {

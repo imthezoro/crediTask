@@ -14,9 +14,14 @@ export function validateOrigin(request: NextRequest): boolean {
   
   // Allow same-origin requests
   if (origin && host) {
-    const originHost = new URL(origin).host
-    if (originHost === host) {
-      return true
+    try {
+      const originHost = new URL(origin).host
+      if (originHost === host) {
+        return true
+      }
+    } catch {
+      // Invalid origin URL
+      return false
     }
   }
   
@@ -32,9 +37,11 @@ export function validateOrigin(request: NextRequest): boolean {
     }
   }
   
-  // Allow GET requests without origin/referer (direct navigation)
-  if (request.method === 'GET') {
-    return true
+  // SECURITY: Allow GET requests without origin/referer only for public endpoints
+  // For authenticated endpoints, origin validation should still apply
+  // This is controlled by the caller via requireOriginValidation flag
+  if (request.method === 'GET' && !origin && !referer) {
+    return true // Allow direct navigation
   }
   
   return false
@@ -256,20 +263,22 @@ export function detectSuspiciousActivity(request: NextRequest): boolean {
     return true
   }
   
-  // Common bot patterns
-  const suspiciousUserAgents = [
-    /bot/i,
-    /crawler/i,
-    /spider/i,
+  // SECURITY: Only block obvious malicious bots, not legitimate API clients
+  // Don't block: python, curl (legitimate API tools)
+  // Do block: scrapers, credential stuffers, mass scanners
+  const maliciousBotPatterns = [
+    /masscan/i,
+    /nikto/i,
+    /sqlmap/i,
+    /nmap/i,
+    /scrapy/i,
     /scraper/i,
-    /curl/i,
-    /wget/i,
-    /python/i,
-    /^$/
+    /harvest/i,
+    /^$/  // Empty user agent
   ]
   
-  // Check for suspicious user agents
-  if (suspiciousUserAgents.some(pattern => pattern.test(userAgent))) {
+  // Check for malicious user agents
+  if (maliciousBotPatterns.some(pattern => pattern.test(userAgent))) {
     return true
   }
   

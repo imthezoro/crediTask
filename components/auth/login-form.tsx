@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase-client'
+import { createClient } from '@/lib/supabase/client'
 import { authService } from '@/lib/auth-service'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { getAuthErrorDetails } from '@/lib/auth-errors'
+import { getAuthErrorDetails } from '@/features/auth'
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
@@ -23,8 +23,9 @@ export function LoginForm() {
 
   // Handle URL error parameters
   useEffect(() => {
-    const urlError = searchParams.get('error')
-    const customMessage = searchParams.get('message')
+    const sp = searchParams ?? new URLSearchParams()
+    const urlError = sp.get('error')
+    const customMessage = sp.get('message')
     
     if (urlError) {
       if (customMessage) {

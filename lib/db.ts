@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { env } from './env';
-import { createAdminClient } from './supabase-server';
+import { createAdminClient } from './supabase/server';
 
 const supabase = (() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

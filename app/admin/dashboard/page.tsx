@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import KPI from '@/components/KPI'
 import { getHeaderData } from '@/lib/header-utils'

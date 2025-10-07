@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { createCorsResponse, corsEmpty } from '@/lib/cors'
 import { verifyExtensionJWT } from '@/lib/jwt-utils'
-import { createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 const QuerySchema = z.object({
   chatUrl: z.string().min(1).max(2048),

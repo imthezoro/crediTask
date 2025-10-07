@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server';
-import { verifyExtensionJWT, ExtensionJWTPayload } from '../../../../lib/jwt-utils';
+import { verifyExtensionJWT, ExtensionJWTPayload } from '@/lib/jwt-utils';
 import { 
   validateRequest,
   sanitizeString,
 } from '@/lib/validation';
 import { z } from 'zod';
-import { rateLimiter, getClientIP } from '@/lib/rate-limiter';
+import { rateLimiter, getClientIP } from '@/lib/security';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
-import { createAdminClient } from '@/lib/supabase-server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 

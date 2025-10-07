@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AdminApiHelper } from '@/lib/admin-utils'
+import { AdminApiHelper } from '@/features/admin'
 
 interface HealthStatus {
   status: 'healthy' | 'warning' | 'error'

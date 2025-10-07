@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from '@/lib/supabase-server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { timingSafeEqual, createHash } from 'crypto'
 
 /**

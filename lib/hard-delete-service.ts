@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { REACTIVATION_BLOCK } from '@/lib/auth-constants'
 
 export interface HardDeleteOptions {

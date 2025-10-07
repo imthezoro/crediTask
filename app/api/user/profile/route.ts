@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { verifyExtensionJWT } from '@/lib/jwt-utils';
 import { addSecurityHeaders } from '@/lib/security';
+import { createAdminClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,19 +26,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create Supabase client
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    // Use admin client since we're already authenticated via JWT
+    const supabase = createAdminClient();
 
     // Fetch user profile from database
     const { data: profile, error: profileError } = await supabase

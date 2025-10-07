@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { redis } from '@/lib/redis';
 import { hashString } from '@/lib/hash';
-import { getOpenAI } from '@/lib/openai';
-import { createClient } from '@/lib/supabase-server';
+import { getOpenAI } from '@/features/prompts';
+import { createClient } from '@/lib/supabase/server';
 import { recordPromptSession } from '@/lib/db';
 import { corsEmpty, corsJson } from '@/lib/cors';
 

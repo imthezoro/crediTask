@@ -15,7 +15,7 @@ const AppConfigSchema = z.object({
     anonKey: z.string().min(1, 'Supabase anon key is required'),
   }),
   openai: z.object({
-    apiKey: z.string().min(1, 'OpenAI API key is required'),
+    apiKey: z.string().optional(),
   }),
   stripe: z.object({
     publishableKey: z.string().optional(),
@@ -28,9 +28,17 @@ const AppConfigSchema = z.object({
   }),
 }).refine(
   (schema) => {
-    // In production, URL must use HTTPS
+    // In production, URL must use HTTPS except for local builds
     if (schema.production && !schema.url.startsWith('https://')) {
-      return false
+      try {
+        const parsed = new URL(schema.url)
+        const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+        if (!isLocalHost) {
+          return false
+        }
+      } catch {
+        return false
+      }
     }
     return true
   },
@@ -53,7 +61,7 @@ export const appConfig = AppConfigSchema.parse({
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   },
   openai: {
-    apiKey: process.env.OPENAI_API_KEY!,
+    apiKey: process.env.OPENAI_API_KEY,
   },
   stripe: {
     publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,

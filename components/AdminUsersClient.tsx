@@ -50,16 +50,19 @@ export default function AdminUsersClient() {
   const router = useRouter()
 
   // Initialize filter state from URL params
-  const [filters, setFilters] = useState<FilterState>({
-    page: Math.max(parseInt(searchParams.get('page') || '1', 10), 1),
-    pageSize: Math.min(Math.max(parseInt(searchParams.get('pageSize') || '20', 10), 5), 100),
-    plan: searchParams.get('plan') || '',
-    status: searchParams.get('status') || '',
-    sortBy: searchParams.get('sortBy') || 'created_at',
-    sortDir: searchParams.get('sortDir') || 'desc',
-    q: searchParams.get('q') || '',
-    minUsage: searchParams.get('minUsage') || '',
-    maxUsage: searchParams.get('maxUsage') || ''
+  const [filters, setFilters] = useState<FilterState>(() => {
+    const sp = searchParams ?? new URLSearchParams()
+    return {
+      page: Math.max(parseInt(sp.get('page') ?? '1', 10), 1),
+      pageSize: Math.min(Math.max(parseInt(sp.get('pageSize') ?? '20', 10), 5), 100),
+      plan: sp.get('plan') ?? '',
+      status: sp.get('status') ?? '',
+      sortBy: sp.get('sortBy') ?? 'created_at',
+      sortDir: sp.get('sortDir') ?? 'desc',
+      q: sp.get('q') ?? '',
+      minUsage: sp.get('minUsage') ?? '',
+      maxUsage: sp.get('maxUsage') ?? ''
+    }
   })
 
   // Update URL when filters change

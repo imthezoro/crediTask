@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { verifyExtensionJWT, ExtensionJWTPayload } from '@/lib/jwt-utils'
-import { createAdminClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { createCorsResponse, corsEmpty } from '@/lib/cors'
 import { sanitizeString } from '@/lib/validation'
 
@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient()
 
     // Soft-delete check (matching other API routes like /api/extension-token and /api/user/profile)
-    console.log('[extension/session/finalize] Fetching profile for userId:', payload.userId)
     const { data: profile, error: profileError } = await admin
       .from('user_profiles')
       .select('is_active, deleted_at')
@@ -59,20 +58,13 @@ export async function POST(request: NextRequest) {
       .single()
     
     if (profileError) {
-      console.error('[extension/session/finalize] Profile fetch failed (non-fatal):', {
-        error: profileError,
-        code: profileError.code,
-        message: profileError.message,
-        details: profileError.details,
-        hint: profileError.hint,
-        userId: payload.userId
-      })
+      // SECURITY: Don't log detailed error info or user IDs in production
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[extension/session/finalize] Profile fetch failed:', profileError.code, profileError.message);
+      }
       // Proceed without profile validation to avoid breaking UX; update will still enforce user_id ownership
     }
     
-    if (profile && !profile) {
-      return createCorsResponse({ error: 'NOT_FOUND', message: 'User profile not found' }, 404, request)
-    }
     // Only check profile status if profile was fetched successfully
     if (profile) {
       if (!profile.is_active || profile.deleted_at) {

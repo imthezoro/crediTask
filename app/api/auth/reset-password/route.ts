@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { securityMiddleware, addSecurityHeaders } from '@/lib/security'
 import { SecureAuthUtils } from '@/lib/secure-auth-utils'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase/server'
 import { resetPasswordSchema, validateRequest } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {

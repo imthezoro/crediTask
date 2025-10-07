@@ -1,4 +1,4 @@
-import { createAdminClient, getUserEmailsMap } from '@/lib/supabase-server'
+import { createAdminClient, getUserEmailsMap } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AdminPaymentsTable from '@/components/AdminPaymentsTable'
 import { getHeaderData } from '@/lib/header-utils'

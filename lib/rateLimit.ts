@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { createAdminClient } from './supabase-server';
+import { createAdminClient } from './supabase/server';
 
 export type PlanQuotaResult = {
   allowed: boolean;

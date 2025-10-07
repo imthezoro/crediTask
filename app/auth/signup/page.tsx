@@ -1,4 +1,4 @@
-import { SignupForm } from '@/components/auth/signup-form'
+import { SignupForm } from '@/features/auth'
 
 // Auth pages need dynamic behavior for redirects and error handling
 export const dynamic = 'force-dynamic'

@@ -1,0 +1,7 @@
+# Exclude template monorepo directories from Next.js routing and build
+nextjs-saas-kp-edited/
+nextjs-saas-starter-kit-lite/
+
+# Safety: ignore their nested build/artifacts and node_modules if present
+nextjs-saas-kp-edited/**
+nextjs-saas-starter-kit-lite/**

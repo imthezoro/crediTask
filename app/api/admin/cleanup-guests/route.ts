@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
-import { createAdminClient, isUserAdmin } from '@/lib/supabase-server'
+import { createClient, createAdminClient, isUserAdmin } from '@/lib/supabase/server'
+import { securityMiddleware, addSecurityHeaders } from '@/lib/security'
 
 export async function POST(request: NextRequest) {
+  // Apply security middleware for CSRF protection and rate limiting
+  const securityCheck = await securityMiddleware(request, 'admin-cleanup-guests', {
+    requireOriginValidation: true,
+    rateLimitType: 'api'
+  })
+  
+  if (!securityCheck.allowed) {
+    return addSecurityHeaders(securityCheck.response!)
+  }
+
   try {
     const supabase = await createClient()
     const admin = createAdminClient()
@@ -10,19 +20,21 @@ export async function POST(request: NextRequest) {
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       )
+      return addSecurityHeaders(response)
     }
 
     // Check admin privileges
     const isAdmin = await isUserAdmin(user.id)
     if (!isAdmin) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: 'Admin privileges required' },
         { status: 403 }
       )
+      return addSecurityHeaders(response)
     }
 
     const { olderThanDays = 7, dryRun = false } = await request.json()
@@ -42,14 +54,15 @@ export async function POST(request: NextRequest) {
 
     if (fetchError) {
       console.error('Error fetching guest users:', fetchError)
-      return NextResponse.json(
+      const response = NextResponse.json(
         { success: false, error: 'Failed to fetch guest users' },
         { status: 500 }
       )
+      return addSecurityHeaders(response)
     }
 
     if (!guestUsers || guestUsers.length === 0) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         message: 'No guest users found for cleanup',
         stats: {
@@ -59,6 +72,7 @@ export async function POST(request: NextRequest) {
           dryRun
         }
       })
+      return addSecurityHeaders(response)
     }
 
     const userIds = guestUsers.map(u => u.id)
@@ -74,10 +88,11 @@ export async function POST(request: NextRequest) {
 
       if (sessionsError) {
         console.error('Error deleting prompt sessions:', sessionsError)
-        return NextResponse.json(
+        const response = NextResponse.json(
           { success: false, error: 'Failed to delete prompt sessions' },
           { status: 500 }
         )
+        return addSecurityHeaders(response)
       }
 
       deletedSessions = sessionCount || 0
@@ -93,10 +108,11 @@ export async function POST(request: NextRequest) {
 
       if (profilesError) {
         console.error('Error soft deleting user profiles:', profilesError)
-        return NextResponse.json(
+        const response = NextResponse.json(
           { success: false, error: 'Failed to delete user profiles' },
           { status: 500 }
         )
+        return addSecurityHeaders(response)
       }
 
       deletedUsers = profileCount || 0
@@ -133,7 +149,7 @@ export async function POST(request: NextRequest) {
                   'unknown'
     })
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: dryRun 
         ? `Found ${guestUsers.length} guest users for cleanup (dry run)`
@@ -146,12 +162,14 @@ export async function POST(request: NextRequest) {
         dryRun
       }
     })
+    return addSecurityHeaders(response)
 
   } catch (error) {
     console.error('Guest cleanup error:', error)
-    return NextResponse.json(
+    const response = NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     )
+    return addSecurityHeaders(response)
   }
 }

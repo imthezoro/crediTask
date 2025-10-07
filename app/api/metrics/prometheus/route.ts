@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { createClient } from '@/lib/supabase/server'
 // TODO: Install prom-client dependency and uncomment below
 // import { register, Counter, Gauge, collectDefaultMetrics } from 'prom-client'
 

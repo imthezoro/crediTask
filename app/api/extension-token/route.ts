@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { createExtensionJWT, type ExtensionJWTResult } from '@/lib/jwt-utils';
 import { securityMiddleware } from '@/lib/security';
 import { createCorsResponse, corsEmpty } from '@/lib/cors';
+import { createClient } from '@/lib/supabase/server';
 
 // Handle preflight OPTIONS requests
 export async function OPTIONS(request: NextRequest) {
@@ -23,29 +22,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Create Supabase SSR client
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
-          },
-        },
-      }
-    );
+    const supabase = await createClient();
 
     // Get current user session
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.log('[extension-token] No valid session found');
+      // SECURITY: Don't log auth failures as they're expected behavior
       return createCorsResponse({ loggedIn: false }, 200, request);
     }
 
@@ -57,7 +40,8 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profileError || !profile) {
-      console.log('[extension-token] User profile not found:', user.id);
+      // SECURITY: Don't log user IDs
+      console.error('[extension-token] User profile not found');
       return createCorsResponse({
         loggedIn: false, 
         error: 'User profile not found. Please complete signup in the web app.'
@@ -65,8 +49,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is deactivated or soft-deleted
-    if (!profile || !profile.is_active || profile.deleted_at) {
-      console.log('[extension-token] User is deactivated or soft-deleted:', user.id);
+    if (!profile.is_active || profile.deleted_at) {
+      // SECURITY: Don't log user IDs
       return createCorsResponse({ loggedIn: false }, 200, request);
     }
 
@@ -100,7 +84,10 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    console.log('[extension-token] JWT issued for user:', user.id, 'expires:', new Date(jwtResult.expiresAt).toISOString());
+    // SECURITY: Only log in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[extension-token] JWT issued, expires:', new Date(jwtResult.expiresAt).toISOString());
+    }
 
     return createCorsResponse(responseData, 200, request);
 

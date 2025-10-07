@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { securityMiddleware, addSecurityHeaders } from '@/lib/security';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,27 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Supabase SSR client
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: unknown) {
-            // Cast to object to avoid explicit any while remaining compatible with Next's cookie options type
-            cookieStore.set(name, value, options as object);
-          },
-          remove(name: string, _options: unknown) {
-            // Mark parameter as used to satisfy no-unused-vars
-            void _options;
-            cookieStore.delete(name);
-          },
-        },
-      }
-    );
+    const supabase = await createClient();
 
     // Sign out the user - this clears the session and cookies
     const { error } = await supabase.auth.signOut();
