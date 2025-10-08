@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { deleteAccountSchema, validateRequest } from '@/lib/validation'
 import { securityMiddleware, addSecurityHeaders, rateLimiter, getClientIP, SecurityUtils } from '@/lib/security'
-import { hardDeleteService } from '@/lib/hard-delete-service'
+import { softDeleteService } from '@/lib/soft-delete-service'
 
 export async function POST(request: NextRequest) {
   // Apply security middleware
@@ -64,11 +64,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Hard delete user and block email
+    // Soft delete user (set is_active=false) and block email
     const clientIP = getClientIP(request)
     const userAgent = request.headers.get('user-agent') || ''
     
-    await hardDeleteService.hardDeleteUser(userId, {
+    await softDeleteService.softDeleteUser(userId, {
       reason: 'User account deletion',
       performedBy: 'user',
       ipAddress: clientIP,
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     
     const response = NextResponse.json({
       success: true,
-      message: 'Account permanently deleted. Email blocked for reuse.'
+      message: 'Account deactivated successfully. Email blocked for reuse.'
     })
     
     return addSecurityHeaders(response)

@@ -1,7 +1,7 @@
 import React from 'react'
 
 interface AuthErrorAlertProps {
-  error: Error | null
+  error: Error | string | null
   errorType?: 'error' | 'warning' | 'RATE_LIMIT'
 }
 
@@ -11,6 +11,11 @@ interface AuthErrorAlertProps {
  */
 export function AuthErrorAlert({ error, errorType = 'error' }: AuthErrorAlertProps) {
   if (!error) return null
+
+  // Handle both Error objects and string messages
+  const errorMessage = typeof error === 'string' ? error : error.message
+  
+  if (!errorMessage) return null
 
   const isRateLimit = errorType === 'RATE_LIMIT'
 
@@ -34,7 +39,7 @@ export function AuthErrorAlert({ error, errorType = 'error' }: AuthErrorAlertPro
           <span className="font-medium">Rate Limit Reached</span>
         </div>
       )}
-      {error.message}
+      {errorMessage}
       {isRateLimit && (
         <div className="mt-2 text-xs text-orange-600">
           This helps protect our service. You can try signing up for a permanent account instead.
