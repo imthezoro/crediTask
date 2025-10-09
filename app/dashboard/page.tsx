@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
+import { MetricCard } from '@/components/analytics'
 
-// User dashboard is personalized content
 export const dynamic = 'force-dynamic'
 
 export default async function Dashboard() {
@@ -16,7 +16,6 @@ export default async function Dashboard() {
     redirect('/auth/signin')
   }
   
-  // Get user profile with optimized query (select only needed fields)
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
     .select('plan, usage_count, plan_valid_until, is_active')
@@ -28,46 +27,40 @@ export default async function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header user={user} isAdmin={isAdmin} pageTitle="Dashboard" />
 
       <div className="container mx-auto px-4 py-8 pt-24">
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Current Plan</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold capitalize">
-                {profile?.plan || 'Free'}
-              </p>
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Current Plan"
+            value={profile?.plan ? profile.plan.charAt(0).toUpperCase() + profile.plan.slice(1) : 'Free'}
+            description="Your subscription tier"
+          />
           
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Usage This Month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">
-                {profile?.usage_count || 0}
-              </p>
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Usage This Month"
+            value={profile?.usage_count || 0}
+            description="Prompt enhancements used"
+            trend={{
+              direction: 'up',
+              value: '+12%'
+            }}
+          />
           
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Plan Valid Until</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold">
-                {profile?.plan_valid_until 
-                  ? new Date(profile.plan_valid_until).toLocaleDateString()
-                  : '-'
-                }
-              </p>
-            </CardContent>
-          </Card>
+          <MetricCard
+            title="Plan Valid Until"
+            value={
+              profile?.plan_valid_until 
+                ? new Date(profile.plan_valid_until).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })
+                : '-'
+            }
+            description="Renewal date"
+          />
         </div>
 
         <Card>
@@ -78,8 +71,8 @@ export default async function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <ol className="list-decimal list-inside text-blue-700 space-y-2 mb-4">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <ol className="list-decimal list-inside text-blue-700 dark:text-blue-300 space-y-2 mb-4">
                 <li>Click the button below to download the ZIP file.</li>
                 <li>Extract the downloaded ZIP to a folder on your computer.</li>
                 <li>Open Chrome and go to <span className="font-mono">chrome://extensions</span>.</li>

@@ -6,7 +6,6 @@ import Header from '@/components/Header'
 import { GuestCleanupButton } from '@/components/GuestCleanupButton'
 import { ExpiredBlocksCleanupButton } from '@/components/ExpiredBlocksCleanupButton'
 
-// Admin pages are personalized and low-traffic (only you use them)
 export const dynamic = 'force-dynamic'
 
 async function getAdminData() {
@@ -16,7 +15,6 @@ async function getAdminData() {
     redirect('/auth/signin')
   }
   
-  // Check admin privileges
   if (!isAdmin) {
     redirect('/dashboard')
   }
@@ -94,8 +92,8 @@ async function getAdminData() {
     .lt('created_at', sevenDaysAgo.toISOString())
 
   // Calculate trends
-  const revenue = monthlyRevenue?.reduce((sum, payment) => sum + payment.amount_cents, 0) || 0
-  const prevRevenue = previousMonthRevenue?.reduce((sum, payment) => sum + payment.amount_cents, 0) || 0
+  const revenue = monthlyRevenue?.reduce((sum: number, payment: any) => sum + payment.amount_cents, 0) || 0
+  const prevRevenue = previousMonthRevenue?.reduce((sum: number, payment: any) => sum + payment.amount_cents, 0) || 0
   
   const userGrowth = usersLastMonth ? Math.round(((usersLastMonth || 0) / (totalUsers || 1)) * 100) : 0
   const promptGrowth = promptsPrevious24h ? Math.round((((promptsLast24h || 0) - (promptsPrevious24h || 0)) / (promptsPrevious24h || 1)) * 100) : 0

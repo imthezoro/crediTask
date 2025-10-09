@@ -2,18 +2,14 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
-import KPI from '@/components/KPI'
-import dynamicImport from 'next/dynamic'
+import { MetricCard, ChartCard } from '@/components/analytics'
+import { TrendingUp } from 'lucide-react'
 
 // Admin pages are personalized and low-traffic (only you use them)
 export const dynamic = 'force-dynamic'
 
-// Dynamic import for Chart component to reduce bundle size and improve TTFB
-const Chart = dynamicImport(() => import('@/components/Chart'), {
-  ssr: false,
-  loading: () => <div className="bg-white p-6 rounded-lg shadow border h-80 animate-pulse" />,
-})
-// Export panel removed per requirements
+// Admin analytics uses server-side rendering for better performance
+// Charts are rendered client-side for interactivity
 
 interface UsageItem {
   created_at: string
@@ -119,103 +115,150 @@ export default async function AdminAnalyticsPage() {
   const { weeklyData, monthlyData, totalWeekly, totalMonthly, engagement, features } = await getAnalyticsData()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header user={user} isAdmin={isAdmin} pageTitle="Analytics" />
 
       <div className="container mx-auto px-4 py-8 pt-24">
         {/* Summary KPIs */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <KPI
+          <MetricCard
             title="Weekly Usage"
             value={totalWeekly.toLocaleString()}
-            change="+15%"
-            trend="up"
+            description="Prompts enhanced this week"
+            trend={{
+              direction: 'up',
+              value: '+15%'
+            }}
           />
-          <KPI
+          <MetricCard
             title="Monthly Usage"
             value={totalMonthly.toLocaleString()}
-            change="+23%"
-            trend="up"
+            description="Prompts enhanced this month"
+            trend={{
+              direction: 'up',
+              value: '+23%'
+            }}
           />
-          <KPI
+          <MetricCard
             title="Avg Daily Usage"
             value={Math.round(totalWeekly / 7).toLocaleString()}
-            change="+8%"
-            trend="up"
+            description="Average prompts per day"
+            trend={{
+              direction: 'up',
+              value: '+8%'
+            }}
           />
         </div>
 
         {/* Charts */}
         <div className="grid lg:grid-cols-2 gap-6 mb-8">
-          <Chart
+          <ChartCard
+            title="Usage - Last 7 Days"
+            description="Daily prompt enhancement activity"
             data={weeklyData}
-            type="line"
+            type="area"
             xKey="date"
             yKey="usage"
-            title="Usage - Last 7 Days"
+            config={{
+              usage: {
+                label: 'Prompts',
+                color: 'hsl(var(--primary))'
+              }
+            }}
+            footer={
+              <div className="flex w-full items-start gap-2 text-sm">
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 font-medium leading-none">
+                    Trending up this week <TrendingUp className="h-4 w-4" />
+                  </div>
+                  <div className="flex items-center gap-2 leading-none text-muted-foreground">
+                    +{((totalWeekly / Math.max(totalWeekly - 100, 1)) * 100 - 100).toFixed(1)}% from last week
+                  </div>
+                </div>
+              </div>
+            }
           />
-          <Chart
+          <ChartCard
+            title="Usage - Last 30 Days"
+            description="Monthly prompt enhancement trend"
             data={monthlyData}
             type="bar"
             xKey="date"
             yKey="usage"
-            title="Usage - Last 30 Days"
+            config={{
+              usage: {
+                label: 'Prompts',
+                color: 'hsl(217 91% 60%)'
+              }
+            }}
+            footer={
+              <div className="flex w-full items-start gap-2 text-sm">
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 font-medium leading-none">
+                    Strong monthly performance <TrendingUp className="h-4 w-4" />
+                  </div>
+                  <div className="flex items-center gap-2 leading-none text-muted-foreground">
+                    {totalMonthly} total prompts enhanced
+                  </div>
+                </div>
+              </div>
+            }
           />
         </div>
 
         {/* Detailed Analytics */}
         <div className="grid lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Feature Usage</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Feature Usage</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">Success Rate</span>
-                <span className="text-gray-900 font-medium">{features.promptEnhancement}%</span>
+                <span className="text-gray-700 dark:text-gray-300">Success Rate</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{features.promptEnhancement}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${features.promptEnhancement}%` }}></div>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-gray-700">Daily Engagement</span>
-                <span className="text-gray-900 font-medium">{features.analyticsUsage}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-600 h-2 rounded-full" style={{ width: `${features.analyticsUsage}%` }}></div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300" style={{ width: `${features.promptEnhancement}%` }}></div>
               </div>
               
               <div className="flex justify-between items-center">
-                <span className="text-gray-700">Error Rate</span>
-                <span className="text-gray-900 font-medium">{features.apiAccess}%</span>
+                <span className="text-gray-700 dark:text-gray-300">Daily Engagement</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{features.analyticsUsage}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-yellow-600 h-2 rounded-full" style={{ width: `${features.apiAccess}%` }}></div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div className="bg-green-600 dark:bg-green-500 h-2 rounded-full transition-all duration-300" style={{ width: `${features.analyticsUsage}%` }}></div>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-700 dark:text-gray-300">Error Rate</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{features.apiAccess}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div className="bg-yellow-600 dark:bg-yellow-500 h-2 rounded-full transition-all duration-300" style={{ width: `${features.apiAccess}%` }}></div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">User Engagement</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">User Engagement</h3>
             <div className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-gray-700">Daily Active Users</span>
-                <span className="text-gray-900 font-medium">{engagement.dailyActiveUsers.toLocaleString()}</span>
+                <span className="text-gray-700 dark:text-gray-300">Daily Active Users</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{engagement.dailyActiveUsers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-700">Weekly Active Users</span>
-                <span className="text-gray-900 font-medium">{engagement.weeklyActiveUsers.toLocaleString()}</span>
+                <span className="text-gray-700 dark:text-gray-300">Weekly Active Users</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{engagement.weeklyActiveUsers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-700">Monthly Active Users</span>
-                <span className="text-gray-900 font-medium">{engagement.monthlyActiveUsers.toLocaleString()}</span>
+                <span className="text-gray-700 dark:text-gray-300">Monthly Active Users</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{engagement.monthlyActiveUsers.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-700">Weekly Usage</span>
-                <span className="text-gray-900 font-medium">{totalWeekly.toLocaleString()} prompts</span>
+                <span className="text-gray-700 dark:text-gray-300">Weekly Usage</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{totalWeekly.toLocaleString()} prompts</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-700">Monthly Usage</span>
-                <span className="text-gray-900 font-medium">{totalMonthly.toLocaleString()} prompts</span>
+                <span className="text-gray-700 dark:text-gray-300">Monthly Usage</span>
+                <span className="text-gray-900 dark:text-gray-100 font-medium">{totalMonthly.toLocaleString()} prompts</span>
               </div>
             </div>
           </div>

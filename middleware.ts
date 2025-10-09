@@ -1,11 +1,15 @@
+import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
-import { CsrfError, createCsrfProtect } from '@edge-csrf/nextjs'
-import { profileCache } from './lib/cache'
-import { addSecurityHeaders } from './lib/security'
-import { AuthErrors, createErrorUrl } from './features/auth'
+import { createCsrfProtect, CsrfError } from '@edge-csrf/nextjs'
+import { addSecurityHeaders } from '@/lib/security'
+import { generateCorrelationId } from '@/lib/correlation'
 import { appConfig } from './lib/config'
+import { 
+  matchesPattern,
+  handleDashboardRoute,
+  handleAuthRoute,
+  handleAdminRoute
+} from './lib/middleware'
 
 const CSRF_SECRET_COOKIE = 'csrfSecret'
 const NEXT_ACTION_HEADER = 'next-action'
@@ -15,38 +19,19 @@ function isServerAction(request: NextRequest): boolean {
   return request.headers.has(NEXT_ACTION_HEADER)
 }
 
-// Helper function to check user profile status with caching
-async function checkUserProfile(supabase: SupabaseClient, userId: string) {
-  // Try cache first
-  let isActive = profileCache.get(userId)
-  
-  if (isActive === null) {
-    // Cache miss - query database
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .select('is_active')
-      .eq('id', userId)
-      .single()
-
-    if (error) {
-      console.error('Profile check error:', error)
-      return { isActive: false, hasError: true }
-    }
-
-    isActive = Boolean(profile?.is_active)
-    // Cache the result
-    profileCache.set(userId, isActive)
-  }
-
-  return { isActive, hasError: false }
-}
 
 export async function middleware(request: NextRequest) {
+  // Generate correlation ID for request tracing
+  const correlationId = request.headers.get('x-correlation-id') || generateCorrelationId()
+  
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
+  
+  // Add correlation ID to response headers
+  response.headers.set('x-correlation-id', correlationId)
 
   // Apply CSRF protection for mutating requests
   const csrfProtect = createCsrfProtect({
@@ -96,65 +81,22 @@ export async function middleware(request: NextRequest) {
   // Check if user is authenticated
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Handle dashboard routes
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    if (!user) {
-      const redirectResponse = NextResponse.redirect(new URL('/auth/signin', request.url))
-      return addSecurityHeaders(redirectResponse)
-    }
-
-    // Check if authenticated user has active profile
-    const { isActive, hasError } = await checkUserProfile(supabase, user.id)
-
-    if (hasError) {
-      // Database error - sign out for security and clear cache
-      await supabase.auth.signOut()
-      profileCache.invalidate(user.id)
-      const redirectResponse = NextResponse.redirect(
-        new URL(createErrorUrl('/auth/signin', AuthErrors.ACCOUNT_VERIFICATION_FAILED), request.url)
-      )
-      // Copy auth cookies to redirect response
-      response.cookies.getAll().forEach((cookie) => {
-        redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
-      })
-      return addSecurityHeaders(redirectResponse)
-    }
-
-    if (!isActive) {
-      // Sign out inactive users
-      await supabase.auth.signOut()
-      profileCache.invalidate(user.id)
-      const redirectResponse = NextResponse.redirect(
-        new URL(createErrorUrl('/auth/signin', AuthErrors.ACCOUNT_DEACTIVATED), request.url)
-      )
-      // Copy auth cookies to redirect response
-      response.cookies.getAll().forEach((cookie) => {
-        redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
-      })
-      return addSecurityHeaders(redirectResponse)
-    }
+  // Handle dashboard routes using pattern matching
+  if (matchesPattern(request, '/dashboard/:path*')) {
+    const result = await handleDashboardRoute(request, response, supabase, user)
+    if (result) return result
   }
 
-  // Handle auth routes - redirect authenticated active users to enhance page
-  // Exception: Allow access to reset-password-confirm for password reset flow
-  if (user && request.nextUrl.pathname.startsWith('/auth/')) {
-    // Skip profile check for callback and reset pages (they handle their own validation)
-    if (request.nextUrl.pathname === '/auth/callback' || 
-        request.nextUrl.pathname === '/auth/reset-password-confirm') {
-      return addSecurityHeaders(response)
-    }
-    
-    const { isActive } = await checkUserProfile(supabase, user.id)
+  // Handle admin routes using pattern matching
+  if (matchesPattern(request, '/admin/:path*')) {
+    const result = await handleAdminRoute(request, response, supabase, user)
+    if (result) return result
+  }
 
-    if (isActive) {
-      const redirectResponse = NextResponse.redirect(new URL('/tools/enhance', request.url))
-      // Copy cookies to redirect response
-      response.cookies.getAll().forEach((cookie) => {
-        redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
-      })
-      return addSecurityHeaders(redirectResponse)
-    }
-    // If not active, allow access to auth pages (no redirect)
+  // Handle auth routes using pattern matching
+  if (matchesPattern(request, '/auth/:path*')) {
+    const result = await handleAuthRoute(request, response, supabase, user)
+    if (result) return result
   }
 
   return addSecurityHeaders(response)

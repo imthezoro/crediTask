@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Fetch user profile from database
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, name, email, plan, usage_count, prompt_limit, is_active, deleted_at')
+      .select('id, email, plan, usage_count, prompt_limit, is_active, deleted_at')
       .eq('id', payload.userId)
       .single();
 
@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
 
     const responseData = {
       id: profile.id,
-      name: profile.name,
       email: profile.email,
       plan: profile.plan || 'free',
       credits: creditsRemaining,

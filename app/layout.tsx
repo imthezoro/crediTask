@@ -5,6 +5,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Inter } from 'next/font/google';
 import Footer from '@/components/Footer';
 import { QueryProvider } from '@/components/providers/query-provider';
+import { VersionUpdater } from '@/components/VersionUpdater';
+import { CookieBanner } from '@/components/CookieBanner';
 
 // Configure Inter font with optimal settings
 const inter = Inter({ 
@@ -25,6 +27,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <QueryProvider>
           {children}
           <Footer />
+          <VersionUpdater />
+          <CookieBanner />
         </QueryProvider>
         <Analytics />
         <SpeedInsights />

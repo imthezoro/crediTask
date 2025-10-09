@@ -9,7 +9,6 @@ import { DeleteAccountButton, ChangePasswordButton } from '@/features/auth'
 import { getHeaderData } from '@/lib/header-utils'
 import Header from '@/components/Header'
 
-// User settings are personalized content
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
@@ -20,7 +19,6 @@ export default async function SettingsPage() {
     redirect('/auth/signin')
   }
   
-  // Get user profile with optimized query (select only needed fields)
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
     .select('plan, usage_count, is_active')

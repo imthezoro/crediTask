@@ -40,7 +40,7 @@ export async function GET(
     // Get user's prompt sessions
     const { data: sessions } = await admin
       .from('prompt_sessions')
-      .select('id, original_prompt, enhanced_prompt, site, created_at, status')
+      .select('id, original_prompt, base_enhanced_prompt, site, created_at, status')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(10)
