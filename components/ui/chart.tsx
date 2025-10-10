@@ -106,8 +106,8 @@ const ChartTooltipContent = React.forwardRef<
 
       const [item] = payload
       const key = `${labelKey || item.dataKey || item.name || 'value'}`
-      const itemConfig = config?.[key] || {}
-      const labelConfig = typeof label === 'string' ? (config?.[label] || {}) : undefined
+      const itemConfig = (config?.[key as keyof typeof config] || {}) as ChartConfigItem
+      const labelConfig = typeof label === 'string' ? ((config?.[label as keyof typeof config] || {}) as ChartConfigItem) : undefined
       const value =
         !labelKey && typeof label === 'string'
           ? labelConfig?.label || label
@@ -152,7 +152,7 @@ const ChartTooltipContent = React.forwardRef<
         <div className="grid gap-1.5">
           {payload.map((item, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || 'value'}`
-            const itemConfig = (config?.[key] || {}) as ChartConfigItem
+            const itemConfig = (config?.[key as keyof typeof config] || {}) as ChartConfigItem
             const itemPayload = item.payload as Record<string, unknown> | undefined
             const indicatorColor = color || itemPayload?.fill || item.color
 
@@ -244,7 +244,7 @@ const ChartLegendContent = React.forwardRef<
       >
         {payload.map((item) => {
           const key = `${nameKey || item.dataKey || 'value'}`
-          const itemConfig = (config?.[key] || {}) as ChartConfigItem
+          const itemConfig = (config?.[key as keyof typeof config] || {}) as ChartConfigItem
 
           return (
             <div
