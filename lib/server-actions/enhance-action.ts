@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import { ActionResult, ActionOptions, ActionContext } from './types'
 
@@ -8,7 +7,7 @@ const logger = createLogger({ prefix: 'ServerAction' })
  * Enhanced Server Action Wrapper
  * Provides validation, error handling, logging, and auth checks
  */
-export function enhanceAction<TInput = any, TOutput = any>(
+export function enhanceAction<TInput = unknown, TOutput = unknown>(
   options: ActionOptions<TInput, TOutput>
 ) {
   const actionLogger = logger.child(options.name)
@@ -121,7 +120,7 @@ async function getActionContext(): Promise<ActionContext> {
       isAdmin: false,
       requestId: generateRequestId(),
     }
-  } catch (error) {
+  } catch {
     return {
       requestId: generateRequestId(),
     }

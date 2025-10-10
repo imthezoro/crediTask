@@ -1,4 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from './logger'
 import { LogContext } from './types'
 

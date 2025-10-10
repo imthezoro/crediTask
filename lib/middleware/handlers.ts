@@ -41,7 +41,7 @@ export async function handleDashboardRoute(
   request: NextRequest,
   response: NextResponse,
   supabase: SupabaseClient,
-  user: any
+  user: { id: string } | null
 ): Promise<NextResponse | void> {
   if (!user) {
     const redirectResponse = NextResponse.redirect(new URL('/auth/signin', request.url))
@@ -92,7 +92,7 @@ export async function handleAuthRoute(
   request: NextRequest,
   response: NextResponse,
   supabase: SupabaseClient,
-  user: any
+  user: { id: string } | null
 ): Promise<NextResponse | void> {
   if (!user) {
     // Not authenticated - allow access to auth pages
@@ -131,7 +131,7 @@ export async function handleAdminRoute(
   request: NextRequest,
   response: NextResponse,
   supabase: SupabaseClient,
-  user: any
+  user: { id: string } | null
 ): Promise<NextResponse | void> {
   if (!user) {
     const redirectResponse = NextResponse.redirect(new URL('/auth/signin', request.url))

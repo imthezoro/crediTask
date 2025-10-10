@@ -14,7 +14,6 @@ export type CookieConsent = 'accepted' | 'rejected' | null
  * GDPR-compliant cookie consent banner
  */
 export function CookieBanner() {
-  const [consent, setConsent] = useState<CookieConsent>(null)
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -22,7 +21,6 @@ export function CookieBanner() {
     const savedConsent = localStorage.getItem(COOKIE_CONSENT_KEY)
     
     if (savedConsent === 'accepted' || savedConsent === 'rejected') {
-      setConsent(savedConsent as CookieConsent)
       setIsVisible(false)
     } else {
       // Show banner after short delay
@@ -35,7 +33,6 @@ export function CookieBanner() {
 
   const handleAccept = () => {
     localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted')
-    setConsent('accepted')
     setIsVisible(false)
     
     // Enable analytics if you have them
@@ -44,7 +41,6 @@ export function CookieBanner() {
 
   const handleReject = () => {
     localStorage.setItem(COOKIE_CONSENT_KEY, 'rejected')
-    setConsent('rejected')
     setIsVisible(false)
     
     // Disable analytics
@@ -71,7 +67,7 @@ export function CookieBanner() {
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                   We use essential cookies to ensure our website functions properly and to provide you with the best experience. 
-                  By clicking "Accept", you consent to our use of cookies for authentication and session management.
+                  By clicking &quot;Accept&quot;, you consent to our use of cookies for authentication and session management.
                   {' '}
                   <a 
                     href="/legal/privacy" 

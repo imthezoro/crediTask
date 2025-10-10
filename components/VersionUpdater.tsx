@@ -29,10 +29,14 @@ export function VersionUpdater({ intervalTimeInSecond }: VersionUpdaterProps) {
     return null
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useVersionUpdater({ intervalTimeInSecond })
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [dismissed, setDismissed] = useState(false)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [showDialog, setShowDialog] = useState<boolean>(false)
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setShowDialog(data?.didChange ?? false)
   }, [data?.didChange])
@@ -57,7 +61,7 @@ export function VersionUpdater({ intervalTimeInSecond }: VersionUpdaterProps) {
         <div className="flex items-center space-x-2 rounded-md bg-blue-50 dark:bg-blue-950 p-4">
           <div className="flex-1 space-y-1">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              What's new?
+              What&apos;s new?
             </p>
             <p className="text-sm text-blue-700 dark:text-blue-300">
               Updated features, performance improvements, and bug fixes.

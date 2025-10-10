@@ -33,7 +33,7 @@ export default function Error({
               Something Went Wrong
             </CardTitle>
             <CardDescription className="text-base">
-              We encountered an unexpected error. Don't worry, your data is safe.
+              We encountered an unexpected error. Don&apos;t worry, your data is safe.
             </CardDescription>
           </div>
         </CardHeader>

@@ -3,7 +3,7 @@
  * Demonstrates how to use the structured logger throughout the application
  */
 
-import { logger, createLogger, createApiLogger } from './index'
+import { logger, createLogger, createApiLogger, LogLevel } from './index'
 
 // ============================================
 // Example 1: Basic Logging
@@ -123,7 +123,7 @@ export function exampleCustomLogger() {
   // Development logger (verbose)
   const devLogger = createLogger({
     prefix: 'Dev',
-    minLevel: 'debug' as any,
+    minLevel: LogLevel.DEBUG,
     enableConsole: true,
     enableRemote: false,
   })
@@ -131,7 +131,7 @@ export function exampleCustomLogger() {
   // Production logger (quiet)
   const prodLogger = createLogger({
     prefix: 'Prod',
-    minLevel: 'warn' as any,
+    minLevel: LogLevel.WARN,
     enableConsole: true,
     enableRemote: true,
   })

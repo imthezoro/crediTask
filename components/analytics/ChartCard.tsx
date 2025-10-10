@@ -18,13 +18,12 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-import { TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ChartCardProps {
   title: string
   description?: string
-  data: any[]
+  data: Record<string, unknown>[]
   type: 'line' | 'bar' | 'area'
   xKey: string
   yKey: string

@@ -38,7 +38,7 @@ const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<'div'> & {
     config: ChartConfig
-    children: React.ReactElement<any, any>
+    children: React.ReactElement
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
@@ -150,14 +150,15 @@ const ChartTooltipContent = React.forwardRef<
       >
         {tooltipLabel}
         <div className="grid gap-1.5">
-          {payload.map((item: any, index: number) => {
+          {payload.map((item, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || 'value'}`
             const itemConfig = (config?.[key] || {}) as ChartConfigItem
-            const indicatorColor = color || item.payload.fill || item.color
+            const itemPayload = item.payload as Record<string, unknown> | undefined
+            const indicatorColor = color || itemPayload?.fill || item.color
 
             return (
               <div
-                key={item.dataKey}
+                key={String(item.dataKey)}
                 className={cn(
                   'flex w-full items-center gap-2 text-xs leading-none',
                   indicator === 'dot' && 'items-center'
@@ -191,12 +192,12 @@ const ChartTooltipContent = React.forwardRef<
                 >
                   <div className="grid gap-1.5">
                     <span className="text-muted-foreground">
-                      {itemConfig?.label || item.name}
+                      {itemConfig?.label || String(item.name || '')}
                     </span>
                   </div>
                   {item.value && (
                     <span className="font-mono font-medium tabular-nums text-foreground">
-                      {formatter ? formatter(item.value, item.name || '', item, index, item.payload) : item.value}
+                      {formatter ? formatter(item.value, String(item.name || ''), item, index, payload) : String(item.value)}
                     </span>
                   )}
                 </div>

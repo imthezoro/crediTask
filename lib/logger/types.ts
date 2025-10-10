@@ -19,7 +19,7 @@ export interface LogContext {
   statusCode?: number
   duration?: number
   error?: Error | unknown
-  [key: string]: any
+  [key: string]: unknown
 }
 
 /**

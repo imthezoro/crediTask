@@ -6,7 +6,7 @@
 'use server'
 
 import { z } from 'zod'
-import { enhanceAction, success, error, ActionResult } from './index'
+import { enhanceAction, success, error } from './index'
 
 // ============================================
 // Example 1: Simple Action (No Validation)
@@ -71,7 +71,7 @@ export const createPost = enhanceAction({
   auth: {
     required: true,
   },
-  handler: async (input) => {
+  handler: async () => {
     // Only authenticated users can reach this code
     // await db.createPost(input)
     
@@ -98,7 +98,7 @@ export const deleteUser = enhanceAction({
     required: true,
     adminOnly: true,
   },
-  handler: async (input) => {
+  handler: async () => {
     // Only admins can reach this code
     // await adminService.deleteUser(input.userId, input.reason)
     
@@ -121,7 +121,7 @@ const sendEmailSchema = z.object({
 export const sendEmail = enhanceAction({
   name: 'send-email',
   schema: sendEmailSchema,
-  handler: async (input) => {
+  handler: async () => {
     try {
       // await emailService.send(input)
       return success({ messageId: 'msg-123' })

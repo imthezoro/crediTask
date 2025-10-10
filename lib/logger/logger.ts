@@ -71,11 +71,12 @@ export class Logger {
   /**
    * Log to remote service (placeholder for future implementation)
    */
-  private async logToRemote(entry: LogEntry): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async logToRemote(_entry: LogEntry): Promise<void> {
     if (!this.enableRemote) return
 
     // TODO: Implement remote logging (e.g., to logging service, database, etc.)
-    // Example: await fetch('/api/logs', { method: 'POST', body: JSON.stringify(entry) })
+    // Example: await fetch('/api/logs', { method: 'POST', body: JSON.stringify(_entry) })
   }
 
   /**

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateCorrelationId, setCorrelationIdHeader } from './correlation-id'
+import { generateCorrelationId } from './correlation-id'
 
 /**
  * Middleware to add correlation ID to requests

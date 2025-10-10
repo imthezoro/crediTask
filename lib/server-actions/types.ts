@@ -4,7 +4,7 @@ import { z } from 'zod'
  * Server Action Result
  * Consistent return type for all server actions
  */
-export type ActionResult<T = any> = {
+export type ActionResult<T = unknown> = {
   success: boolean
   data?: T
   error?: string
@@ -15,7 +15,7 @@ export type ActionResult<T = any> = {
  * Server Action Handler
  * Function signature for server action logic
  */
-export type ActionHandler<TInput = any, TOutput = any> = (
+export type ActionHandler<TInput = unknown, TOutput = unknown> = (
   input: TInput
 ) => Promise<TOutput>
 
@@ -23,7 +23,7 @@ export type ActionHandler<TInput = any, TOutput = any> = (
  * Action Options
  * Configuration for enhanced server actions
  */
-export interface ActionOptions<TInput = any, TOutput = any> {
+export interface ActionOptions<TInput = unknown, TOutput = unknown> {
   name: string
   schema?: z.ZodSchema<TInput>
   handler: ActionHandler<TInput, TOutput>
